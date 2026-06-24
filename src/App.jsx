@@ -123,7 +123,7 @@ export default function App() {
       try {
         const response = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'solicitarAcceso', payload: { name: regName, email, phone: regPhone, role: regRole } }) });
         const result = await response.json();
-        if (result.status === 'success') { setMode('LOGIN'); alert("Solicitud enviada exitosamente."); } 
+        if (result.status === 'success') { setMode('LOGIN'); showToast("Solicitud enviada exitosamente."); } 
         else setError(result.message);
       } catch (err) { setError('Error de red al enviar la solicitud.'); }
       setLoading(false);
@@ -133,7 +133,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
         <div className="mb-8 text-center animate-fade-in">
           <Music className="text-emerald-500 mx-auto mb-4" size={48} />
-          <h1 className="text-4xl font-black text-white tracking-wider">ESQUEMAS</h1>
+          <h1 className="text-4xl font-black text-white tracking-wider">ESQUEMAPPS</h1>
           <p className="text-slate-400 mt-2 tracking-widest text-sm uppercase font-bold">Production Management</p>
         </div>
         <Card className="w-full max-w-md p-8 animate-slide-up">
@@ -532,6 +532,7 @@ export default function App() {
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
     const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
     const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
 
@@ -574,11 +575,10 @@ export default function App() {
     };
 
     const handleDeleteEvent = async (id) => {
-      if(!window.confirm("¿Seguro que deseas eliminar este evento del Timing?")) return;
       setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'deleteEvento', payload: { id } }) });
-        showToast("Evento eliminado."); fetchEvents();
+        showToast("Evento eliminado."); setConfirmDeleteId(null); fetchEvents();
       } catch(e) { showToast("Error al eliminar."); setLoading(false); }
     };
 
@@ -653,9 +653,18 @@ export default function App() {
               return (
                 <div key={event.id} className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
                   {canCreate && (
-                    <button onClick={() => handleDeleteEvent(event.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Trash2 size={18} />
-                    </button>
+                    <div className="absolute top-4 right-4 flex gap-2 z-10">
+                      {confirmDeleteId === event.id ? (
+                        <div className="flex bg-slate-900 border border-slate-700 rounded overflow-hidden shadow-lg animate-fade-in">
+                          <button onClick={() => setConfirmDeleteId(null)} className="text-[10px] font-bold text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 transition-colors">Cancelar</button>
+                          <button onClick={() => handleDeleteEvent(event.id)} className="text-[10px] font-bold text-white bg-red-600 hover:bg-red-500 px-3 py-1.5 transition-colors">Confirmar Borrado</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteId(event.id)} className="text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-slate-900 rounded-md border border-slate-800 shadow">
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                   )}
                   <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                     <div className="flex-1">
@@ -720,7 +729,7 @@ export default function App() {
           method: 'POST', body: JSON.stringify({ action: 'aprobarUsuario', payload: { email } })
         });
         const json = await res.json();
-        if (json.status === 'success') { showToast("Usuario aprobado. Clave enviada por correo."); fetchUsers(); } 
+        if (json.status === 'success') { showToast("Usuario aprobado. Clave temporal enviada por correo."); fetchUsers(); } 
         else { showToast("Error: " + json.message); }
       } catch(e) { showToast("Error de conexión al aprobar."); }
       setProcessingId(null);
@@ -1061,7 +1070,7 @@ export default function App() {
       {toastMessage && <div className="fixed top-4 right-4 z-[100] bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 animate-fade-in"><CheckCircle2 size={20} /><span className="font-bold text-sm">{toastMessage}</span></div>}
 
       <aside className="bg-slate-900 border-r border-slate-800 w-64 shrink-0 hidden md:flex flex-col h-screen sticky top-0">
-        <div className="p-5 flex items-center gap-3 border-b border-slate-800"><Music className="text-emerald-500" size={24} /><h1 className="text-xl font-black text-white tracking-widest">ESQUEMAS</h1></div>
+        <div className="p-5 flex items-center gap-3 border-b border-slate-800"><Music className="text-emerald-500" size={24} /><h1 className="text-xl font-black text-white tracking-widest">ESQUEMAPPS</h1></div>
         <div className="p-4 flex-1 space-y-2 overflow-y-auto">
           {menuOptions.map(opt => (
             <button key={opt.id} onClick={() => setCurrentView(opt.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-bold transition-colors text-left ${currentView === opt.id ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white border border-transparent'}`}><opt.icon size={20} />{opt.label}</button>
