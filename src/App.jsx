@@ -6,7 +6,7 @@ import {
   UserCheck, Edit3, X, Key, AlertCircle, Loader2,
   Phone, Mail, CheckCheck, Send, Timer, Hourglass,
   Shield, CalendarPlus, FileText, Mic2, Lightbulb, Map as MapIcon, Save,
-  Trash2, FolderPlus
+  Trash2, FolderPlus, Map
 } from 'lucide-react';
 
 const ROLES = {
@@ -18,7 +18,6 @@ const ROLES = {
   APV: 'APV/CATERING'
 };
 
-// --- COMPONENTES REUTILIZABLES ---
 const Card = ({ children, className = '', onClick }) => (
   <div onClick={onClick} className={`bg-slate-800 rounded-xl border border-slate-700 shadow-lg overflow-hidden ${onClick ? 'cursor-pointer hover:border-emerald-500 transition-colors' : ''} ${className}`}>
     {children}
@@ -44,6 +43,8 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
 
 const openWhatsApp = (phone) => window.open(`https://wa.me/${phone.replace('+', '')}`, '_blank');
 const openEmail = (email) => window.open(`mailto:${email}`, '_blank');
+const openWaze = (address) => window.open(`https://waze.com/ul?q=${encodeURIComponent(address)}`, '_blank');
+const openGoogleMaps = (address) => window.open(`https://maps.google.com/?q=${encodeURIComponent(address)}`, '_blank');
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -52,36 +53,37 @@ export default function App() {
   
   const showToast = (message) => {
     setToastMessage(message);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   const getMenuOptions = () => {
     if (!currentUser) return [];
     
-    // Si es conductor, solo ve su ruta
     if (currentUser.role === 'CONDUCTOR') {
       return [{ id: 'CONDUCTOR_VIEW', label: 'Mi Ruta', icon: Truck }, { id: 'LOGOUT', label: 'Salir', icon: LogOut }];
     }
 
     const r = currentUser.role;
-    const chat = { id: 'CHAT', label: 'Mensajes', icon: MessageSquare };
-    const time = { id: 'TIMING', label: 'Timing', icon: Clock };
-    const dir = { id: 'STAFF', label: 'Directorio', icon: Users };
-    const transport = { id: 'TRANSPORT', label: 'Transportes', icon: Truck };
+    const proyectos = { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation };
+    const timing = { id: 'TIMING', label: 'Timing', icon: Clock };
     const riders = { id: 'RIDERS', label: 'Riders Técnicos', icon: FileText };
+    const transport = { id: 'TRANSPORT', label: 'Transportes', icon: Truck };
+    const chat = { id: 'CHAT', label: 'Mensajes', icon: MessageSquare };
+    const dir = { id: 'STAFF', label: 'Directorio', icon: Users };
     const admin = { id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck };
     const profile = { id: 'PROFILE', label: 'Mi Perfil', icon: User };
     
-    // Configuración de visualización de menú según roles
-    if (r === ROLES.ADMIN) return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, admin, time, transport, riders, chat, dir, profile ];
-    if (r === ROLES.MANAGER) return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, time, transport, riders, chat, dir, profile ];
-    if (r === ROLES.TOUR_MANAGER) return [ { id: 'DASHBOARD', label: 'Giras', icon: Music }, time, transport, riders, chat, dir, profile ];
+    // ORDENAMIENTO ESTRICTO POR ROLES SEGÚN REQUERIMIENTO
+    if (r === ROLES.ADMIN) return [ proyectos, timing, riders, transport, chat, dir, admin, profile ];
+    if (r === ROLES.MANAGER) return [ proyectos, timing, riders, transport, chat, dir, profile ];
+    if (r === ROLES.TOUR_MANAGER) return [ proyectos, timing, riders, transport, chat, dir, profile ];
+    if (r === ROLES.TECH) return [ proyectos, timing, riders, transport, chat, dir, profile ];
+    if (r === ROLES.TRASLADO) return [ proyectos, timing, riders, transport, chat, dir, profile ];
+    if (r === ROLES.APV) return [ proyectos, timing, transport, chat, dir, profile ];
     
-    // Técnicos, APV y Traslados SIEMPRE ven transportes
-    return [ { id: 'DASHBOARD', label: 'Mis Shows', icon: Calendar }, time, transport, chat, dir, profile ];
+    return [ proyectos, timing, transport, chat, dir, profile ];
   };
 
-  // --- 1. AUTENTICACIÓN ---
   const AuthRouter = () => {
     const [mode, setMode] = useState('LOGIN'); 
     const [email, setEmail] = useState(''); 
@@ -181,7 +183,6 @@ export default function App() {
     );
   };
 
-  // --- 2. VISTA EXCLUSIVA CONDUCTOR ---
   const ConductorView = () => {
     const r = currentUser.routeInfo;
     const [status, setStatus] = useState(r.status);
@@ -197,15 +198,31 @@ export default function App() {
     };
 
     return (
-      <div className="max-w-md mx-auto space-y-6 pt-10 px-4">
+      <div className="max-w-md mx-auto space-y-6 pt-10 px-4 pb-24">
         <div className="text-center mb-8"><Truck className="mx-auto text-blue-500 mb-4" size={56} /><h1 className="text-3xl font-black text-white">Panel de Ruta</h1><p className="text-slate-400">Token: <span className="text-blue-400 font-mono font-bold">{r.token}</span></p></div>
         <Card className="p-6 border-blue-500/30 text-center space-y-4">
           <h2 className="text-xl font-bold text-white">{r.title}</h2>
           <div className="bg-slate-900 p-4 rounded-lg flex flex-col gap-2 text-sm text-slate-300">
              <div className="flex justify-between border-b border-slate-700 pb-2"><span>Fecha:</span><span className="font-bold text-white">{r.date}</span></div>
              <div className="flex justify-between border-b border-slate-700 pb-2"><span>Hora Pick-Up:</span><span className="font-bold text-blue-400">{r.time}</span></div>
-             <div className="flex flex-col text-left pt-2"><span className="text-xs text-slate-500">Origen</span><span className="font-bold text-white">{r.origin}</span></div>
-             <div className="flex flex-col text-left pt-2"><span className="text-xs text-slate-500">Destino</span><span className="font-bold text-white">{r.dest}</span></div>
+             
+             <div className="flex flex-col text-left pt-2 pb-2 border-b border-slate-700">
+                <span className="text-xs text-slate-500">Origen</span>
+                <span className="font-bold text-white mb-2">{r.origin}</span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => openWaze(r.origin)} className="flex-1 py-1.5 text-xs bg-slate-800" icon={MapIcon}>Ir con Waze</Button>
+                  <Button variant="secondary" onClick={() => openGoogleMaps(r.origin)} className="flex-1 py-1.5 text-xs bg-slate-800" icon={MapPin}>Google Maps</Button>
+                </div>
+             </div>
+             
+             <div className="flex flex-col text-left pt-2">
+                <span className="text-xs text-slate-500">Destino</span>
+                <span className="font-bold text-white mb-2">{r.dest}</span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => openWaze(r.dest)} className="flex-1 py-1.5 text-xs bg-slate-800" icon={MapIcon}>Ir con Waze</Button>
+                  <Button variant="secondary" onClick={() => openGoogleMaps(r.dest)} className="flex-1 py-1.5 text-xs bg-slate-800" icon={MapPin}>Google Maps</Button>
+                </div>
+             </div>
           </div>
           <div className="pt-6 space-y-3">
              <Button variant={status === 'LLEGUE' ? 'ghost' : 'blue'} className="w-full py-4 text-lg" disabled={loading || status !== 'PENDING'} onClick={() => updateStatus('LLEGUE')}>{status === 'LLEGUE' ? '✓ Ya marcaste Llegada' : 'Llegué al Punto (Esperando)'}</Button>
@@ -217,14 +234,15 @@ export default function App() {
     );
   };
 
-  // --- 3. MÓDULO DE TRANSPORTE (ADMIN/CREW) ---
   const TransportView = () => {
     const [transports, setTransports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [form, setForm] = useState({ title: '', date: '', time: '', origin: '', dest: '' });
-    const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+    
+    // TRASLADO TIENE PERMISOS DE ADMIN PARA RUTAS (Según requerimiento)
+    const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role);
 
     const fetchTransports = async () => {
       setLoading(true);
@@ -244,18 +262,18 @@ export default function App() {
       e.preventDefault(); setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createTransporte', payload: form }) });
-        showToast("Ruta creada. Token generado."); setIsCreating(false); fetchTransports();
+        showToast("Ruta guardada en BD. Token generado."); setIsCreating(false); fetchTransports();
       } catch(e) { showToast("Error al crear ruta."); setLoading(false); }
     };
 
     return (
       <div className="space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto">
         <header className="border-b border-slate-800 pb-4 flex justify-between items-end">
-          <div><h1 className="text-2xl font-black text-white flex items-center gap-3"><Truck className="text-emerald-500" size={28}/> Logística de Transportes</h1><p className="text-sm text-slate-400 mt-1">Gestión de Pick-ups y traslados.</p></div>
+          <div><h1 className="text-2xl font-black text-white flex items-center gap-3"><Truck className="text-emerald-500" size={28}/> Logística de Transportes</h1><p className="text-sm text-slate-400 mt-1">{canCreate ? 'Gestión de Pick-ups y generación de tokens.' : 'Avisos en tiempo real de tu conductor.'}</p></div>
           {canCreate && !isCreating && <Button icon={Plus} onClick={() => setIsCreating(true)}>Nueva Ruta</Button>}
         </header>
 
-        {isCreating && (
+        {isCreating && canCreate && (
           <Card className="p-6 border-emerald-500 mb-6">
             <h2 className="text-lg font-bold text-white mb-4">Crear Nueva Ruta (Generar Token)</h2>
             <form onSubmit={handleCreate} className="space-y-4">
@@ -268,7 +286,7 @@ export default function App() {
                 <div><label className="text-xs text-slate-400 block mb-1">Origen (Hotel/Aeropuerto)</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" onChange={e=>setForm({...form, origin: e.target.value})} /></div>
                 <div><label className="text-xs text-slate-400 block mb-1">Destino (Venue)</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" onChange={e=>setForm({...form, dest: e.target.value})} /></div>
               </div>
-              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Ruta</Button></div>
+              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Ruta en BD</Button></div>
             </form>
           </Card>
         )}
@@ -308,7 +326,6 @@ export default function App() {
     );
   };
 
-  // --- 4. MÓDULO RIDERS TÉCNICOS ---
   const RidersView = () => {
     const [riders, setRiders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -332,9 +349,9 @@ export default function App() {
     useEffect(() => { fetchRiders(); }, []);
 
     const loadTemplate = (type) => {
-      if (type === 'SONIDO') return "=========================================\nRIDER TÉCNICO - SONIDO\n=========================================\n\n1. SISTEMA DE AUDIO (FOH)\n- Sistema Line Array capaz de 110 dB SPL en FOH (40Hz - 20kHz).\n- Consola FOH: DiGiCo (SD10/Quantum) o A&H dLive (NO Presonus/X32).\n- Procesador de Sistema: Lake LM 26 (Ubicado en FOH).\n- Front Fills obligatorios.\n\n2. MONITORES\n- Consola Mon: DiGiCo o Avid S6L. (Min 32 Outputs). Ubicada en Stage Left.\n- 07 Transmisores IEM (Shure P10T) y 18 Receptores (P10R+).\n- RF: 04 Sistemas Inalámbricos Inst. / 06 Micrófonos de Mano (Shure Axient/ULXD).\n- Coordinación de RF obligatoria. Pilas nuevas.\n\n3. BACKLINE BÁSICO\n- Batería: Yamaha (Absolute/Recording). Toms 10,12,16, Bombo 22.\n- Piano: Korg Kronos 73 o Yamaha Motif XF88.\n- Percusión: Congas/Bongó LP (No series básicas).\n- 11 Atriles de partitura.\n\n4. INPUT LIST (Resumen)\nCH 01 - Kick In (Beta 91)\nCH 02 - Kick Out (Beta 52)\nCH 03 - Snare Top (Beta 57)\n...\nCH 32 - Voz Principal (Axient SE V7)\n\n5. ESCENARIO Y TARIMAS\n- 03 Tarimas de 2.50 x 2.50 x 0.40m (Batería, Coros, Percusión).\n- Escenario mínimo 15x10m.\n- 2 Stagehands obligatorios.";
-      if (type === 'ILUMINACIÓN') return "=========================================\nRIDER DE ILUMINACIÓN Y VISUALES\n=========================================\n\n1. CONSOLA\n- GrandMA2 o GrandMA3 (Full Size o Light).\n\n2. PANTALLA LED\n- 1 Pantalla Central de 6 mts x 4 mts (P3.9).\n- Procesador de pantalla independiente (NO tarjetas directas a pantalla).\n- Conexión HDMI disponible en control central.\n\n3. EFECTOS ESPECIALES (SFX)\n- 02 Confetti Estadio (1 tiro) color blanco/rojo.\n- 06 Sparkular (Larga duración).\n- 02 Streamers (2 tiros por máquina).\n- Control SFX ubicado en Stage Right.";
-      if (type === 'STAGEPLOT') return "=========================================\nSTAGEPLOT & REQUERIMIENTOS DE ESCENARIO\n=========================================\n\n1. DIMENSIONES\n- Ancho mínimo libre: 15 metros.\n- Fondo mínimo: 10 metros.\n- Altura mínima escenario a techo: 12 metros.\n\n2. ÁREAS DE TRABAJO\n- Área para Monitores: 4x4 metros fuera del escenario (Stage Left).\n- Áreas laterales: 3x3 metros a cada lado.\n\n3. ENERGÍA\n- 4 Salidas de potencia 220 VAC separadas.\n- Cada salida con un multicontacto de 4 puntos mínimo.\n\n4. OBSERVACIONES\n- Superficie limpia, cubierta por alfombra negra o pintada.\n- Acceso mediante rampa y escalera.";
+      if (type === 'SONIDO') return "=========================================\nRIDER TÉCNICO - SONIDO\n=========================================\n\n1. SISTEMA DE AUDIO (FOH)\n- Sistema Line Array capaz de 110 dB SPL en FOH (40Hz - 20kHz).\n- Consola FOH: DiGiCo (SD10/Quantum) o A&H dLive.\n- Procesador de Sistema: Lake LM 26.\n\n2. MONITORES\n- Consola Mon: DiGiCo o Avid S6L.\n- 07 Transmisores IEM (Shure P10T) y 18 Receptores.\n\n3. BACKLINE BÁSICO\n- Batería: Yamaha (Absolute/Recording).\n- Piano: Korg Kronos 73.\n\n4. INPUT LIST (Resumen)\nCH 01 - Kick In (Beta 91)\nCH 32 - Voz Principal (Axient SE V7)";
+      if (type === 'ILUMINACIÓN') return "=========================================\nRIDER DE ILUMINACIÓN Y VISUALES\n=========================================\n\n1. CONSOLA\n- GrandMA2 o GrandMA3 (Full Size o Light).\n\n2. PANTALLA LED\n- 1 Pantalla Central de 6 mts x 4 mts (P3.9).\n\n3. EFECTOS ESPECIALES (SFX)\n- 02 Confetti Estadio (1 tiro) color blanco/rojo.\n- 06 Sparkular (Larga duración).";
+      if (type === 'STAGEPLOT') return "=========================================\nSTAGEPLOT & REQUERIMIENTOS DE ESCENARIO\n=========================================\n\n1. DIMENSIONES\n- Ancho mínimo libre: 15 metros.\n- Fondo mínimo: 10 metros.\n\n2. ÁREAS DE TRABAJO\n- Área para Monitores: 4x4 metros.\n\n3. ENERGÍA\n- 4 Salidas de potencia 220 VAC separadas.";
       return "";
     };
 
@@ -350,9 +367,16 @@ export default function App() {
       e.preventDefault(); setLoading(true);
       try {
         const action = form.id ? 'updateRider' : 'createRider';
-        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action, payload: form }) });
-        showToast("Rider guardado correctamente."); setIsEditing(false); fetchRiders();
-      } catch(e) { showToast("Error al guardar rider."); setLoading(false); }
+        const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action, payload: form }) });
+        const json = await res.json();
+        
+        if (json.status === 'success') {
+           showToast("Rider guardado correctamente en la BD."); setIsEditing(false); fetchRiders();
+        } else {
+           showToast("Error de Base de Datos: " + json.message);
+        }
+      } catch(e) { showToast("Error de conexión al guardar rider."); }
+      setLoading(false);
     };
 
     const openEditor = (rider = null) => {
@@ -389,7 +413,7 @@ export default function App() {
                 <label className="text-xs text-slate-400 block mb-1">Contenido Técnico (Editable)</label>
                 <textarea required className="w-full bg-slate-900 border-slate-700 rounded p-4 text-emerald-400 font-mono text-sm min-h-[400px] leading-relaxed focus:border-emerald-500 focus:outline-none" value={form.content} onChange={e=>setForm({...form, content: e.target.value})} />
               </div>
-              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsEditing(false)}>Cancelar</Button><Button type="submit" className="flex-1" icon={Save}>Guardar Documento</Button></div>
+              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsEditing(false)}>Cancelar</Button><Button type="submit" className="flex-1" icon={Save}>Guardar en BD</Button></div>
             </form>
           </Card>
         ) : fetchError ? (
@@ -420,7 +444,6 @@ export default function App() {
     );
   };
 
-  // --- 5. DIRECTORIO STAFF ---
   const StaffDirectory = () => {
     const [directory, setDirectory] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -433,9 +456,21 @@ export default function App() {
           const json = await res.json();
           if (json.status === 'success') {
             const activeUsers = json.data.filter(u => u.status === 'ACTIVO' && u.email !== currentUser.email);
-            const canSeeEveryone = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
-            if (canSeeEveryone) setDirectory(activeUsers);
-            else setDirectory(activeUsers.filter(u => u.role === ROLES.TOUR_MANAGER));
+            
+            // LÓGICA DE FILTRADO REQUERIDA POR EL USUARIO
+            let visibleUsers = activeUsers;
+            const r = currentUser.role;
+
+            if (r === ROLES.TECH || r === ROLES.TRASLADO) {
+               // Solo ven Tour Managers
+               visibleUsers = activeUsers.filter(u => u.role === ROLES.TOUR_MANAGER);
+            } else if (r === ROLES.APV) {
+               // Solo ven Managers y Tour Managers
+               visibleUsers = activeUsers.filter(u => u.role === ROLES.MANAGER || u.role === ROLES.TOUR_MANAGER);
+            }
+            // ADMIN, MANAGER, TOUR_MANAGER ven a todos.
+            
+            setDirectory(visibleUsers);
           }
         } catch(e) {
           setFetchError(true);
@@ -443,13 +478,13 @@ export default function App() {
         setLoading(false);
       };
       fetchDirectory();
-    }, []);
+    }, [currentUser.role, currentUser.email]);
 
     return (
       <div className="space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto">
         <header className="border-b border-slate-800 pb-4">
           <h1 className="text-2xl font-black text-white flex items-center gap-3"><Users className="text-emerald-500" size={28} /> Directorio del Crew</h1>
-          <p className="text-sm text-slate-400 mt-1">{[ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) ? 'Lista completa del personal activo.' : 'Contactos de emergencia y Tour Managers asignados.'}</p>
+          <p className="text-sm text-slate-400 mt-1">Personal autorizado visible para tu nivel de acceso.</p>
         </header>
         
         {fetchError && (
@@ -467,14 +502,13 @@ export default function App() {
                 <div className="flex flex-row gap-2 mt-auto border-t border-slate-700 pt-4"><Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700" icon={Mail} onClick={() => openEmail(user.email)}>Correo</Button><Button variant="primary" className="flex-1" icon={MessageSquare} onClick={() => openWhatsApp(user.phone)}>WhatsApp</Button></div>
               </Card>
             ))}
-            {!fetchError && directory.length === 0 && ( <div className="col-span-full text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No se encontraron contactos asignados.</div> )}
+            {!fetchError && directory.length === 0 && ( <div className="col-span-full text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No tienes contactos asignados para visualizar.</div> )}
           </div>
         )}
       </div>
     );
   };
 
-  // --- 6. MENSAJES CHAT ---
   const ChatView = () => {
     const [messages, setMessages] = useState([
       { id: 1, sender: 'Producción Central', role: ROLES.ADMIN, text: 'Bienvenidos al canal de comunicación oficial. Por favor confirmen recepción de los mensajes importantes.', time: '09:00 AM', readBy: [] }
@@ -525,7 +559,6 @@ export default function App() {
     );
   };
 
-  // --- 7. TIMING (HORARIOS Y EVENTOS) ---
   const TimingView = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [events, setEvents] = useState([]);
@@ -570,7 +603,7 @@ export default function App() {
       e.preventDefault(); setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createEvento', payload: form }) });
-        showToast("Evento agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchEvents();
+        showToast("Evento guardado en BD. Ve a la sección 'Proyectos' si deseas enlazarlo (Próximamente)."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchEvents();
       } catch(e) { showToast("Error al crear evento."); setLoading(false); }
     };
 
@@ -627,7 +660,7 @@ export default function App() {
                 <div><label className="text-xs text-slate-400 block mb-1">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" onChange={e=>setForm({...form, date: e.target.value})} /></div>
                 <div><label className="text-xs text-slate-400 block mb-1">Hora</label><input required type="time" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" onChange={e=>setForm({...form, time: e.target.value})} /></div>
               </div>
-              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Evento</Button></div>
+              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Evento en BD</Button></div>
             </form>
           </Card>
         )}
@@ -693,7 +726,6 @@ export default function App() {
     );
   };
 
-  // --- 8. PANEL DE ADMINISTRADOR ---
   const AdminPanel = () => {
     const [dbUsers, setDbUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -824,7 +856,6 @@ export default function App() {
     );
   };
 
-  // --- 9. MI PERFIL ---
   const ProfileView = () => {
     const [pPhone, setPPhone] = useState(currentUser.phone || '');
     const [pTalla, setPTalla] = useState(currentUser.talla || 'M');
@@ -929,7 +960,6 @@ export default function App() {
     );
   };
 
-  // --- 10. DASHBOARD PRINCIPAL (MÓDULO DE PROYECTOS) ---
   const Dashboard = () => {
     const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
     const [proyectos, setProyectos] = useState([]);
@@ -958,7 +988,7 @@ export default function App() {
       try {
         const payload = { ...form, manager: currentUser.name };
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createProyecto', payload }) });
-        showToast("Proyecto creado exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
+        showToast("Proyecto guardado en Base de Datos exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
       } catch(e) { showToast("Error al crear proyecto."); setLoading(false); }
     };
 
@@ -1007,7 +1037,7 @@ export default function App() {
         )}
 
         <div>
-          <h2 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2"><Navigation size={20}/> Proyectos Activos</h2>
+          <h2 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2"><Navigation size={20}/> Proyectos Asignados / Activos</h2>
           {fetchError ? (
              <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3">
                <AlertCircle size={20} /> Error de conexión al cargar proyectos.
@@ -1015,7 +1045,7 @@ export default function App() {
           ) : loading ? (
              <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
           ) : proyectos.length === 0 ? (
-            <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay proyectos activos registrados.</div>
+            <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No tienes proyectos activos asignados en este momento.</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {proyectos.map(proyecto => (
@@ -1047,7 +1077,6 @@ export default function App() {
     );
   };
 
-  // --- RENDERIZADO PRINCIPAL ---
   if (!currentUser) return <AuthRouter />;
   
   if (currentUser.role === 'CONDUCTOR') {
