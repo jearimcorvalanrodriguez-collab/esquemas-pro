@@ -5,7 +5,8 @@ import {
   Navigation, User, Settings, ShieldCheck, UserPlus, 
   UserCheck, Edit3, X, Key, AlertCircle, Loader2,
   Phone, Mail, CheckCheck, Send, Timer, Hourglass,
-  Shield, CalendarPlus, FileText, Mic2, Lightbulb, Map as MapIcon, Save
+  Shield, CalendarPlus, FileText, Mic2, Lightbulb, Map as MapIcon, Save,
+  Trash2, FolderPlus
 } from 'lucide-react';
 
 const ROLES = {
@@ -297,7 +298,7 @@ export default function App() {
     );
   };
 
-  // --- 4. MÓDULO RIDERS TÉCNICOS CON PLANTILLAS ---
+  // --- 4. MÓDULO RIDERS TÉCNICOS ---
   const RidersView = () => {
     const [riders, setRiders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -316,7 +317,6 @@ export default function App() {
     };
     useEffect(() => { fetchRiders(); }, []);
 
-    // Plantillas Inteligentes según el tipo seleccionado
     const loadTemplate = (type) => {
       if (type === 'SONIDO') return "=========================================\nRIDER TÉCNICO - SONIDO\n=========================================\n\n1. SISTEMA DE AUDIO (FOH)\n- Sistema Line Array capaz de 110 dB SPL en FOH (40Hz - 20kHz).\n- Consola FOH: DiGiCo (SD10/Quantum) o A&H dLive (NO Presonus/X32).\n- Procesador de Sistema: Lake LM 26 (Ubicado en FOH).\n- Front Fills obligatorios.\n\n2. MONITORES\n- Consola Mon: DiGiCo o Avid S6L. (Min 32 Outputs). Ubicada en Stage Left.\n- 07 Transmisores IEM (Shure P10T) y 18 Receptores (P10R+).\n- RF: 04 Sistemas Inalámbricos Inst. / 06 Micrófonos de Mano (Shure Axient/ULXD).\n- Coordinación de RF obligatoria. Pilas nuevas.\n\n3. BACKLINE BÁSICO\n- Batería: Yamaha (Absolute/Recording). Toms 10,12,16, Bombo 22.\n- Piano: Korg Kronos 73 o Yamaha Motif XF88.\n- Percusión: Congas/Bongó LP (No series básicas).\n- 11 Atriles de partitura.\n\n4. INPUT LIST (Resumen)\nCH 01 - Kick In (Beta 91)\nCH 02 - Kick Out (Beta 52)\nCH 03 - Snare Top (Beta 57)\n...\nCH 32 - Voz Principal (Axient SE V7)\n\n5. ESCENARIO Y TARIMAS\n- 03 Tarimas de 2.50 x 2.50 x 0.40m (Batería, Coros, Percusión).\n- Escenario mínimo 15x10m.\n- 2 Stagehands obligatorios.";
       if (type === 'ILUMINACIÓN') return "=========================================\nRIDER DE ILUMINACIÓN Y VISUALES\n=========================================\n\n1. CONSOLA\n- GrandMA2 o GrandMA3 (Full Size o Light).\n\n2. PANTALLA LED\n- 1 Pantalla Central de 6 mts x 4 mts (P3.9).\n- Procesador de pantalla independiente (NO tarjetas directas a pantalla).\n- Conexión HDMI disponible en control central.\n\n3. EFECTOS ESPECIALES (SFX)\n- 02 Confetti Estadio (1 tiro) color blanco/rojo.\n- 06 Sparkular (Larga duración).\n- 02 Streamers (2 tiros por máquina).\n- Control SFX ubicado en Stage Right.";
@@ -327,7 +327,6 @@ export default function App() {
     const handleTypeChange = (e) => {
       const newType = e.target.value;
       setForm(prev => {
-        // Solo sobrescribe con la plantilla si el contenido está vacío o es una plantilla existente
         const currentIsTemplate = Object.values(['SONIDO', 'ILUMINACIÓN', 'STAGEPLOT']).some(t => prev.content === loadTemplate(t));
         return { ...prev, type: newType, content: (prev.content === '' || currentIsTemplate) ? loadTemplate(newType) : prev.content };
       });
@@ -364,7 +363,7 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><label className="text-xs text-slate-400 block mb-1">Título del Documento</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} /></div>
                 <div>
-                  <label className="text-xs text-slate-400 block mb-1">Área / Tipo (Carga plantilla automática)</label>
+                  <label className="text-xs text-slate-400 block mb-1">Área / Tipo</label>
                   <select className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white font-bold" value={form.type} onChange={handleTypeChange}>
                     <option value="SONIDO">SONIDO (PA, Monitores, Backline)</option>
                     <option value="ILUMINACIÓN">ILUMINACIÓN (Luces, SFX, Pantallas)</option>
@@ -498,40 +497,58 @@ export default function App() {
     );
   };
 
-  // --- 7. TIMING (HORARIOS) ---
+  // --- 7. TIMING (HORARIOS Y EVENTOS) ---
   const TimingView = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isCreating, setIsCreating] = useState(false);
+    const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
+    const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
 
     useEffect(() => {
       const timer = setInterval(() => setCurrentTime(new Date()), 1000);
       return () => clearInterval(timer);
     }, []);
 
-    useEffect(() => {
-      const fetchEvents = async () => {
-        try {
-          const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getEventos' }) });
-          const json = await res.json();
-          if (json.status === 'success') {
-            const parsedEvents = json.data.map(ev => {
-              const dateObj = new Date(`${ev.date}T${ev.time}:00`);
-              return { ...ev, fullDate: isNaN(dateObj.getTime()) ? null : dateObj };
-            });
-            setEvents(parsedEvents.filter(e => e.fullDate !== null).sort((a,b) => a.fullDate - b.fullDate));
-          }
-        } catch (error) {}
-        setLoading(false);
-      };
-      fetchEvents();
-    }, []);
+    const fetchEvents = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getEventos' }) });
+        const json = await res.json();
+        if (json.status === 'success') {
+          const parsedEvents = json.data.map(ev => {
+            const dateObj = new Date(`${ev.date}T${ev.time}:00`);
+            return { ...ev, fullDate: isNaN(dateObj.getTime()) ? null : dateObj };
+          });
+          setEvents(parsedEvents.filter(e => e.fullDate !== null).sort((a,b) => a.fullDate - b.fullDate));
+        }
+      } catch (error) {}
+      setLoading(false);
+    };
+
+    useEffect(() => { fetchEvents(); }, []);
+
+    const handleCreateEvent = async (e) => {
+      e.preventDefault(); setLoading(true);
+      try {
+        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createEvento', payload: form }) });
+        showToast("Evento agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchEvents();
+      } catch(e) { showToast("Error al crear evento."); setLoading(false); }
+    };
+
+    const handleDeleteEvent = async (id) => {
+      if(!window.confirm("¿Seguro que deseas eliminar este evento del Timing?")) return;
+      setLoading(true);
+      try {
+        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'deleteEvento', payload: { id } }) });
+        showToast("Evento eliminado."); fetchEvents();
+      } catch(e) { showToast("Error al eliminar."); setLoading(false); }
+    };
 
     const getStatus = (targetDate) => {
       const diffMs = targetDate - currentTime;
-      if (diffMs <= 0) {
-        return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'En curso o Finalizado', timeText: '00h 00m 00s', pulse: false, textClass: 'text-slate-500' };
-      }
+      if (diffMs <= 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'En curso o Finalizado', timeText: '00h 00m 00s', pulse: false, textClass: 'text-slate-500' };
       
       const diffSec = Math.floor(diffMs / 1000);
       const hours = Math.floor(diffSec / 3600);
@@ -543,13 +560,9 @@ export default function App() {
       const ss = String(seconds).padStart(2, '0');
       const timeText = `Faltan ${hh}h ${mm}m ${ss}s`;
 
-      if (hours < 2) {
-        return { border: 'border-red-500/50', bg: 'bg-red-500/10', dot: 'bg-red-500', text: '¡INMINENTE, TODOS EN POSICIÓN!', timeText, pulse: true, textClass: 'text-red-500' };
-      } else if (hours < 24) {
-        return { border: 'border-amber-500/50', bg: 'bg-amber-500/10', dot: 'bg-amber-500', text: 'En preparación', timeText, pulse: false, textClass: 'text-amber-500' };
-      } else {
-        return { border: 'border-emerald-500/50', bg: 'bg-emerald-500/10', dot: 'bg-emerald-500', text: 'En agenda', timeText, pulse: false, textClass: 'text-emerald-500' };
-      }
+      if (hours < 2) return { border: 'border-red-500/50', bg: 'bg-red-500/10', dot: 'bg-red-500', text: '¡INMINENTE, TODOS EN POSICIÓN!', timeText, pulse: true, textClass: 'text-red-500' };
+      else if (hours < 24) return { border: 'border-amber-500/50', bg: 'bg-amber-500/10', dot: 'bg-amber-500', text: 'En preparación', timeText, pulse: false, textClass: 'text-amber-500' };
+      else return { border: 'border-emerald-500/50', bg: 'bg-emerald-500/10', dot: 'bg-emerald-500', text: 'En agenda', timeText, pulse: false, textClass: 'text-emerald-500' };
     };
 
     return (
@@ -559,11 +572,29 @@ export default function App() {
             <h1 className="text-2xl font-black text-white flex items-center gap-3"><Clock className="text-emerald-500" size={28} /> Run of Show (Timing)</h1>
             <p className="text-sm text-slate-400 mt-1">Horarios sincronizados directamente con la Base de Datos.</p>
           </div>
-          <div className="bg-slate-900 border border-slate-700 px-6 py-3 rounded-xl flex items-center gap-3 shadow-inner">
-            <Timer className="text-emerald-500 animate-pulse" size={20} />
-            <div className="text-2xl font-black text-white tracking-widest font-mono">{currentTime.toLocaleTimeString()}</div>
+          <div className="flex items-center gap-4">
+            <div className="bg-slate-900 border border-slate-700 px-6 py-3 rounded-xl flex items-center gap-3 shadow-inner">
+              <Timer className="text-emerald-500 animate-pulse" size={20} />
+              <div className="text-2xl font-black text-white tracking-widest font-mono">{currentTime.toLocaleTimeString()}</div>
+            </div>
+            {canCreate && !isCreating && <Button icon={Plus} onClick={() => setIsCreating(true)}>Agendar Evento</Button>}
           </div>
         </header>
+
+        {isCreating && (
+          <Card className="p-6 border-emerald-500 mb-6">
+            <h2 className="text-lg font-bold text-white mb-4">Agendar Nuevo Evento al Timing</h2>
+            <form onSubmit={handleCreateEvent} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label className="text-xs text-slate-400 block mb-1">Título del Evento</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" placeholder="Ej: Load In, Soundcheck..." onChange={e=>setForm({...form, title: e.target.value})} /></div>
+                <div><label className="text-xs text-slate-400 block mb-1">Ubicación / Locación</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" placeholder="Ej: Escenario Principal" onChange={e=>setForm({...form, location: e.target.value})} /></div>
+                <div><label className="text-xs text-slate-400 block mb-1">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" onChange={e=>setForm({...form, date: e.target.value})} /></div>
+                <div><label className="text-xs text-slate-400 block mb-1">Hora</label><input required type="time" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" onChange={e=>setForm({...form, time: e.target.value})} /></div>
+              </div>
+              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Evento</Button></div>
+            </form>
+          </Card>
+        )}
 
         {loading ? (
            <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
@@ -571,23 +602,26 @@ export default function App() {
           <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
             <CalendarPlus className="mx-auto text-slate-600 mb-4" size={48} />
             <h3 className="text-xl font-bold text-white mb-2">No hay eventos programados</h3>
-            <p className="text-slate-400 text-sm max-w-md mx-auto">
-              La agenda está libre. Producción aún no ha cargado los horarios en la pestaña "Timing" de la Base de Datos.
-            </p>
+            <p className="text-slate-400 text-sm max-w-md mx-auto">La agenda está libre. Producción aún no ha cargado los horarios en el Timing.</p>
           </div>
         ) : (
           <div className="space-y-4">
             {events.map((event) => {
               const status = getStatus(event.fullDate);
               return (
-                <div key={event.id} className={`p-5 rounded-xl border transition-all duration-500 ${status.bg} ${status.border}`}>
+                <div key={event.id} className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
+                  {canCreate && (
+                    <button onClick={() => handleDeleteEvent(event.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                   <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`w-3 h-3 rounded-full ${status.dot} ${status.pulse ? 'animate-pulse' : ''}`}></span>
                         <span className={`text-xs font-black uppercase tracking-wider ${status.textClass}`}>{status.text}</span>
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-1">{event.title}</h3>
+                      <h3 className="text-xl font-bold text-white mb-1 pr-8">{event.title}</h3>
                       <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400 font-bold">
                         <span className="flex items-center gap-1"><Calendar size={14}/> {event.date}</span>
                         <span className="flex items-center gap-1 text-emerald-400"><Clock size={14}/> {event.time}</span>
@@ -834,14 +868,43 @@ export default function App() {
     );
   };
 
-  // --- 10. DASHBOARD PRINCIPAL ---
+  // --- 10. DASHBOARD PRINCIPAL (MÓDULO DE PROYECTOS) ---
   const Dashboard = () => {
     const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
-    
-    // Simulación de proyectos activos (Próximamente conectados a la BD)
-    const mockTours = [
-      { id: 'T001', name: 'Gira Sudamérica 2026', type: 'Música', manager: 'Producción Central', status: 'ACTIVO' }
-    ];
+    const [proyectos, setProyectos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [isCreating, setIsCreating] = useState(false);
+    const [form, setForm] = useState({ name: '', type: 'Gira Musical' });
+
+    const fetchProyectos = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getProyectos' }) });
+        const json = await res.json();
+        if (json.status === 'success') setProyectos(json.data);
+      } catch (e) {}
+      setLoading(false);
+    };
+
+    useEffect(() => { fetchProyectos(); }, []);
+
+    const handleCreateProyecto = async (e) => {
+      e.preventDefault(); setLoading(true);
+      try {
+        const payload = { ...form, manager: currentUser.name };
+        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createProyecto', payload }) });
+        showToast("Proyecto creado exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
+      } catch(e) { showToast("Error al crear proyecto."); setLoading(false); }
+    };
+
+    const handleUpdateStatus = async (id, currentStatus) => {
+      const newStatus = currentStatus === 'ACTIVO' ? 'FINALIZADO' : 'ACTIVO';
+      setLoading(true);
+      try {
+        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'updateProyectoStatus', payload: { id, status: newStatus } }) });
+        showToast("Estado actualizado."); fetchProyectos();
+      } catch(e) { showToast("Error al actualizar."); setLoading(false); }
+    };
 
     return (
       <div className="space-y-6 animate-fade-in pb-24 max-w-6xl mx-auto">
@@ -850,32 +913,66 @@ export default function App() {
             <h1 className="text-3xl font-black text-white leading-tight">Hola, {currentUser.name.split(' ')[0]}</h1>
             <p className="text-emerald-400 text-sm font-black uppercase tracking-wider">{currentUser.role}</p>
           </div>
-          {canCreate && (
-            <div className="flex flex-wrap gap-2">
-              <Button icon={CalendarPlus} variant="secondary" onClick={() => showToast('Módulo de Eventos en construcción.')}>Crear Evento</Button>
-              <Button icon={Plus} variant="primary" onClick={() => showToast('Módulo de Proyectos en construcción.')}>Nuevo Proyecto</Button>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <Button icon={CalendarPlus} variant="secondary" onClick={() => setCurrentView('TIMING')}>Agendar Eventos</Button>
+            {canCreate && !isCreating && <Button icon={FolderPlus} variant="primary" onClick={() => setIsCreating(true)}>Nuevo Proyecto</Button>}
+          </div>
         </header>
+
+        {isCreating && (
+          <Card className="p-6 border-emerald-500 mb-6 max-w-2xl">
+            <h2 className="text-lg font-bold text-white mb-4">Iniciar Nuevo Proyecto / Gira</h2>
+            <form onSubmit={handleCreateProyecto} className="space-y-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Nombre del Proyecto (Ej: Gira Sudamérica 2026)</label>
+                <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Tipo de Producción</label>
+                <select className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
+                  <option value="Gira Musical">Gira Musical (Tour)</option>
+                  <option value="Festival">Festival</option>
+                  <option value="Show Único">Show Único (One-Off)</option>
+                  <option value="Evento Corporativo">Evento Corporativo</option>
+                </select>
+              </div>
+              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Proyecto</Button></div>
+            </form>
+          </Card>
+        )}
 
         <div>
           <h2 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2"><Navigation size={20}/> Proyectos Activos</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {mockTours.map(tour => (
-              <Card key={tour.id} className="group hover:border-emerald-500">
-                <div className="p-5">
-                  <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-emerald-500/20"><Music className="text-emerald-500" size={24} /></div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded block mb-2 w-fit">{tour.status}</span>
-                  <h2 className="text-xl font-bold text-white leading-tight mb-2">{tour.name}</h2>
-                  <p className="text-sm text-slate-400 mb-4 flex items-center gap-2"><User size={14}/> {tour.manager}</p>
-                  <div className="flex flex-row gap-2 border-t border-slate-700 pt-4">
-                    <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-emerald-400" icon={Calendar}>Ver Shows</Button>
-                    {canCreate && <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-white" icon={Edit3}>Editar</Button>}
+          {loading ? (
+             <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
+          ) : proyectos.length === 0 ? (
+            <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay proyectos activos registrados.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {proyectos.map(proyecto => (
+                <Card key={proyecto.id} className={`group ${proyecto.status === 'ACTIVO' ? 'hover:border-emerald-500' : 'opacity-70 grayscale hover:grayscale-0'}`}>
+                  <div className="p-5">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center group-hover:bg-emerald-500/20"><Music className="text-emerald-500" size={24} /></div>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded block w-fit ${proyecto.status === 'ACTIVO' ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-400 bg-slate-800 border border-slate-700'}`}>{proyecto.status}</span>
+                    </div>
+                    
+                    <h2 className="text-xl font-bold text-white leading-tight mb-1">{proyecto.name}</h2>
+                    <p className="text-[11px] font-bold uppercase text-emerald-400 mb-3">{proyecto.type}</p>
+                    <p className="text-sm text-slate-400 mb-4 flex items-center gap-2"><User size={14}/> Manager: {proyecto.manager}</p>
+                    <div className="flex flex-row gap-2 border-t border-slate-700 pt-4">
+                      <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-emerald-400" icon={Calendar} onClick={() => setCurrentView('TIMING')}>Ir a Timing</Button>
+                      {canCreate && (
+                        <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-white text-xs" onClick={() => handleUpdateStatus(proyecto.id, proyecto.status)}>
+                          {proyecto.status === 'ACTIVO' ? 'Finalizar' : 'Reactivar'}
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
