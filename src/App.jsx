@@ -76,7 +76,7 @@ export default function App() {
     if (r === ROLES.MANAGER) return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, time, transport, riders, chat, dir, profile ];
     if (r === ROLES.TOUR_MANAGER) return [ { id: 'DASHBOARD', label: 'Giras', icon: Music }, time, transport, riders, chat, dir, profile ];
     
-    // Técnicos, APV y Traslados
+    // Técnicos, APV y Traslados (Asegurado que esté Transportes y Perfil)
     return [ { id: 'DASHBOARD', label: 'Mis Shows', icon: Calendar }, time, transport, chat, dir, profile ];
   };
 
