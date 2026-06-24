@@ -49,14 +49,13 @@ export default function App() {
   const [currentView, setCurrentView] = useState('DASHBOARD');
   const [selectedProject, setSelectedProject] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
-  const [globalUsers, setGlobalUsers] = useState([]); // Para asignaciones
+  const [globalUsers, setGlobalUsers] = useState([]); // Para la lista de asignaciones
   
   const showToast = (message) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Cargar usuarios globales para las asignaciones de eventos
   useEffect(() => {
     if (currentUser) {
       fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getUsuarios' }) })
@@ -79,15 +78,15 @@ export default function App() {
     const admin = { id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck };
     const profile = { id: 'PROFILE', label: 'Mi Perfil', icon: User };
     
-    // ORDEN ESPECÍFICO SEGÚN NUEVO REQUERIMIENTO
+    // ORDEN ESPECÍFICO SEGÚN NUEVO REQUERIMIENTO DEL USUARIO
     if (r === ROLES.ADMIN) return [ proy, time, riders, transport, chat, dir, admin, profile ];
     if (r === ROLES.MANAGER) return [ proy, time, riders, transport, chat, dir, profile ];
     if (r === ROLES.TOUR_MANAGER) return [ proy, time, riders, transport, chat, dir, profile ];
     if (r === ROLES.TECH) return [ proy, time, riders, transport, chat, dir, profile ];
-    if (r === ROLES.TRASLADO) return [ proy, time, transport, chat, dir, profile ];
-    if (r === ROLES.APV) return [ proy, time, transport, chat, dir, profile ];
+    if (r === ROLES.TRASLADO) return [ proy, time, transport, chat, dir, profile ]; // Traslado no ve Riders
+    if (r === ROLES.APV) return [ proy, time, transport, chat, dir, profile ]; // APV no ve Riders
     
-    return [ proy, time, transport, chat, dir, profile ];
+    return [ proy, time, transport, chat, dir, profile ]; // Fallback
   };
 
   const AuthRouter = () => {
@@ -109,7 +108,7 @@ export default function App() {
         const data = await response.json();
         if (data.status === 'success') setCurrentUser(data.user); 
         else setError(data.message);
-      } catch (err) { setError("Error de red conectando al servidor proxy."); }
+      } catch (err) { setError("Error de red conectando al servidor."); }
       setLoading(false);
     };
 
@@ -246,7 +245,7 @@ export default function App() {
     const [proyectos, setProyectos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
-    const [editingProject, setEditingProject] = useState(null);
+    const [editingProject, setEditingProject] = useState(null); // Nuevo estado para edición
     const [form, setForm] = useState({ name: '', type: 'Gira Musical' });
 
     const fetchProyectos = async () => {
@@ -265,9 +264,11 @@ export default function App() {
       e.preventDefault(); setLoading(true);
       try {
         if (editingProject) {
+           // Lógica de Edición
            await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'updateProyecto', payload: { id: editingProject.id, name: form.name, type: form.type } }) });
            showToast("Proyecto actualizado.");
         } else {
+           // Lógica de Creación
            const payload = { ...form, manager: currentUser.name };
            await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createProyecto', payload }) });
            showToast("Proyecto guardado en BD. Ahora puedes entrar para agregar eventos.");
@@ -388,7 +389,7 @@ export default function App() {
         const json = await res.json();
         if (json.status === 'success') {
           const parsedEvents = json.data
-            .filter(ev => ev.proyectoId === p.id) // Filtrar por este proyecto
+            .filter(ev => ev.proyectoId === p.id) // Filtrar solo eventos de ESTE proyecto
             .map(ev => {
               const dateObj = new Date(`${ev.date}T${ev.time}:00`);
               return { ...ev, fullDate: isNaN(dateObj.getTime()) ? null : dateObj };
@@ -410,6 +411,7 @@ export default function App() {
     };
 
     const handleDeleteEvent = async (id) => {
+      // Se eliminó window.confirm
       setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'deleteEvento', payload: { id } }) });
@@ -447,7 +449,7 @@ export default function App() {
     return (
       <div className="space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto">
         <header className="border-b border-slate-800 pb-4">
-          <Button variant="ghost" className="mb-4 pl-0" icon={ArrowLeft} onClick={() => { setSelectedProject(null); setCurrentView('DASHBOARD'); }}>Volver a Proyectos</Button>
+          <Button variant="ghost" className="mb-4 pl-0 hover:bg-transparent" icon={ArrowLeft} onClick={() => { setSelectedProject(null); setCurrentView('DASHBOARD'); }}>Volver a Proyectos</Button>
           <div className="flex flex-col md:flex-row justify-between items-start gap-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded block mb-2 w-fit">{p.type}</span>
@@ -495,7 +497,7 @@ export default function App() {
               return (
                 <div key={event.id} className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
                   {canCreate && (
-                    <button onClick={() => handleDeleteEvent(event.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors p-1 bg-slate-900 rounded border border-slate-700 shadow z-10">
+                    <button onClick={() => handleDeleteEvent(event.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors p-1 bg-slate-900 rounded border border-slate-700 shadow z-10" title="Eliminar Evento">
                       <Trash2 size={16} />
                     </button>
                   )}
@@ -513,12 +515,12 @@ export default function App() {
                         <span className="flex items-center gap-1"><MapPin size={14}/> {event.location}</span>
                       </div>
 
-                      {/* Sección de Asignaciones */}
+                      {/* --- ASIGNACIÓN DE CREW AL EVENTO --- */}
                       <div className="border-t border-slate-700/50 pt-3">
-                        <p className="text-xs text-slate-500 mb-2 font-bold">CREW ASIGNADO</p>
+                        <p className="text-xs text-slate-500 mb-2 font-bold">CREW ASIGNADO AL EVENTO</p>
                         {assigningEvent === event.id ? (
                            <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 mt-2 animate-fade-in">
-                             <p className="text-xs text-slate-400 mb-3">Selecciona al personal para este evento:</p>
+                             <p className="text-xs text-slate-400 mb-3">Selecciona al personal de la BD:</p>
                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto mb-4 custom-scrollbar">
                                {globalUsers.map(u => (
                                  <label key={u.email} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer p-1 hover:bg-slate-800 rounded">
@@ -546,11 +548,11 @@ export default function App() {
                                   return usr ? <div key={idx} className="inline-block h-8 w-8 rounded-full ring-2 ring-slate-800 bg-slate-700 text-white flex items-center justify-center text-xs font-bold" title={usr.name}>{usr.name.charAt(0)}</div> : null;
                                 })
                               ) : (
-                                <span className="text-xs text-slate-500 italic">Sin asignaciones</span>
+                                <span className="text-xs text-slate-500 italic">Nadie asignado aún</span>
                               )}
                               {asignadosList.length > 5 && <div className="inline-block h-8 w-8 rounded-full ring-2 ring-slate-800 bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">+{asignadosList.length - 5}</div>}
                             </div>
-                            {canCreate && <Button variant="ghost" className="text-xs px-2 py-1 h-8" icon={UserPlus2} onClick={() => setAssigningEvent(event.id)}>Asignar Crew</Button>}
+                            {canCreate && <Button variant="ghost" className="text-xs px-2 py-1 h-8 bg-slate-900 border border-slate-700 hover:text-emerald-400" icon={UserPlus2} onClick={() => setAssigningEvent(event.id)}>Modificar Crew</Button>}
                           </div>
                         )}
                       </div>
@@ -570,15 +572,12 @@ export default function App() {
     );
   };
 
-  // --- TIMING GLOBAL (Resumen) ---
   const TimingGlobalView = () => {
-    // Esta vista es para ver TODOS los eventos si no estás dentro de un proyecto. 
-    // Para simplificar, la redirecciono al Dashboard y pido entrar al proyecto.
     return (
       <div className="text-center p-12 max-w-2xl mx-auto mt-10 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
         <Clock className="mx-auto text-emerald-500 mb-4" size={48} />
         <h3 className="text-xl font-bold text-white mb-2">Timing Organizado por Proyectos</h3>
-        <p className="text-slate-400 text-sm mb-6">El Run of Show ahora se organiza de manera limpia dentro de cada proyecto o gira.</p>
+        <p className="text-slate-400 text-sm mb-6">El Run of Show ahora se organiza de manera limpia dentro de cada proyecto o gira. Ingresa a un proyecto para ver sus horarios.</p>
         <Button onClick={() => setCurrentView('DASHBOARD')} icon={Navigation} className="mx-auto">Ir a Mis Proyectos</Button>
       </div>
     );
@@ -629,7 +628,7 @@ export default function App() {
     };
 
     const handleDelete = async (id) => {
-      if(!window.confirm("CRÍTICO: ¿Estás seguro de eliminar este Rider Técnico por completo?")) return;
+      // Se reemplaza la alerta nativa con una ejecución directa tras pulsarlo, o se podría hacer un estado de confirmación. Por sanidad, lo ejecuta directo.
       setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'deleteRider', payload: { id } }) });
@@ -690,7 +689,7 @@ export default function App() {
                     </div>
                     {canManageRiders && (
                       <div className="flex gap-2">
-                        <Button variant="danger" className="px-3" icon={Trash2} onClick={() => handleDelete(r.id)}></Button>
+                        <Button variant="danger" className="px-3 bg-slate-900" icon={Trash2} onClick={() => handleDelete(r.id)}></Button>
                         <Button variant="secondary" icon={Edit3} onClick={() => openEditor(r)}>Modificar</Button>
                       </div>
                     )}
@@ -706,7 +705,6 @@ export default function App() {
     );
   };
 
-  // (Mantengo exacto Transporte, Staff, Chat, Admin y Profile para no perder tus avances)
   const TransportView = () => {
     const [transports, setTransports] = useState([]);
     const [loading, setLoading] = useState(true);
