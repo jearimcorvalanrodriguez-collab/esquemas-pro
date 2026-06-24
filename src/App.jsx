@@ -297,7 +297,7 @@ export default function App() {
     );
   };
 
-  // --- 4. MÓDULO RIDERS TÉCNICOS CON PLANTILLAS (NUEVO) ---
+  // --- 4. MÓDULO RIDERS TÉCNICOS CON PLANTILLAS ---
   const RidersView = () => {
     const [riders, setRiders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -834,13 +834,52 @@ export default function App() {
     );
   };
 
-  const Dashboard = () => (
-    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 animate-fade-in text-center px-4">
-      <Music size={48} className="mb-4 text-emerald-500/50" />
-      <h2 className="text-2xl font-black text-white mb-2">Bienvenido, {currentUser.name.split(' ')[0]}</h2>
-      <p>Navega a través del menú lateral para gestionar la producción.</p>
-    </div>
-  );
+  // --- 10. DASHBOARD PRINCIPAL ---
+  const Dashboard = () => {
+    const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+    
+    // Simulación de proyectos activos (Próximamente conectados a la BD)
+    const mockTours = [
+      { id: 'T001', name: 'Gira Sudamérica 2026', type: 'Música', manager: 'Producción Central', status: 'ACTIVO' }
+    ];
+
+    return (
+      <div className="space-y-6 animate-fade-in pb-24 max-w-6xl mx-auto">
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b border-slate-800 pb-6">
+          <div>
+            <h1 className="text-3xl font-black text-white leading-tight">Hola, {currentUser.name.split(' ')[0]}</h1>
+            <p className="text-emerald-400 text-sm font-black uppercase tracking-wider">{currentUser.role}</p>
+          </div>
+          {canCreate && (
+            <div className="flex flex-wrap gap-2">
+              <Button icon={CalendarPlus} variant="secondary" onClick={() => showToast('Módulo de Eventos en construcción.')}>Crear Evento</Button>
+              <Button icon={Plus} variant="primary" onClick={() => showToast('Módulo de Proyectos en construcción.')}>Nuevo Proyecto</Button>
+            </div>
+          )}
+        </header>
+
+        <div>
+          <h2 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2"><Navigation size={20}/> Proyectos Activos</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {mockTours.map(tour => (
+              <Card key={tour.id} className="group hover:border-emerald-500">
+                <div className="p-5">
+                  <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-emerald-500/20"><Music className="text-emerald-500" size={24} /></div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded block mb-2 w-fit">{tour.status}</span>
+                  <h2 className="text-xl font-bold text-white leading-tight mb-2">{tour.name}</h2>
+                  <p className="text-sm text-slate-400 mb-4 flex items-center gap-2"><User size={14}/> {tour.manager}</p>
+                  <div className="flex flex-row gap-2 border-t border-slate-700 pt-4">
+                    <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-emerald-400" icon={Calendar}>Ver Shows</Button>
+                    {canCreate && <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-white" icon={Edit3}>Editar</Button>}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // --- RENDERIZADO PRINCIPAL ---
   if (!currentUser) return <AuthRouter />;
