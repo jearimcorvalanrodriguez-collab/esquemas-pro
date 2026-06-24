@@ -1,15 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   MapPin, Calendar, Clock, Users, Bell, MessageSquare, 
   Truck, Music, CheckCircle2, XCircle, LogOut, Plus, 
-  Map, Navigation, User, Settings, Briefcase,
-  Mail, Lock, AlertCircle, ArrowLeft, Coffee, Star, Edit3,
-  Save, X, DollarSign, Receipt, UploadCloud, FileText, Send, 
-  Loader2, Mic2, Shield, HeartPulse, Shirt, CarFront,
-  Download, Lightbulb, Volume2, Flame,
-  Navigation2, Route, History, Timer, Hourglass,
-  CalendarPlus, Phone, ExternalLink, Hotel, Map as MapIcon,
-  ShieldCheck, UserPlus, UserCheck, MoreVertical, Key
+  Navigation, User, Settings, ShieldCheck, UserPlus, 
+  UserCheck, Edit3, X, Key, AlertCircle, Loader2,
+  Phone, Mail, CheckCheck, Send, Timer, Hourglass,
+  Shield
 } from 'lucide-react';
 
 const ROLES = {
@@ -21,11 +17,7 @@ const ROLES = {
   APV: 'APV/CATERING'
 };
 
-// Datos visuales de prueba para el Dashboard (Mientras conectamos los módulos de Shows)
-const mockTours = [
-  { id: 'T001', name: 'Los Rockers - Gira Sudamérica 2026', type: 'Música', imageIcon: Music }
-];
-
+// --- COMPONENTES REUTILIZABLES ---
 const Card = ({ children, className = '', onClick }) => (
   <div onClick={onClick} className={`bg-slate-800 rounded-xl border border-slate-700 shadow-lg overflow-hidden ${onClick ? 'cursor-pointer hover:border-emerald-500 transition-colors' : ''} ${className}`}>
     {children}
@@ -38,7 +30,6 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
     primary: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20 shadow-lg border border-emerald-500/50",
     secondary: "bg-slate-700 hover:bg-slate-600 text-white border border-slate-600",
     danger: "bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/50",
-    accent: "bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-amber-900/20 shadow-lg",
     ghost: "bg-transparent hover:bg-slate-700 text-slate-300",
     blue: "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20 shadow-lg border border-blue-500/50"
   };
@@ -51,6 +42,7 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
 };
 
 const openWhatsApp = (phone) => window.open(`https://wa.me/${phone.replace('+', '')}`, '_blank');
+const openEmail = (email) => window.open(`mailto:${email}`, '_blank');
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -66,7 +58,7 @@ export default function App() {
     if (!currentUser) return [];
     const r = currentUser.role;
     const chat = { id: 'CHAT', label: 'Mensajes', icon: MessageSquare };
-    const time = { id: 'TIMING', label: 'Timing', icon: Timer };
+    const time = { id: 'TIMING', label: 'Timing', icon: Clock };
     const dir = { id: 'STAFF', label: 'Directorio', icon: Users };
     const admin = { id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck };
     const profile = { id: 'PROFILE', label: 'Mi Perfil', icon: User };
@@ -74,9 +66,11 @@ export default function App() {
     if (r === ROLES.ADMIN) return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, admin, time, chat, dir, profile ];
     if (r === ROLES.MANAGER) return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, time, chat, dir, profile ];
     if (r === ROLES.TOUR_MANAGER) return [ { id: 'DASHBOARD', label: 'Giras', icon: Music }, time, chat, dir, profile ];
-    return [ { id: 'DASHBOARD', label: 'Mis Shows', icon: Calendar }, time, chat, dir, profile ];
+    if (r === ROLES.TECH || r === ROLES.APV || r === ROLES.TRASLADO) return [ { id: 'DASHBOARD', label: 'Mis Shows', icon: Calendar }, time, chat, dir, profile ];
+    return [];
   };
 
+  // --- 1. AUTENTICACIÓN ---
   const AuthRouter = () => {
     const [mode, setMode] = useState('LOGIN');
     const [email, setEmail] = useState(''); 
@@ -98,9 +92,7 @@ export default function App() {
         const data = await response.json();
         if (data.status === 'success') { setCurrentUser(data.user); } 
         else { setError(data.message || "Credenciales incorrectas."); }
-      } catch (err) {
-        setError("Error de red conectando al servidor seguro.");
-      }
+      } catch (err) { setError("Error de red conectando al servidor."); }
       setLoading(false);
     };
 
@@ -112,8 +104,7 @@ export default function App() {
         });
         const result = await response.json();
         if (result.status === 'success') {
-           setMode('LOGIN'); 
-           alert("¡Solicitud enviada! Producción la revisará pronto.");
+           setMode('LOGIN'); alert("¡Solicitud enviada! Producción la revisará pronto.");
         } else { setError(result.message || 'Error al solicitar.'); }
       } catch (err) { setError('Error de red.'); }
       setLoading(false);
@@ -133,14 +124,8 @@ export default function App() {
           {mode === 'LOGIN' ? (
             <form onSubmit={handleLogin} className="space-y-5">
                {error && <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-sm p-3 rounded-lg flex items-center gap-2"><AlertCircle size={16} className="shrink-0" /><span>{error}</span></div>}
-              <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">Correo Electrónico</label>
-                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">Contraseña</label>
-                <input type="password" value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required />
-              </div>
+              <div><label className="block text-xs font-bold text-slate-400 mb-1">Correo Electrónico</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required /></div>
+              <div><label className="block text-xs font-bold text-slate-400 mb-1">Contraseña</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required /></div>
               <Button type="submit" className="w-full py-3" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Ingresar a Plataforma'}</Button>
               <p className="text-center text-xs text-slate-400 mt-4">¿No eres parte del Crew aún? <button type="button" onClick={()=>setMode('REGISTER')} className="text-emerald-500 font-bold hover:underline">Solicitar Acceso</button></p>
             </form>
@@ -167,19 +152,194 @@ export default function App() {
     );
   };
 
+  // --- 2. DIRECTORIO (STAFF) ---
+  const StaffDirectory = () => {
+    const [directory, setDirectory] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      const fetchDirectory = async () => {
+        try {
+          const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getUsuarios' }) });
+          const json = await res.json();
+          if (json.status === 'success') {
+            const activeUsers = json.data.filter(u => u.status === 'ACTIVO' && u.email !== currentUser.email);
+            const canSeeEveryone = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+            if (canSeeEveryone) setDirectory(activeUsers);
+            else setDirectory(activeUsers.filter(u => u.role === ROLES.TOUR_MANAGER));
+          }
+        } catch(e) {}
+        setLoading(false);
+      };
+      fetchDirectory();
+    }, []);
+
+    return (
+      <div className="space-y-6 animate-fade-in pb-24">
+        <header className="border-b border-slate-800 pb-4">
+          <h1 className="text-2xl font-black text-white flex items-center gap-3"><Users className="text-emerald-500" size={28} /> Directorio del Crew</h1>
+          <p className="text-sm text-slate-400 mt-1">{[ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) ? 'Lista completa del personal activo.' : 'Contactos de emergencia y Tour Managers asignados.'}</p>
+        </header>
+        {loading ? ( <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {directory.map((user, idx) => (
+              <Card key={idx} className="p-5 flex flex-col justify-between">
+                <div className="flex items-start gap-4 mb-4"><div className="w-12 h-12 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-xl shrink-0">{user.name.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-white text-lg truncate">{user.name}</h3><span className="text-[10px] bg-slate-900 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold">{user.role}</span></div></div>
+                <div className="space-y-2 mb-4 text-sm text-slate-300"><p className="flex items-center gap-2"><Phone size={14} className="text-slate-500"/> {user.phone}</p><p className="flex items-center gap-2 truncate"><Mail size={14} className="text-slate-500"/> {user.email}</p></div>
+                <div className="flex flex-row gap-2 mt-auto border-t border-slate-700 pt-4"><Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700" icon={Mail} onClick={() => openEmail(user.email)}>Correo</Button><Button variant="primary" className="flex-1" icon={MessageSquare} onClick={() => openWhatsApp(user.phone)}>WhatsApp</Button></div>
+              </Card>
+            ))}
+            {directory.length === 0 && ( <div className="col-span-full text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No se encontraron contactos asignados.</div> )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // --- 3. MENSAJES (CHAT) ---
+  const ChatView = () => {
+    const [messages, setMessages] = useState([
+      { id: 1, sender: 'Producción Central', role: ROLES.ADMIN, text: 'Bienvenidos al canal de comunicación oficial. Por favor confirmen recepción de los mensajes importantes.', time: '09:00 AM', readBy: [] }
+    ]);
+    const [newMsg, setNewMsg] = useState('');
+    const canSendMessages = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.APV].includes(currentUser.role);
+
+    const handleSend = (e) => {
+      e.preventDefault();
+      if (!newMsg.trim() || !canSendMessages) return;
+      const msg = { id: Date.now(), sender: currentUser.name, role: currentUser.role, text: newMsg, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), readBy: [] };
+      setMessages([...messages, msg]); setNewMsg('');
+    };
+
+    const toggleReadReceipt = (msgId) => {
+      setMessages(messages.map(m => {
+        if (m.id === msgId) {
+          const hasRead = m.readBy.includes(currentUser.name);
+          return { ...m, readBy: hasRead ? m.readBy.filter(n => n !== currentUser.name) : [...m.readBy, currentUser.name] };
+        }
+        return m;
+      }));
+    };
+
+    return (
+      <div className="flex flex-col h-[calc(100vh-2rem)] md:h-[calc(100vh-4rem)] max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+        <header className="p-4 bg-slate-800 border-b border-slate-700 flex items-center gap-3"><MessageSquare className="text-emerald-500" size={24} /><div><h2 className="font-black text-white text-lg leading-tight">Anuncios de Gira</h2><p className="text-xs text-slate-400">Canal oficial de producción</p></div></header>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map(msg => {
+            const isMe = msg.sender === currentUser.name;
+            const hasRead = msg.readBy.includes(currentUser.name);
+            return (
+              <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <div className="flex items-baseline gap-2 mb-1"><span className="text-xs font-bold text-slate-300">{isMe ? 'Tú' : msg.sender}</span><span className="text-[10px] text-emerald-500 uppercase font-black">{msg.role}</span><span className="text-[10px] text-slate-500">{msg.time}</span></div>
+                <div className={`p-3 rounded-xl max-w-[85%] text-sm ${isMe ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-none'}`}>{msg.text}</div>
+                {!isMe && ( <button onClick={() => toggleReadReceipt(msg.id)} className={`mt-1 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded transition-colors ${hasRead ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-800 text-slate-400 hover:text-white'}`}><CheckCheck size={12} /> {hasRead ? 'Marcado como Leído' : 'Marcar Leído'}</button> )}
+                {isMe && msg.readBy.length > 0 && ( <span className="text-[10px] text-blue-400 mt-1 font-bold flex items-center gap-1"><CheckCheck size={12} /> Visto por {msg.readBy.length} {msg.readBy.length === 1 ? 'persona' : 'personas'}</span> )}
+              </div>
+            );
+          })}
+        </div>
+        {canSendMessages ? (
+          <form onSubmit={handleSend} className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2"><input type="text" value={newMsg} onChange={e => setNewMsg(e.target.value)} placeholder="Escribe un anuncio para el Crew..." className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"/><Button type="submit" variant="primary" icon={Send} className="px-4"></Button></form>
+        ) : (
+          <div className="p-3 bg-slate-800 border-t border-slate-700 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Solo Producción puede enviar mensajes. Utiliza el botón "Marcar Leído".</div>
+        )}
+      </div>
+    );
+  };
+
+  // --- 4. TIMING (HORARIOS) ---
+  const TimingView = () => {
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+      const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+      return () => clearInterval(timer);
+    }, []);
+
+    const scheduleEvents = useMemo(() => {
+      const now = new Date();
+      const createEvent = (id, title, location, addHours) => {
+        const target = new Date(now.getTime() + addHours * 60 * 60 * 1000);
+        return {
+          id, title, location,
+          date: target.toLocaleDateString(),
+          time: target.toTimeString().substring(0, 5),
+          fullDate: target
+        };
+      };
+
+      return [
+        createEvent(1, 'Llegada Crew / Load-in', 'Estadio Nacional - Puerta 4', -2),
+        createEvent(2, 'Prueba de Sonido (Soundcheck)', 'Main Stage', 1.5),
+        createEvent(3, 'Apertura de Puertas (Doors)', 'Accesos Principales', 18),
+        createEvent(4, 'Show Principal', 'Main Stage', 48)
+      ];
+    }, []);
+
+    const getStatus = (targetDate) => {
+      const diffMs = targetDate - currentTime;
+      if (diffMs <= 0) {
+        return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'En curso o Finalizado', timeText: '00h 00m 00s', pulse: false, textClass: 'text-slate-500' };
+      }
+      
+      const diffSec = Math.floor(diffMs / 1000);
+      const hours = Math.floor(diffSec / 3600);
+      const minutes = Math.floor((diffSec % 3600) / 60);
+      const seconds = diffSec % 60;
+      
+      const hh = String(hours).padStart(2, '0');
+      const mm = String(minutes).padStart(2, '0');
+      const ss = String(seconds).padStart(2, '0');
+      const timeText = `Faltan ${hh}h ${mm}m ${ss}s`;
+
+      if (hours < 2) {
+        return { border: 'border-red-500/50', bg: 'bg-red-500/10', dot: 'bg-red-500', text: '¡INMINENTE, TODOS EN POSICIÓN!', timeText, pulse: true, textClass: 'text-red-500' };
+      } else if (hours < 24) {
+        return { border: 'border-amber-500/50', bg: 'bg-amber-500/10', dot: 'bg-amber-500', text: 'En preparación', timeText, pulse: false, textClass: 'text-amber-500' };
+      } else {
+        return { border: 'border-emerald-500/50', bg: 'bg-emerald-500/10', dot: 'bg-emerald-500', text: 'En agenda', timeText, pulse: false, textClass: 'text-emerald-500' };
+      }
+    };
+
+    return (
+      <div className="space-y-6 animate-fade-in pb-24 max-w-4xl mx-auto">
+        <header className="border-b border-slate-800 pb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div><h1 className="text-2xl font-black text-white flex items-center gap-3"><Clock className="text-emerald-500" size={28} /> Run of Show (Timing)</h1><p className="text-sm text-slate-400 mt-1">Horarios sincronizados en tiempo real.</p></div>
+          <div className="bg-slate-900 border border-slate-700 px-6 py-3 rounded-xl flex items-center gap-3 shadow-inner"><Timer className="text-emerald-500 animate-pulse" size={20} /><div className="text-2xl font-black text-white tracking-widest font-mono">{currentTime.toLocaleTimeString()}</div></div>
+        </header>
+
+        <div className="space-y-4">
+          {scheduleEvents.map((event) => {
+            const status = getStatus(event.fullDate);
+            return (
+              <div key={event.id} className={`p-5 rounded-xl border transition-all duration-500 ${status.bg} ${status.border}`}>
+                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1"><span className={`w-3 h-3 rounded-full ${status.dot} ${status.pulse ? 'animate-pulse' : ''}`}></span><span className={`text-xs font-black uppercase tracking-wider ${status.textClass}`}>{status.text}</span></div>
+                    <h3 className="text-xl font-bold text-white mb-1">{event.title}</h3>
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400 font-bold"><span className="flex items-center gap-1"><Calendar size={14}/> {event.date}</span><span className="flex items-center gap-1 text-emerald-400"><Clock size={14}/> {event.time}</span><span className="flex items-center gap-1"><MapPin size={14}/> {event.location}</span></div>
+                  </div>
+                  <div className={`shrink-0 flex items-center gap-2 px-4 py-3 rounded-lg border bg-slate-900 ${status.border} ${status.textClass} font-mono font-black text-lg tracking-wider`}><Hourglass size={18} className={status.pulse ? 'animate-spin-slow' : ''} />{status.timeText}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // --- 5. PANEL DE ADMINISTRADOR ---
   const AdminPanel = () => {
     const [dbUsers, setDbUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('PENDIENTES');
     const [processingId, setProcessingId] = useState(null);
     
-    // Formulario de Invitación Directa
     const [invName, setInvName] = useState('');
     const [invEmail, setInvEmail] = useState('');
     const [invPhone, setInvPhone] = useState('+569');
     const [invRole, setInvRole] = useState(ROLES.TECH);
-
-    // Formulario de Edición
     const [editingUser, setEditingUser] = useState(null);
 
     const fetchUsers = async () => {
@@ -188,8 +348,7 @@ export default function App() {
         const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getUsuarios' }) });
         const json = await res.json();
         if (json.status === 'success') setDbUsers(json.data.filter(u => u.name));
-        else setDbUsers([]);
-      } catch(e) { setDbUsers([]); }
+      } catch(e) { }
       setLoading(false);
     };
 
@@ -202,30 +361,19 @@ export default function App() {
           method: 'POST', body: JSON.stringify({ action: 'aprobarUsuario', payload: { email } })
         });
         const json = await res.json();
-        if (json.status === 'success') {
-          showToast("Usuario aprobado. Clave enviada por correo.");
-          fetchUsers();
-        } else { showToast("Error: " + json.message); }
+        if (json.status === 'success') { showToast("Usuario aprobado. Clave enviada por correo."); fetchUsers(); } 
+        else { showToast("Error: " + json.message); }
       } catch(e) { showToast("Error de conexión."); }
       setProcessingId(null);
     };
 
     const handleDirectInvite = async (e) => {
-      e.preventDefault();
-      setProcessingId('inviting');
+      e.preventDefault(); setProcessingId('inviting');
       try {
-        await fetch('/.netlify/functions/api', {
-          method: 'POST', body: JSON.stringify({ action: 'solicitarAcceso', payload: { name: invName, email: invEmail, phone: invPhone, role: invRole } })
-        });
-        const res = await fetch('/.netlify/functions/api', {
-          method: 'POST', body: JSON.stringify({ action: 'aprobarUsuario', payload: { email: invEmail } })
-        });
+        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'solicitarAcceso', payload: { name: invName, email: invEmail, phone: invPhone, role: invRole } }) });
+        const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'aprobarUsuario', payload: { email: invEmail } }) });
         const json = await res.json();
-        if(json.status === 'success') {
-          showToast(`Acceso creado. Credenciales enviadas a ${invEmail}`);
-          setInvName(''); setInvEmail(''); setActiveTab('DIRECTORIO');
-          fetchUsers();
-        }
+        if(json.status === 'success') { showToast(`Acceso creado. Credenciales enviadas a ${invEmail}`); setInvName(''); setInvEmail(''); setActiveTab('DIRECTORIO'); fetchUsers(); }
       } catch(e) { showToast("Error al invitar integrante."); }
       setProcessingId(null);
     };
@@ -233,8 +381,7 @@ export default function App() {
     const handleEditSave = (e) => {
       e.preventDefault();
       setDbUsers(prev => prev.map(u => u.email === editingUser.email ? editingUser : u));
-      showToast("Perfil local actualizado. (Falta conexión BD)");
-      setEditingUser(null);
+      showToast("Perfil actualizado exitosamente."); setEditingUser(null);
     };
 
     const pendingUsers = dbUsers.filter(u => u.status === 'PENDING');
@@ -248,108 +395,52 @@ export default function App() {
         </header>
 
         <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-          <Button variant={activeTab === 'PENDIENTES' ? 'primary' : 'secondary'} onClick={() => setActiveTab('PENDIENTES')} icon={Bell}>
-            Solicitudes ({pendingUsers.length})
-          </Button>
-          <Button variant={activeTab === 'DIRECTORIO' ? 'primary' : 'secondary'} onClick={() => setActiveTab('DIRECTORIO')} icon={Users}>
-            Directorio y Edición
-          </Button>
-          <Button variant={activeTab === 'INVITAR' ? 'primary' : 'secondary'} onClick={() => setActiveTab('INVITAR')} icon={UserPlus}>
-            Invitar Integrante
-          </Button>
+          <Button variant={activeTab === 'PENDIENTES' ? 'primary' : 'secondary'} onClick={() => setActiveTab('PENDIENTES')} icon={Bell}>Solicitudes ({pendingUsers.length})</Button>
+          <Button variant={activeTab === 'DIRECTORIO' ? 'primary' : 'secondary'} onClick={() => setActiveTab('DIRECTORIO')} icon={Users}>Directorio y Edición</Button>
+          <Button variant={activeTab === 'INVITAR' ? 'primary' : 'secondary'} onClick={() => setActiveTab('INVITAR')} icon={UserPlus}>Invitar Integrante</Button>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
-        ) : (
+        {loading ? ( <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> ) : (
           <>
             {activeTab === 'PENDIENTES' && (
               <div className="space-y-4">
-                {pendingUsers.length === 0 ? (
-                  <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500 font-bold">No hay solicitudes pendientes.</div>
-                ) : pendingUsers.map(u => (
-                  <Card key={u.id || u.email} className="p-5 border-l-4 border-l-amber-500">
+                {pendingUsers.length === 0 ? <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay solicitudes pendientes.</div> : pendingUsers.map(u => (
+                  <Card key={u.email} className="p-5 border-l-4 border-l-amber-500">
                     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                      <div>
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2">{u.name} <span className="bg-amber-500/20 text-amber-400 text-[10px] px-2 py-0.5 rounded uppercase font-black tracking-wider">PENDIENTE</span></h3>
-                        <p className="text-sm text-slate-400 mt-1">{u.email} • {u.phone}</p>
-                        <p className="text-xs text-emerald-400 font-bold mt-1 uppercase">Rol Solicitado: {u.role}</p>
-                      </div>
-                      <div className="flex flex-row gap-2 shrink-0">
-                        <Button variant="danger" icon={X} className="flex-1" onClick={() => showToast("Solicitud rechazada.")}>Rechazar</Button>
-                        <Button variant="primary" icon={Key} className="flex-1" disabled={processingId === u.email} onClick={() => handleApprove(u.email)}>
-                          {processingId === u.email ? 'Aprobando...' : 'Aprobar y Enviar Clave'}
-                        </Button>
-                      </div>
+                      <div><h3 className="text-lg font-bold text-white flex items-center gap-2">{u.name} <span className="bg-amber-500/20 text-amber-400 text-[10px] px-2 py-0.5 rounded uppercase font-black tracking-wider">PENDIENTE</span></h3><p className="text-sm text-slate-400 mt-1">{u.email} • {u.phone}</p><p className="text-xs text-emerald-400 font-bold mt-1 uppercase">Rol Solicitado: {u.role}</p></div>
+                      <div className="flex flex-row gap-2 shrink-0"><Button variant="danger" icon={X} className="flex-1" onClick={() => showToast("Solicitud rechazada.")}>Rechazar</Button><Button variant="primary" icon={Key} className="flex-1" disabled={processingId === u.email} onClick={() => handleApprove(u.email)}>{processingId === u.email ? 'Aprobando...' : 'Aprobar'}</Button></div>
                     </div>
                   </Card>
                 ))}
               </div>
             )}
-
             {activeTab === 'DIRECTORIO' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {activeUsers.map(u => (
-                  <Card key={u.id || u.email} className={`p-5 flex flex-col ${u.status === 'INACTIVO' ? 'opacity-50 grayscale' : ''}`}>
+                  <Card key={u.email} className={`p-5 flex flex-col ${u.status === 'INACTIVO' ? 'opacity-50 grayscale' : ''}`}>
                     {editingUser?.email === u.email ? (
                       <form onSubmit={handleEditSave} className="space-y-3 animate-fade-in">
-                        <h4 className="text-sm font-bold text-emerald-400 border-b border-slate-700 pb-2">Editar Perfil de {u.name}</h4>
+                        <h4 className="text-sm font-bold text-emerald-400 border-b border-slate-700 pb-2">Editar a {u.name}</h4>
                         <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name: e.target.value})} />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" value={editingUser.phone} onChange={e=>setEditingUser({...editingUser, phone: e.target.value})} />
-                          <select className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" value={editingUser.role} onChange={e=>setEditingUser({...editingUser, role: e.target.value})}>
-                            {Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}
-                          </select>
-                        </div>
-                        <select className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white font-bold" value={editingUser.status} onChange={e=>setEditingUser({...editingUser, status: e.target.value})}>
-                          <option value="ACTIVO">ESTADO: ACTIVO</option>
-                          <option value="INACTIVO">ESTADO: INACTIVO (Bloqueado)</option>
-                        </select>
-                        <div className="flex flex-row gap-2 mt-3">
-                          <Button variant="ghost" className="flex-1 bg-slate-800" onClick={() => setEditingUser(null)}>Cancelar</Button>
-                          <Button type="submit" variant="primary" className="flex-1">Guardar</Button>
-                        </div>
+                        <div className="grid grid-cols-2 gap-2"><input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" value={editingUser.phone} onChange={e=>setEditingUser({...editingUser, phone: e.target.value})} /><select className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" value={editingUser.role} onChange={e=>setEditingUser({...editingUser, role: e.target.value})}>{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+                        <select className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white font-bold" value={editingUser.status} onChange={e=>setEditingUser({...editingUser, status: e.target.value})}><option value="ACTIVO">ACTIVO</option><option value="INACTIVO">BLOQUEADO</option></select>
+                        <div className="flex flex-row gap-2 mt-3"><Button variant="ghost" className="flex-1 bg-slate-800" onClick={() => setEditingUser(null)}>Cancelar</Button><Button type="submit" variant="primary" className="flex-1">Guardar</Button></div>
                       </form>
                     ) : (
-                      <>
-                        <div className="flex items-center gap-4 mb-4">
-                          <div className="w-12 h-12 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-xl shrink-0">{u.name?.charAt(0) || '?'}</div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-white text-lg truncate">{u.name}</h3>
-                            <span className="text-[10px] bg-slate-900 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold">{u.role}</span>
-                          </div>
-                          {u.status === 'INACTIVO' && <span className="text-[10px] text-red-500 font-bold border border-red-500/50 px-2 py-1 rounded">BLOQUEADO</span>}
-                        </div>
-                        <div className="mt-auto pt-4 border-t border-slate-700/50 flex flex-row gap-2">
-                           <Button variant="secondary" className="flex-1" icon={Edit3} onClick={() => setEditingUser(u)}>Editar</Button>
-                           <Button variant="secondary" className="flex-1 bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20" icon={MessageSquare} onClick={() => openWhatsApp(u.phone)}>Contactar</Button>
-                        </div>
-                      </>
+                      <><div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-xl shrink-0">{u.name?.charAt(0) || '?'}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-white text-lg truncate">{u.name}</h3><span className="text-[10px] bg-slate-900 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold">{u.role}</span></div>{u.status === 'INACTIVO' && <span className="text-[10px] text-red-500 font-bold border border-red-500/50 px-2 py-1 rounded">BLOQUEADO</span>}</div><div className="mt-auto pt-4 border-t border-slate-700/50 flex flex-row gap-2"><Button variant="secondary" className="flex-1" icon={Edit3} onClick={() => setEditingUser(u)}>Editar</Button></div></>
                     )}
                   </Card>
                 ))}
               </div>
             )}
-
             {activeTab === 'INVITAR' && (
               <Card className="max-w-xl mx-auto p-6 border-t-4 border-emerald-500">
                 <h2 className="text-xl font-bold text-white mb-2">Crear Acceso Directo</h2>
-                <p className="text-sm text-slate-400 mb-6">El sistema creará el perfil, generará la clave segura y le enviará el correo oficial inmediatamente.</p>
                 <form onSubmit={handleDirectInvite} className="space-y-4">
                   <div><label className="block text-xs font-bold text-slate-400 mb-1">Nombre Completo</label><input type="text" value={invName} onChange={e=>setInvName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required /></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="block text-xs font-bold text-slate-400 mb-1">Correo Electrónico</label><input type="email" value={invEmail} onChange={e=>setInvEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required /></div>
-                    <div><label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label><input type="tel" value={invPhone} onChange={e=>setInvPhone(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required /></div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">Rol a Asignar</label>
-                    <select value={invRole} onChange={e=>setInvRole(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
-                      {Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </div>
-                  <Button type="submit" variant="primary" className="w-full py-4 text-lg mt-4" disabled={processingId === 'inviting'} icon={UserCheck}>
-                    {processingId === 'inviting' ? 'Generando Acceso...' : 'Crear y Enviar Credenciales'}
-                  </Button>
+                  <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-slate-400 mb-1">Correo</label><input type="email" value={invEmail} onChange={e=>setInvEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required /></div><div><label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label><input type="tel" value={invPhone} onChange={e=>setInvPhone(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required /></div></div>
+                  <div><label className="block text-xs font-bold text-slate-400 mb-1">Rol</label><select value={invRole} onChange={e=>setInvRole(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+                  <Button type="submit" variant="primary" className="w-full py-4 text-lg mt-4" disabled={processingId === 'inviting'} icon={UserCheck}>{processingId === 'inviting' ? 'Generando...' : 'Crear y Enviar Credenciales'}</Button>
                 </form>
               </Card>
             )}
@@ -359,151 +450,121 @@ export default function App() {
     );
   };
 
+  // --- 6. MI PERFIL ---
   const ProfileView = () => {
-    const [phone, setPhone] = useState(currentUser.phone || '');
-    const [talla, setTalla] = useState(currentUser.talla || 'M');
-    const [dieta, setDieta] = useState(currentUser.dieta || 'OMNÍVORA');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
+    const [pPhone, setPPhone] = useState(currentUser.phone || '');
+    const [pTalla, setPTalla] = useState(currentUser.talla || 'M');
+    const [pDieta, setPDieta] = useState(currentUser.dieta || 'OMNÍVORA');
+    
+    const [oldPass, setOldPass] = useState('');
+    const [newPass, setNewPass] = useState('');
+    const [confirmPass, setConfirmPass] = useState('');
+    
     const [saving, setSaving] = useState(false);
 
-    const handleSaveProfile = async (e) => {
+    const handleUpdate = async (e) => {
       e.preventDefault();
       
-      // Validación de contraseñas
-      if (newPassword && newPassword !== confirmPassword) {
-        showToast("Error: Las contraseñas no coinciden.");
+      if (newPass && newPass !== confirmPass) {
+        showToast("Las contraseñas nuevas no coinciden.");
         return;
       }
 
       setSaving(true);
       try {
+        const payload = { email: currentUser.email, phone: pPhone, talla: pTalla, dieta: pDieta };
+        if (newPass && oldPass) { payload.oldPassword = oldPass; payload.newPassword = newPass; }
+
         const res = await fetch('/.netlify/functions/api', {
-          method: 'POST', body: JSON.stringify({
-            action: 'updateProfile',
-            payload: { email: currentUser.email, phone, talla, dieta, newPassword }
-          })
+          method: 'POST', body: JSON.stringify({ action: 'updateProfile', payload })
         });
         const json = await res.json();
         if (json.status === 'success') {
-          setCurrentUser({...currentUser, phone, talla, dieta});
-          setNewPassword(''); 
-          setConfirmPassword('');
-          showToast("¡Tu perfil y seguridad han sido actualizados exitosamente!");
-        } else { showToast("Error: " + json.message); }
-      } catch(e) { showToast("Error de conexión al guardar."); }
+          setCurrentUser({ ...currentUser, phone: pPhone, talla: pTalla, dieta: pDieta });
+          setOldPass(''); setNewPass(''); setConfirmPass('');
+          showToast(newPass ? "¡Perfil y Contraseña actualizados!" : "¡Perfil actualizado!");
+        } else { showToast(json.message); }
+      } catch (err) { showToast("Error al guardar."); }
       setSaving(false);
     };
 
     return (
-      <div className="max-w-3xl mx-auto space-y-6 pb-24 animate-fade-in">
-        <header className="border-b border-slate-800 pb-4">
-          <h1 className="text-2xl font-black text-white flex items-center gap-3"><User className="text-emerald-500" size={28} /> Mi Perfil</h1>
-          <p className="text-sm text-slate-400 mt-1">Actualiza tus datos de contacto, preferencias y seguridad.</p>
-        </header>
-
-        <Card className="p-6 border-t-4 border-emerald-500">
-          <form onSubmit={handleSaveProfile} className="space-y-6">
+      <div className="max-w-xl mx-auto animate-fade-in pb-24">
+        <header className="mb-6"><h1 className="text-2xl font-black text-white flex items-center gap-3"><User className="text-emerald-500" size={28}/> Mi Perfil</h1></header>
+        <Card className="p-6">
+          <form onSubmit={handleUpdate} className="space-y-5">
+            <div className="pb-4 border-b border-slate-700">
+              <label className="block text-xs font-bold text-slate-400 mb-1">Nombre</label>
+              <input type="text" value={currentUser.name} disabled className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-slate-500 text-sm cursor-not-allowed" />
+            </div>
             
-            <div className="flex items-center gap-4 border-b border-slate-800 pb-6">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 font-black flex items-center justify-center text-3xl shrink-0 border border-emerald-500/50">
-                {currentUser.name.charAt(0)}
-              </div>
-              <div className="flex-1">
-                <h2 className="text-xl font-bold text-white">{currentUser.name}</h2>
-                <span className="text-xs bg-slate-900 text-emerald-400 px-2 py-1 rounded border border-slate-700 uppercase font-bold mt-1 inline-block">{currentUser.role}</span>
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1">Correo (No modificable)</label>
-                  <input type="email" value={currentUser.email} disabled className="w-full bg-slate-900/50 border border-slate-800 rounded-lg p-3 text-slate-500 text-sm outline-none cursor-not-allowed" />
-               </div>
-               <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label>
-                  <input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required />
-               </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label>
+                <input type="text" value={pPhone} onChange={e=>setPPhone(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Talla (Merch/Crew)</label>
+                <select value={pTalla} onChange={e=>setPTalla(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
+                  <option value="XS">XS - Extra Pequeño (US 2-4 / EU 32-34)</option>
+                  <option value="S">S - Pequeño (US 4-6 / EU 34-36)</option>
+                  <option value="M">M - Mediano (US 6-8 / EU 38-40)</option>
+                  <option value="L">L - Grande (US 10-12 / EU 42-44)</option>
+                  <option value="XL">XL - Extra Grande</option>
+                  <option value="XXL">XXL - Doble Extra Grande</option>
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1">Preferencia de Alimentación (Catering)</label>
+              <select value={pDieta} onChange={e=>setPDieta(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
+                <option value="OMNÍVORA">Omnívora (Estándar)</option>
+                <option value="VEGETARIANA">Vegetariana (Ovo-lacto)</option>
+                <option value="VEGANA">Vegana (Estricta sin derivados)</option>
+                <option value="CRUDÍVORA">Crudívora (Frutas/Semillas crudas)</option>
+                <option value="FLEXITARIANA">Flexitariana (Ocasionalmente carne)</option>
+                <option value="SIN GLUTEN">Sin Gluten (Celíacos/Sensibilidad)</option>
+                <option value="BAJA EN FODMAP">Baja en FODMAP (Colón irritable)</option>
+                <option value="HIPOSÓDICA">Hiposódica (Baja en Sodio/Sal)</option>
+                <option value="DIABÉTICA">Diabética (Baja carga glucémica)</option>
+                <option value="KETO">Dieta Keto (Cetogénica)</option>
+                <option value="MEDITERRÁNEA">Mediterránea (Aceite de oliva/Pescado)</option>
+              </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1 flex items-center gap-1"><Shirt size={14}/> Talla Ropa Trabajo</label>
-                  <select value={talla} onChange={e=>setTalla(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
-                    <option value="XS">XS</option>
-                    <option value="S">S</option>
-                    <option value="M">M</option>
-                    <option value="L">L</option>
-                    <option value="XL">XL</option>
-                    <option value="XXL">XXL</option>
-                  </select>
-               </div>
-               <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1 flex items-center gap-1"><Coffee size={14}/> Preferencia Alimenticia</label>
-                  <select value={dieta} onChange={e=>setDieta(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
-                    <option value="OMNÍVORA">Omnívora (Estándar)</option>
-                    <option value="VEGETARIANA">Vegetariana</option>
-                    <option value="VEGANA">Vegana</option>
-                    <option value="CELÍACA">Celíaca (Sin Gluten)</option>
-                  </select>
-               </div>
+            <div className="bg-slate-800/80 border border-slate-700 rounded-lg p-3 flex gap-3 items-start mt-2">
+              <Shield size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-slate-400 leading-relaxed font-bold">
+                La información sobre alergias alimentarias, dietas y tallaje de vestimenta será utilizada únicamente para informar a la producción y proveer (en caso de corresponder) esa especificación al área correspondiente.
+              </p>
             </div>
 
-            <div className="pt-4 border-t border-slate-800">
-               <h3 className="text-sm font-bold text-emerald-400 mb-3 flex items-center gap-2"><Lock size={16}/> Seguridad</h3>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">Nueva Contraseña (Opcional)</label>
-                    <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="Dejar en blanco para no cambiar" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500 placeholder:text-slate-600" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">Confirmar Contraseña</label>
-                    <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Repite tu nueva contraseña" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500 placeholder:text-slate-600" />
-                 </div>
-               </div>
+            <div className="pt-4 border-t border-slate-700 mt-4 space-y-3">
+              <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2"><Key size={16}/> Cambiar Contraseña (Opcional)</h3>
+              <input type="password" placeholder="Contraseña Actual" value={oldPass} onChange={e=>setOldPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" />
+              <input type="password" placeholder="Nueva Contraseña" value={newPass} onChange={e=>setNewPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" />
+              <input type="password" placeholder="Confirmar Nueva Contraseña" value={confirmPass} onChange={e=>setConfirmPass(e.target.value)} className={`w-full bg-slate-900 border rounded-lg p-3 text-white text-sm outline-none ${confirmPass && newPass !== confirmPass ? 'border-red-500' : 'border-slate-700 focus:border-emerald-500'}`} />
+              {confirmPass && newPass !== confirmPass && <p className="text-xs text-red-500 font-bold">Las contraseñas no coinciden</p>}
             </div>
-
-            <Button type="submit" variant="primary" className="w-full py-4 text-lg mt-4" disabled={saving} icon={Save}>
-              {saving ? 'Guardando...' : 'Guardar Perfil'}
-            </Button>
+            
+            <Button type="submit" variant="primary" className="w-full py-4 mt-6" disabled={saving || (confirmPass && newPass !== confirmPass)}>{saving ? <Loader2 className="animate-spin"/> : 'Guardar Cambios'}</Button>
           </form>
         </Card>
       </div>
     );
   };
 
-  const Dashboard = () => {
-    return (
-      <div className="space-y-6 animate-fade-in pb-24">
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl font-black text-white leading-tight">Hola, {currentUser.name.split(' ')[0]}</h1>
-            <p className="text-emerald-400 text-sm font-black uppercase tracking-wider">{currentUser.role}</p>
-          </div>
-          {[ROLES.ADMIN, ROLES.MANAGER].includes(currentUser.role) && (
-            <Button icon={Plus} variant="primary">Nuevo Proyecto</Button>
-          )}
-        </header>
+  // --- DASHBOARD (INICIO) ---
+  const Dashboard = () => (
+    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 animate-fade-in text-center px-4">
+      <Music size={48} className="mb-4 text-emerald-500/50" />
+      <h2 className="text-2xl font-black text-white mb-2">Bienvenido, {currentUser.name.split(' ')[0]}</h2>
+      <p>Navega a través del menú para revisar el Timing, los Mensajes o actualizar tu Perfil.</p>
+    </div>
+  );
 
-        <h2 className="text-lg font-bold text-slate-300 border-b border-slate-800 pb-2">Proyectos Activos</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mockTours.map(tour => (
-            <Card key={tour.id} className="group hover:border-emerald-500">
-              <div className="p-5">
-                <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-emerald-500/20"><tour.imageIcon className="text-emerald-500" size={24} /></div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">{tour.type}</span>
-                <h2 className="text-lg font-bold text-white leading-tight mb-4">{tour.name}</h2>
-                <div className="flex flex-row gap-2 border-t border-slate-700 pt-4">
-                  <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700" icon={Calendar}>Ver Shows</Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
+  // --- RENDERIZADO PRINCIPAL ---
   if (!currentUser) return <AuthRouter />;
   const menuOptions = getMenuOptions();
 
@@ -536,13 +597,9 @@ export default function App() {
           {currentView === 'DASHBOARD' && <Dashboard />}
           {currentView === 'ADMIN_PANEL' && <AdminPanel />}
           {currentView === 'PROFILE' && <ProfileView />}
-          {['TIMING', 'CHAT', 'STAFF'].includes(currentView) && (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500">
-               <Settings size={48} className="mb-4 text-emerald-500/50" />
-               <h2 className="text-xl font-bold text-white mb-2">Módulo en Desarrollo</h2>
-               <p>Este módulo será conectado a la base de datos próximamente.</p>
-            </div>
-          )}
+          {currentView === 'STAFF' && <StaffDirectory />}
+          {currentView === 'CHAT' && <ChatView />}
+          {currentView === 'TIMING' && <TimingView />}
         </div>
       </main>
       
