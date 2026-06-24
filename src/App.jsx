@@ -174,33 +174,35 @@ export default function App() {
           })
         });
         
+        const data = await response.json(); // Ahora siempre leemos el error de Netlify
+        
         if (response.ok) {
-           const data = await response.json();
            if (data.status === 'success') {
              setCurrentUser(data.user);
              setLoading(false);
              return;
            } else {
-             setError(data.message || "Credenciales incorrectas o usuario no aprobado.");
+             setError(data.message || "Credenciales incorrectas.");
              setLoading(false);
              return;
            }
         } else {
-           throw new Error("Proxy no disponible");
+           throw new Error(data.error + (data.details ? ` \nDetalle: ${data.details}` : ''));
         }
       } catch (err) {
-        console.warn("Servidor Netlify no detectado. Pasando a entorno de pruebas local (Mocks).");
-        
-        // Fallback a Base de Datos Local
-        setTimeout(() => {
-          const u = mockUsers.find(x => x.email.toLowerCase() === email.toLowerCase() && x.password === pass);
-          if (u) {
-            setCurrentUser(u);
-          } else {
-            setError("Credenciales inválidas. Verifica tu correo y contraseña.");
-          }
+        console.warn("Fallo detectado:", err.message);
+        // Fallback local solo si es entorno de pruebas puro sin Netlify
+        if (err.message.includes('Unexpected token')) {
+          setTimeout(() => {
+            const u = mockUsers.find(x => x.email.toLowerCase() === email.toLowerCase() && x.password === pass);
+            if (u) setCurrentUser(u);
+            else setError("Error local: Credenciales inválidas.");
+            setLoading(false);
+          }, 800);
+        } else {
+          setError(`Detalle del error: ${err.message}`);
           setLoading(false);
-        }, 800);
+        }
       }
     };
 
@@ -219,9 +221,12 @@ export default function App() {
           })
         });
         
-        if (!response.ok) throw new Error("Error conectando con el servidor");
-
         const result = await response.json();
+        
+        if (!response.ok) {
+           throw new Error(result.error + (result.details ? ` \nEvidencia: ${result.details}` : ''));
+        }
+
         if (result.status === 'success') {
            setMode('LOGIN');
            alert("¡Solicitud enviada! Una vez el administrador te apruebe, te enviaremos tu clave temporal al correo.");
@@ -229,7 +234,7 @@ export default function App() {
            setError(result.message || 'Error al solicitar acceso.');
         }
       } catch (err) {
-        setError('Error de red. Para probar el registro en vivo debes usar el comando "netlify dev".');
+        setError(`⚠️ ${err.message}`);
       }
       setLoading(false);
     };

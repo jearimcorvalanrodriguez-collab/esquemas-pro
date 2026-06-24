@@ -1,36 +1,57 @@
 exports.handler = async (event, context) => {
-  // 1. Solo aceptamos peticiones POST
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
 
   try {
     const requestBody = JSON.parse(event.body);
+    const gasUrl = process.env.GAS_URL_SECRET;
 
-    // 2. Inyectamos nuestro Secreto Maestro que solo existe en Netlify
+    if (!gasUrl || !gasUrl.includes("http")) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          error:
+            "La URL de Google Apps Script no está configurada o es inválida en Netlify.",
+        }),
+      };
+    }
+
     const securePayload = {
       ...requestBody,
-      app_secret: process.env.ESQUEMAS_MASTER_SECRET, // Variable oculta en Netlify
+      app_secret: process.env.ESQUEMAS_MASTER_SECRET,
     };
 
-    // 3. Hacemos la petición a Google Apps Script desde el servidor (oculto al usuario)
-    const response = await fetch(process.env.GAS_URL_SECRET, {
+    const response = await fetch(gasUrl, {
       method: "POST",
       body: JSON.stringify(securePayload),
       headers: { "Content-Type": "text/plain;charset=utf-8" },
     });
 
-    const data = await response.json();
+    // Leemos la respuesta como TEXTO primero (para atrapar la página de error de Google)
+    const responseText = await response.text();
 
-    // 4. Devolvemos la respuesta de Google a React
-    return {
-      statusCode: 200,
-      body: JSON.stringify(data),
-    };
+    try {
+      // Intentamos convertirlo a datos reales
+      const data = JSON.parse(responseText);
+      return { statusCode: 200, body: JSON.stringify(data) };
+    } catch (parseError) {
+      // Si Google devuelve HTML o texto basura, atrapamos la evidencia
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          error: "Google bloqueó la conexión o la URL es incorrecta.",
+          details: responseText.substring(0, 150),
+        }),
+      };
+    }
   } catch (error) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Error interno del servidor seguro" }),
+      body: JSON.stringify({
+        error: "Fallo interno del servidor Netlify.",
+        details: error.message,
+      }),
     };
   }
 };
