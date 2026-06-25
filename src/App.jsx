@@ -626,47 +626,61 @@ export default function App() {
   const RidersView = () => {
     const [riders, setRiders] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [editTab, setEditTab] = useState('GENERAL');
     
-    const [form, setForm] = useState({ id: null, title: '', type: 'SONIDO', content: '' });
     const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TECH].includes(currentUser.role);
+
+    const defaultContent = {
+      importante: '',
+      contacto: { mgmtCel: '', mgmtCorreo: '', prodCel: '', prodCorreo: '' },
+      soundcheck: 'Se espera un recinto cerrado, libre de ruidos, con el sistema ajustado y ruteado antes de la llegada del equipo técnico.',
+      recordatorio: 'Si existe algún aspecto técnico o logístico difícil de cumplir, se solicita informar a producción con la debida antelación para buscar alternativas.',
+      outputs: [{ mix: '', player: '', monitor: '', obs: '' }],
+      inputs: [{ ch: '1', name: '', mic: '', v48: '', stand: '', position: '', obs: '' }],
+      backline: [{ col1: '', col2: '', col3: '', col4: '' }],
+      visuals: [{ col1: '', col2: '', col3: '', col4: '' }]
+    };
+
+    const [form, setForm] = useState({ id: null, title: '', type: 'COMPLETO', content: defaultContent });
 
     const fetchRiders = async () => {
       setLoading(true);
+      setFetchError(false);
       try {
         const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getRiders' }) });
         const json = await res.json();
-        if (json.status === 'success') setRiders(json.data);
-      } catch(e) {}
+        if (json.status === 'success') {
+          // Parsear el contenido estructurado
+          const parsedRiders = json.data.map(r => {
+            let parsedContent;
+            try { parsedContent = JSON.parse(r.content); } 
+            catch(e) { parsedContent = { ...defaultContent, importante: r.content }; } // Fallback para riders antiguos
+            return { ...r, content: parsedContent };
+          });
+          setRiders(parsedRiders);
+        }
+      } catch(e) {
+        setFetchError(true);
+      }
       setLoading(false);
     };
     useEffect(() => { fetchRiders(); }, []);
-
-    const loadTemplate = (type) => {
-      if (type === 'SONIDO') return "=========================================\nRIDER TÉCNICO - SONIDO\n=========================================\n\n1. SISTEMA DE AUDIO (FOH)\n- Sistema Line Array capaz de 110 dB SPL en FOH.\n- Consola FOH: DiGiCo o A&H dLive (NO Presonus/X32).\n- Procesador: Lake LM 26.\n\n2. MONITORES\n- Consola Mon: DiGiCo o Avid S6L.\n- 07 Transmisores IEM (Shure P10T) y 18 Receptores.\n\n3. BACKLINE BÁSICO\n- Batería: Yamaha Absolute.\n- Piano: Korg Kronos 73.\n\n4. INPUT LIST (Resumen)\nCH 01 - Kick In (Beta 91)\nCH 32 - Voz Principal (Axient SE V7)";
-      if (type === 'ILUMINACIÓN') return "=========================================\nRIDER DE ILUMINACIÓN Y VISUALES\n=========================================\n\n1. CONSOLA\n- GrandMA2 o GrandMA3 (Full Size o Light).\n\n2. PANTALLA LED\n- 1 Pantalla Central de 6 mts x 4 mts (P3.9).\n\n3. EFECTOS ESPECIALES (SFX)\n- 02 Confetti Estadio (1 tiro) color blanco/rojo.\n- 06 Sparkular (Larga duración).";
-      if (type === 'STAGEPLOT') return "=========================================\nSTAGEPLOT Y ESCENARIO\n=========================================\n\n1. DIMENSIONES\n- Ancho: 15m. Fondo: 10m.\n\n2. ÁREAS\n- Monitores: 4x4m fuera del escenario.\n\n3. ENERGÍA\n- 4 Salidas de 220 VAC separadas.";
-      return "";
-    };
-
-    const handleTypeChange = (e) => {
-      const newType = e.target.value;
-      setForm(prev => {
-        const currentIsTemplate = Object.values(['SONIDO', 'ILUMINACIÓN', 'STAGEPLOT']).some(t => prev.content === loadTemplate(t));
-        return { ...prev, type: newType, content: (prev.content === '' || currentIsTemplate) ? loadTemplate(newType) : prev.content };
-      });
-    };
 
     const handleSave = async (e) => {
       e.preventDefault(); setLoading(true);
       try {
         const action = form.id ? 'updateRider' : 'createRider';
-        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action, payload: form }) });
+        // Comprimir el objeto content a String para la BD
+        const payloadToSave = { ...form, content: JSON.stringify(form.content) };
+        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action, payload: payloadToSave }) });
         showToast("Rider guardado correctamente."); setIsEditing(false); fetchRiders();
       } catch(e) { showToast("Error al guardar rider."); setLoading(false); }
     };
 
     const handleDelete = async (id) => {
+      if(!window.confirm("¿Estás seguro de eliminar este Rider de forma permanente?")) return;
       setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'deleteRider', payload: { id } }) });
@@ -675,12 +689,37 @@ export default function App() {
     };
 
     const openEditor = (rider = null) => {
-      if (rider) setForm(rider);
-      else setForm({ id: null, title: 'Nuevo Rider Téc.', type: 'SONIDO', content: loadTemplate('SONIDO') });
+      if (rider) setForm({ ...rider });
+      else setForm({ id: null, title: 'Nuevo Rider Téc.', type: 'COMPLETO', content: JSON.parse(JSON.stringify(defaultContent)) });
+      setEditTab('GENERAL');
       setIsEditing(true);
     };
 
-    const icons = { 'SONIDO': Mic2, 'ILUMINACIÓN': Lightbulb, 'STAGEPLOT': MapIcon };
+    const restoreDefaults = () => {
+      if(window.confirm("¿Restaurar textos por defecto? Esto borrará lo que no hayas guardado.")) {
+        setForm(prev => ({ ...prev, content: JSON.parse(JSON.stringify(defaultContent)) }));
+      }
+    };
+
+    // Funciones Helper para las Tablas
+    const updateTable = (tableName, index, field, value) => {
+      setForm(prev => {
+        const newTable = [...prev.content[tableName]];
+        newTable[index][field] = value;
+        return { ...prev, content: { ...prev.content, [tableName]: newTable } };
+      });
+    };
+    const addRow = (tableName, template) => {
+      if (form.content[tableName].length >= 100) return showToast("Límite de 100 filas alcanzado.");
+      setForm(prev => ({ ...prev, content: { ...prev.content, [tableName]: [...prev.content[tableName], template] } }));
+    };
+    const removeRow = (tableName, index) => {
+      setForm(prev => {
+        const newTable = [...prev.content[tableName]];
+        newTable.splice(index, 1);
+        return { ...prev, content: { ...prev.content, [tableName]: newTable } };
+      });
+    };
 
     return (
       <div className="space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto">
@@ -690,49 +729,280 @@ export default function App() {
         </header>
 
         {isEditing ? (
-          <Card className="p-6 border-emerald-500">
-            <h2 className="text-lg font-bold text-white mb-4">{form.id ? 'Editar Rider' : 'Generar Nuevo Rider'}</h2>
-            <form onSubmit={handleSave} className="space-y-4">
+          <Card className="p-0 border-emerald-500 overflow-hidden flex flex-col h-[85vh]">
+            <div className="p-4 border-b border-slate-700 bg-slate-900 shrink-0">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-white">{form.id ? 'Editar Rider' : 'Generar Nuevo Rider'}</h2>
+                <Button variant="ghost" className="text-[10px] py-1 px-2 border border-slate-700" icon={RefreshCw} onClick={restoreDefaults}>Restaurar Plantilla Original</Button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="text-xs text-slate-400 block mb-1">Título del Documento</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} /></div>
+                <div><label className="text-xs text-slate-400 block mb-1">Título del Documento</label><input required className="w-full bg-slate-800 border-slate-700 rounded p-2 text-white" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} /></div>
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">Área / Tipo</label>
-                  <select className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white font-bold" value={form.type} onChange={handleTypeChange}>
+                  <select className="w-full bg-slate-800 border-slate-700 rounded p-2 text-white font-bold" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
+                    <option value="COMPLETO">RIDER COMPLETO (Todas las áreas)</option>
                     <option value="SONIDO">SONIDO</option>
                     <option value="ILUMINACIÓN">ILUMINACIÓN</option>
-                    <option value="STAGEPLOT">STAGEPLOT</option>
+                    <option value="STAGEPLOT">STAGEPLOT / BACKLINE</option>
                   </select>
                 </div>
               </div>
-              <div>
-                <div className="flex justify-between items-end mb-1">
-                  <label className="text-xs text-slate-400">Contenido Técnico (Editable)</label>
-                  <Button variant="ghost" className="text-[10px] py-1 px-2 border border-slate-700" icon={RefreshCw} onClick={() => setForm({...form, content: loadTemplate(form.type)})}>Restaurar Plantilla Original</Button>
+            </div>
+
+            {/* PESTAÑAS DE EDICIÓN */}
+            <div className="flex overflow-x-auto bg-slate-900 border-b border-slate-700 shrink-0 hide-scrollbar">
+              {['GENERAL', 'AUDIO', 'BACKLINE', 'VISUALES'].map(tab => (
+                <button key={tab} type="button" onClick={() => setEditTab(tab)} className={`px-6 py-3 text-xs font-bold whitespace-nowrap transition-colors border-b-2 ${editTab === tab ? 'border-emerald-500 text-emerald-400 bg-slate-800' : 'border-transparent text-slate-400 hover:text-white'}`}>
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* ÁREA DE SCROLL PARA EL FORMULARIO */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-950 custom-scrollbar">
+              {editTab === 'GENERAL' && (
+                <div className="space-y-6">
+                  <div><label className="text-sm font-bold text-white block mb-2">Sección IMPORTANTE</label><textarea className="w-full bg-slate-900 border-slate-700 rounded p-3 text-emerald-400 font-mono text-sm min-h-[100px] focus:border-emerald-500" value={form.content.importante} onChange={e=>setForm({...form, content: {...form.content, importante: e.target.value}})} placeholder="Información crucial para la producción local..." /></div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
+                      <h4 className="font-bold text-white text-sm">Contacto Management</h4>
+                      <div><label className="text-xs text-slate-400">Celular</label><input className="w-full bg-slate-800 border-slate-700 rounded p-2 text-white text-sm" value={form.content.contacto.mgmtCel} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, mgmtCel: e.target.value}}})} /></div>
+                      <div><label className="text-xs text-slate-400">Correo</label><input className="w-full bg-slate-800 border-slate-700 rounded p-2 text-white text-sm" value={form.content.contacto.mgmtCorreo} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, mgmtCorreo: e.target.value}}})} /></div>
+                    </div>
+                    <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
+                      <h4 className="font-bold text-white text-sm">Contacto Producción Técnica</h4>
+                      <div><label className="text-xs text-slate-400">Celular</label><input className="w-full bg-slate-800 border-slate-700 rounded p-2 text-white text-sm" value={form.content.contacto.prodCel} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, prodCel: e.target.value}}})} /></div>
+                      <div><label className="text-xs text-slate-400">Correo</label><input className="w-full bg-slate-800 border-slate-700 rounded p-2 text-white text-sm" value={form.content.contacto.prodCorreo} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, prodCorreo: e.target.value}}})} /></div>
+                    </div>
+                  </div>
+                  <div><label className="text-sm font-bold text-white block mb-2">Requerimientos de SoundCheck</label><textarea className="w-full bg-slate-900 border-slate-700 rounded p-3 text-emerald-400 font-mono text-sm min-h-[80px]" value={form.content.soundcheck} onChange={e=>setForm({...form, content: {...form.content, soundcheck: e.target.value}})} /></div>
+                  <div><label className="text-sm font-bold text-white block mb-2">Recordatorio Oficial</label><textarea className="w-full bg-slate-900 border-slate-700 rounded p-3 text-red-400 font-mono text-sm min-h-[80px]" value={form.content.recordatorio} onChange={e=>setForm({...form, content: {...form.content, recordatorio: e.target.value}})} /></div>
                 </div>
-                <textarea required className="w-full bg-slate-900 border-slate-700 rounded p-4 text-emerald-400 font-mono text-sm min-h-[400px] leading-relaxed focus:border-emerald-500 focus:outline-none custom-scrollbar" value={form.content} onChange={e=>setForm({...form, content: e.target.value})} />
-              </div>
-              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsEditing(false)}>Cancelar</Button><Button type="submit" className="flex-1" icon={Save}>Guardar Documento</Button></div>
-            </form>
+              )}
+
+              {editTab === 'AUDIO' && (
+                <div className="space-y-8">
+                  {/* TABLA OUTPUTS */}
+                  <div>
+                    <div className="flex justify-between items-end mb-2">
+                      <h3 className="text-sm font-bold text-emerald-500">TABLA OUTPUT / MONITOR ({form.content.outputs.length}/100)</h3>
+                      <Button variant="secondary" className="py-1 px-3 text-xs" icon={Plus} onClick={() => addRow('outputs', { mix: '', player: '', monitor: '', obs: '' })}>Agregar Fila</Button>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900 custom-scrollbar">
+                      <table className="w-full text-left text-sm text-slate-300 min-w-[600px]">
+                        <thead className="bg-slate-800 text-xs uppercase text-slate-400 font-black"><tr><th className="p-2 w-16">MIX</th><th className="p-2">PLAYER</th><th className="p-2">MONITOR</th><th className="p-2">OBS</th><th className="p-2 w-10 text-center">X</th></tr></thead>
+                        <tbody>
+                          {form.content.outputs.map((row, i) => (
+                            <tr key={i} className="border-t border-slate-800 hover:bg-slate-800/50">
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.mix} onChange={e=>updateTable('outputs', i, 'mix', e.target.value)} /></td>
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.player} onChange={e=>updateTable('outputs', i, 'player', e.target.value)} /></td>
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.monitor} onChange={e=>updateTable('outputs', i, 'monitor', e.target.value)} /></td>
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.obs} onChange={e=>updateTable('outputs', i, 'obs', e.target.value)} /></td>
+                              <td className="p-1 text-center"><button type="button" onClick={()=>removeRow('outputs', i)} className="text-red-500 hover:text-red-400 p-1"><Trash2 size={14}/></button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* TABLA INPUTS */}
+                  <div>
+                    <div className="flex justify-between items-end mb-2">
+                      <h3 className="text-sm font-bold text-emerald-500">TABLA INPUT LIST ({form.content.inputs.length}/100)</h3>
+                      <Button variant="secondary" className="py-1 px-3 text-xs" icon={Plus} onClick={() => addRow('inputs', { ch: String(form.content.inputs.length + 1), name: '', mic: '', v48: '', stand: '', position: '', obs: '' })}>Agregar Fila</Button>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900 custom-scrollbar">
+                      <table className="w-full text-left text-sm text-slate-300 min-w-[800px]">
+                        <thead className="bg-slate-800 text-xs uppercase text-slate-400 font-black"><tr><th className="p-2 w-12">CH</th><th className="p-2">NAME</th><th className="p-2">MIC/DI</th><th className="p-2 w-16">48v</th><th className="p-2">STAND</th><th className="p-2">POSITION</th><th className="p-2">OBS</th><th className="p-2 w-10 text-center">X</th></tr></thead>
+                        <tbody>
+                          {form.content.inputs.map((row, i) => (
+                            <tr key={i} className="border-t border-slate-800 hover:bg-slate-800/50">
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 text-center font-bold" value={row.ch} onChange={e=>updateTable('inputs', i, 'ch', e.target.value)} /></td>
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.name} onChange={e=>updateTable('inputs', i, 'name', e.target.value)} /></td>
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.mic} onChange={e=>updateTable('inputs', i, 'mic', e.target.value)} /></td>
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500 text-center" placeholder="Sí/No" value={row.v48} onChange={e=>updateTable('inputs', i, 'v48', e.target.value)} /></td>
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.stand} onChange={e=>updateTable('inputs', i, 'stand', e.target.value)} /></td>
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.position} onChange={e=>updateTable('inputs', i, 'position', e.target.value)} /></td>
+                              <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.obs} onChange={e=>updateTable('inputs', i, 'obs', e.target.value)} /></td>
+                              <td className="p-1 text-center"><button type="button" onClick={()=>removeRow('inputs', i)} className="text-red-500 hover:text-red-400 p-1"><Trash2 size={14}/></button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {editTab === 'BACKLINE' && (
+                <div>
+                  <div className="flex justify-between items-end mb-2">
+                    <h3 className="text-sm font-bold text-emerald-500">TABLA BACKLINE ({form.content.backline.length}/100)</h3>
+                    <Button variant="secondary" className="py-1 px-3 text-xs" icon={Plus} onClick={() => addRow('backline', { col1: '', col2: '', col3: '', col4: '' })}>Agregar Fila</Button>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900 custom-scrollbar">
+                    <table className="w-full text-left text-sm text-slate-300 min-w-[600px]">
+                      <thead className="bg-slate-800 text-xs uppercase text-slate-400 font-black"><tr><th className="p-2">ITEM / INSTRUMENTO</th><th className="p-2 w-24">CANTIDAD</th><th className="p-2">ESPECIFICACIONES</th><th className="p-2">OBS</th><th className="p-2 w-10 text-center">X</th></tr></thead>
+                      <tbody>
+                        {form.content.backline.map((row, i) => (
+                          <tr key={i} className="border-t border-slate-800 hover:bg-slate-800/50">
+                            <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.col1} onChange={e=>updateTable('backline', i, 'col1', e.target.value)} /></td>
+                            <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500 text-center" value={row.col2} onChange={e=>updateTable('backline', i, 'col2', e.target.value)} /></td>
+                            <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.col3} onChange={e=>updateTable('backline', i, 'col3', e.target.value)} /></td>
+                            <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.col4} onChange={e=>updateTable('backline', i, 'col4', e.target.value)} /></td>
+                            <td className="p-1 text-center"><button type="button" onClick={()=>removeRow('backline', i)} className="text-red-500 hover:text-red-400 p-1"><Trash2 size={14}/></button></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {editTab === 'VISUALES' && (
+                <div>
+                  <div className="flex justify-between items-end mb-2">
+                    <h3 className="text-sm font-bold text-emerald-500">TABLA VISUAL / LIGHTS ({form.content.visuals.length}/100)</h3>
+                    <Button variant="secondary" className="py-1 px-3 text-xs" icon={Plus} onClick={() => addRow('visuals', { col1: '', col2: '', col3: '', col4: '' })}>Agregar Fila</Button>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900 custom-scrollbar">
+                    <table className="w-full text-left text-sm text-slate-300 min-w-[600px]">
+                      <thead className="bg-slate-800 text-xs uppercase text-slate-400 font-black"><tr><th className="p-2">SISTEMA / EQUIPO</th><th className="p-2 w-24">CANTIDAD</th><th className="p-2">UBICACIÓN</th><th className="p-2">OBS</th><th className="p-2 w-10 text-center">X</th></tr></thead>
+                      <tbody>
+                        {form.content.visuals.map((row, i) => (
+                          <tr key={i} className="border-t border-slate-800 hover:bg-slate-800/50">
+                            <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.col1} onChange={e=>updateTable('visuals', i, 'col1', e.target.value)} /></td>
+                            <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500 text-center" value={row.col2} onChange={e=>updateTable('visuals', i, 'col2', e.target.value)} /></td>
+                            <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.col3} onChange={e=>updateTable('visuals', i, 'col3', e.target.value)} /></td>
+                            <td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1.5 focus:border-emerald-500" value={row.col4} onChange={e=>updateTable('visuals', i, 'col4', e.target.value)} /></td>
+                            <td className="p-1 text-center"><button type="button" onClick={()=>removeRow('visuals', i)} className="text-red-500 hover:text-red-400 p-1"><Trash2 size={14}/></button></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-700 bg-slate-900 shrink-0 flex gap-3">
+              <Button variant="secondary" className="flex-1 py-3" onClick={() => setIsEditing(false)}>Cancelar</Button>
+              <Button variant="primary" className="flex-1 py-3" onClick={handleSave} icon={Save}>Guardar Documento</Button>
+            </div>
           </Card>
+        ) : fetchError ? (
+          <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3">
+            <AlertCircle size={20} /> Error al cargar Riders. Revisa tu conexión.
+          </div>
         ) : loading ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-6">
             {riders.map((r, idx) => {
-              const IconType = icons[r.type] || FileText;
               return (
-                <Card key={idx} className="p-5 border-l-4 border-l-emerald-500 group">
-                  <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-slate-900 rounded-lg flex justify-center items-center"><IconType className="text-emerald-500" size={20}/></div>
-                      <div><h3 className="font-bold text-white text-lg">{r.title}</h3><span className="text-[10px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-bold">{r.type}</span></div>
+                <Card key={idx} className="border-t-4 border-t-emerald-500 bg-slate-900">
+                  <div className="p-5 border-b border-slate-800 flex justify-between items-center">
+                    <div>
+                      <h3 className="font-black text-white text-xl">{r.title}</h3>
+                      <span className="text-[10px] bg-slate-800 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 font-bold tracking-wider">{r.type}</span>
                     </div>
                     {canManageRiders && (
                       <div className="flex gap-2">
-                        <Button variant="danger" className="px-3 bg-slate-900" icon={Trash2} onClick={() => handleDelete(r.id)}></Button>
-                        <Button variant="secondary" icon={Edit3} onClick={() => openEditor(r)}>Modificar</Button>
+                        <Button variant="danger" className="px-3 bg-slate-800" icon={Trash2} onClick={() => handleDelete(r.id)}></Button>
+                        <Button variant="secondary" icon={Edit3} onClick={() => openEditor(r)}>Editar Rider</Button>
                       </div>
                     )}
                   </div>
-                  <pre className="text-xs text-slate-300 font-mono overflow-x-auto p-4 bg-slate-900 rounded-lg whitespace-pre-wrap custom-scrollbar">{r.content}</pre>
+                  
+                  <div className="p-5 space-y-6">
+                    {/* Render de vista de lectura */}
+                    {r.content.importante && (
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg">
+                        <h4 className="text-emerald-400 text-xs font-black mb-2 uppercase">Importante</h4>
+                        <p className="text-sm text-emerald-100 whitespace-pre-wrap">{r.content.importante}</p>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {r.content.contacto && (r.content.contacto.mgmtCel || r.content.contacto.mgmtCorreo) && (
+                        <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                          <h4 className="text-slate-400 text-xs font-black mb-2 uppercase">Contacto Management</h4>
+                          <p className="text-sm text-white">📱 {r.content.contacto.mgmtCel || 'N/A'}</p>
+                          <p className="text-sm text-white">✉️ {r.content.contacto.mgmtCorreo || 'N/A'}</p>
+                        </div>
+                      )}
+                      {r.content.contacto && (r.content.contacto.prodCel || r.content.contacto.prodCorreo) && (
+                        <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                          <h4 className="text-slate-400 text-xs font-black mb-2 uppercase">Contacto Producción</h4>
+                          <p className="text-sm text-white">📱 {r.content.contacto.prodCel || 'N/A'}</p>
+                          <p className="text-sm text-white">✉️ {r.content.contacto.prodCorreo || 'N/A'}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {r.content.soundcheck && (
+                         <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                           <h4 className="text-slate-400 text-xs font-black mb-2 uppercase">Requisitos SoundCheck</h4>
+                           <p className="text-sm text-slate-300 whitespace-pre-wrap">{r.content.soundcheck}</p>
+                         </div>
+                      )}
+                      {r.content.recordatorio && (
+                         <div className="bg-red-500/10 p-4 rounded-lg border border-red-500/20">
+                           <h4 className="text-red-400 text-xs font-black mb-2 uppercase">Recordatorio</h4>
+                           <p className="text-sm text-red-100 whitespace-pre-wrap">{r.content.recordatorio}</p>
+                         </div>
+                      )}
+                    </div>
+
+                    {/* Tablas Renderizadas */}
+                    {r.content.inputs && r.content.inputs.length > 0 && r.content.inputs[0].name !== '' && (
+                      <div className="mt-4">
+                        <h4 className="text-slate-400 text-xs font-black mb-2 uppercase">INPUT LIST</h4>
+                        <div className="overflow-x-auto rounded border border-slate-700 custom-scrollbar">
+                          <table className="w-full text-left text-sm text-slate-300">
+                            <thead className="bg-slate-800 text-xs uppercase text-slate-500"><tr><th className="p-2">CH</th><th className="p-2">NAME</th><th className="p-2">MIC/DI</th><th className="p-2">48v</th><th className="p-2">STAND</th><th className="p-2">POSITION</th><th className="p-2">OBS</th></tr></thead>
+                            <tbody>{r.content.inputs.map((row, i) => row.name && <tr key={i} className="border-t border-slate-800"><td className="p-2 font-bold">{row.ch}</td><td className="p-2">{row.name}</td><td className="p-2">{row.mic}</td><td className="p-2 text-center">{row.v48}</td><td className="p-2">{row.stand}</td><td className="p-2">{row.position}</td><td className="p-2 text-xs">{row.obs}</td></tr>)}</tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {r.content.outputs && r.content.outputs.length > 0 && r.content.outputs[0].mix !== '' && (
+                      <div className="mt-4">
+                        <h4 className="text-slate-400 text-xs font-black mb-2 uppercase">OUTPUT / MONITOR LIST</h4>
+                        <div className="overflow-x-auto rounded border border-slate-700 custom-scrollbar">
+                          <table className="w-full text-left text-sm text-slate-300">
+                            <thead className="bg-slate-800 text-xs uppercase text-slate-500"><tr><th className="p-2">MIX</th><th className="p-2">PLAYER</th><th className="p-2">MONITOR</th><th className="p-2">OBS</th></tr></thead>
+                            <tbody>{r.content.outputs.map((row, i) => row.mix && <tr key={i} className="border-t border-slate-800"><td className="p-2 font-bold">{row.mix}</td><td className="p-2">{row.player}</td><td className="p-2">{row.monitor}</td><td className="p-2 text-xs">{row.obs}</td></tr>)}</tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {r.content.backline && r.content.backline.length > 0 && r.content.backline[0].col1 !== '' && (
+                      <div className="mt-4">
+                        <h4 className="text-slate-400 text-xs font-black mb-2 uppercase">BACKLINE</h4>
+                        <div className="overflow-x-auto rounded border border-slate-700 custom-scrollbar">
+                          <table className="w-full text-left text-sm text-slate-300">
+                            <thead className="bg-slate-800 text-xs uppercase text-slate-500"><tr><th className="p-2">ITEM</th><th className="p-2">CANT</th><th className="p-2">ESPECIFICACIONES</th><th className="p-2">OBS</th></tr></thead>
+                            <tbody>{r.content.backline.map((row, i) => row.col1 && <tr key={i} className="border-t border-slate-800"><td className="p-2 font-bold">{row.col1}</td><td className="p-2 text-center">{row.col2}</td><td className="p-2">{row.col3}</td><td className="p-2 text-xs">{row.col4}</td></tr>)}</tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {r.content.visuals && r.content.visuals.length > 0 && r.content.visuals[0].col1 !== '' && (
+                      <div className="mt-4">
+                        <h4 className="text-slate-400 text-xs font-black mb-2 uppercase">VISUAL / LIGHTS</h4>
+                        <div className="overflow-x-auto rounded border border-slate-700 custom-scrollbar">
+                          <table className="w-full text-left text-sm text-slate-300">
+                            <thead className="bg-slate-800 text-xs uppercase text-slate-500"><tr><th className="p-2">SISTEMA/EQUIPO</th><th className="p-2">CANT</th><th className="p-2">UBICACIÓN</th><th className="p-2">OBS</th></tr></thead>
+                            <tbody>{r.content.visuals.map((row, i) => row.col1 && <tr key={i} className="border-t border-slate-800"><td className="p-2 font-bold">{row.col1}</td><td className="p-2 text-center">{row.col2}</td><td className="p-2">{row.col3}</td><td className="p-2 text-xs">{row.col4}</td></tr>)}</tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </Card>
               )
             })}
