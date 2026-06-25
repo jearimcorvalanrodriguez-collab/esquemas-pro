@@ -88,7 +88,7 @@ export default function App() {
     const r = currentUser.role;
     const proy = { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation };
     const chat = { id: 'CHAT', label: 'Mensajes', icon: MessageSquare };
-    const time = { id: 'TIMING', label: 'Timing', icon: Clock };
+    const time = { id: 'TIMING', label: 'Timing Global', icon: Clock };
     const dir = { id: 'STAFF', label: 'Directorio', icon: Users };
     const transport = { id: 'TRANSPORT', label: 'Transportes', icon: Truck };
     const riders = { id: 'RIDERS', label: 'Riders Técnicos', icon: FileText };
@@ -197,60 +197,6 @@ export default function App() {
               <p className="text-center text-xs text-slate-400 mt-4"><button type="button" onClick={()=>setMode('LOGIN')} className="text-emerald-500 font-bold hover:underline">Volver al Login</button></p>
             </form>
           )}
-        </Card>
-      </div>
-    );
-  };
-
-  const ConductorView = () => {
-    const r = currentUser.routeInfo;
-    const [status, setStatus] = useState(r.status);
-    const [loading, setLoading] = useState(false);
-
-    const updateStatus = async (newStatus) => {
-      setLoading(true);
-      try {
-        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'updateTransportStatus', payload: { token: r.token, newStatus } }) });
-        setStatus(newStatus); showToast("Ruta actualizada: " + newStatus);
-      } catch (e) { showToast("Error de red al actualizar ruta."); }
-      setLoading(false);
-    };
-
-    const wazeUrl = (addr) => `https://waze.com/ul?q=${encodeURIComponent(addr)}`;
-    const mapsUrl = (addr) => `https://maps.google.com/?q=${encodeURIComponent(addr)}`;
-
-    return (
-      <div className="max-w-md mx-auto space-y-6 pt-10 px-4 pb-24">
-        <div className="text-center mb-8"><Truck className="mx-auto text-blue-500 mb-4" size={56} /><h1 className="text-3xl font-black text-white">Panel de Ruta</h1><p className="text-slate-400">Token: <span className="text-blue-400 font-mono font-bold">{r.token}</span></p></div>
-        <Card className="p-6 border-blue-500/30 text-center space-y-4">
-          <h2 className="text-xl font-bold text-white">{r.title}</h2>
-          <div className="bg-slate-900 p-4 rounded-lg flex flex-col gap-2 text-sm text-slate-300">
-             <div className="flex justify-between border-b border-slate-700 pb-2"><span>Fecha:</span><span className="font-bold text-white">{r.date}</span></div>
-             <div className="flex justify-between border-b border-slate-700 pb-2"><span>Hora Pick-Up:</span><span className="font-bold text-blue-400">{r.time}</span></div>
-             
-             <div className="flex flex-col text-left pt-2 pb-3 border-b border-slate-700">
-               <span className="text-xs text-slate-500">Origen</span>
-               <span className="font-bold text-white mb-2">{r.origin}</span>
-               <div className="flex gap-2">
-                 <Button variant="secondary" className="flex-1 py-1.5 text-xs bg-slate-800" onClick={() => window.open(wazeUrl(r.origin))} icon={MapIcon}>Waze</Button>
-                 <Button variant="secondary" className="flex-1 py-1.5 text-xs bg-slate-800" onClick={() => window.open(mapsUrl(r.origin))} icon={MapPin}>Google Maps</Button>
-               </div>
-             </div>
-             
-             <div className="flex flex-col text-left pt-2">
-               <span className="text-xs text-slate-500">Destino</span>
-               <span className="font-bold text-white mb-2">{r.dest}</span>
-               <div className="flex gap-2">
-                 <Button variant="secondary" className="flex-1 py-1.5 text-xs bg-slate-800" onClick={() => window.open(wazeUrl(r.dest))} icon={MapIcon}>Waze</Button>
-                 <Button variant="secondary" className="flex-1 py-1.5 text-xs bg-slate-800" onClick={() => window.open(mapsUrl(r.dest))} icon={MapPin}>Google Maps</Button>
-               </div>
-             </div>
-          </div>
-          <div className="pt-6 space-y-3">
-             <Button variant={status === 'LLEGUE' ? 'ghost' : 'blue'} className="w-full py-4 text-lg" disabled={loading || status !== 'PENDING'} onClick={() => updateStatus('LLEGUE')}>{status === 'LLEGUE' ? '✓ Ya marcaste Llegada' : 'Llegué al Punto (Esperando)'}</Button>
-             <Button variant={status === 'EN RUTA' ? 'ghost' : 'primary'} className="w-full py-4 text-lg bg-emerald-600" disabled={loading || status === 'EN RUTA' || status === 'FINALIZADO'} onClick={() => updateStatus('EN RUTA')}>{status === 'EN RUTA' ? '✓ Ruta en progreso' : 'Comenzar Ruta'}</Button>
-             <Button variant={status === 'FINALIZADO' ? 'ghost' : 'danger'} className="w-full py-4 text-lg bg-red-600 text-white" disabled={loading || status === 'FINALIZADO'} onClick={() => updateStatus('FINALIZADO')}>{status === 'FINALIZADO' ? 'Ruta Terminada Oficialmente' : 'Finalizar Ruta (Drop-off)'}</Button>
-          </div>
         </Card>
       </div>
     );
@@ -386,10 +332,10 @@ export default function App() {
   const ProjectDetailsView = () => {
     const p = selectedProject;
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [events, setEvents] = useState([]);
+    const [hitos, setHitos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
-    const [assigningEvent, setAssigningEvent] = useState(null); 
+    const [assigningHito, setAssigningHito] = useState(null); 
     
     const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
     const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
@@ -399,49 +345,49 @@ export default function App() {
       return () => clearInterval(timer);
     }, []);
 
-    const fetchEvents = async () => {
+    const fetchHitos = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getEventos' }) });
+        const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getHitos' }) });
         const json = await res.json();
         if (json.status === 'success') {
-          const parsedEvents = json.data
-            .filter(ev => ev.proyectoId === p.id) 
+          const parsedHitos = json.data
+            .filter(ev => ev.proyectoId === p.id) // Filtrar por Tour ID
             .map(ev => {
               const dateObj = new Date(`${ev.date}T${ev.time}:00`);
               return { ...ev, fullDate: isNaN(dateObj.getTime()) ? null : dateObj };
             });
-          setEvents(parsedEvents.filter(e => e.fullDate !== null).sort((a,b) => a.fullDate - b.fullDate));
+          setHitos(parsedHitos.filter(e => e.fullDate !== null).sort((a,b) => a.fullDate - b.fullDate));
         }
       } catch (error) {}
       setLoading(false);
     };
 
-    useEffect(() => { fetchEvents(); }, [p.id]);
+    useEffect(() => { fetchHitos(); }, [p.id]);
 
-    const handleCreateEvent = async (e) => {
+    const handleCreateHito = async (e) => {
       e.preventDefault(); setLoading(true);
       try {
-        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createEvento', payload: { ...form, proyectoId: p.id } }) });
-        showToast("Hito agregado al Proyecto."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchEvents();
+        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createHito', payload: { ...form, proyectoId: p.id } }) });
+        showToast("Hito agregado al Proyecto."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchHitos();
       } catch(e) { showToast("Error al crear hito."); setLoading(false); }
     };
 
-    const executeDeleteEvent = async (id) => {
+    const executeDeleteHito = async (id) => {
       setLoading(true);
       try {
-        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'deleteEvento', payload: { id } }) });
-        showToast("Hito eliminado."); fetchEvents();
+        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'deleteHito', payload: { id } }) });
+        showToast("Hito eliminado."); fetchHitos();
       } catch(e) { showToast("Error al eliminar."); setLoading(false); }
     };
 
-    const handleAssignCrew = async (eventId, newAssignados) => {
+    const handleAssignCrew = async (hitoId, newAssignados) => {
       setLoading(true);
       try {
-         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'updateEventoAsignaciones', payload: { id: eventId, asignados: newAssignados } }) });
+         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'updateHitoAsignaciones', payload: { id: hitoId, asignados: newAssignados } }) });
          showToast("Equipo técnico asignado al hito.");
-         setAssigningEvent(null);
-         fetchEvents();
+         setAssigningHito(null);
+         fetchHitos();
       } catch(e) { showToast("Error al asignar."); setLoading(false); }
     };
 
@@ -487,7 +433,7 @@ export default function App() {
         {isCreating && (
           <Card className="p-6 border-emerald-500 mb-6 animate-slide-up">
             <h2 className="text-lg font-bold text-white mb-4">Agregar Hito en {p.name}</h2>
-            <form onSubmit={handleCreateEvent} className="space-y-4">
+            <form onSubmit={handleCreateHito} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">Título del Hito</label>
@@ -518,21 +464,21 @@ export default function App() {
           </Card>
         )}
 
-        {loading ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : events.length === 0 ? (
+        {loading ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : hitos.length === 0 ? (
           <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
             <CalendarPlus className="mx-auto text-slate-600 mb-4" size={48} />
             <p className="text-slate-400 text-sm">Aún no has agregado hitos al timing de este proyecto.</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {events.map((event) => {
-              const status = getStatus(event.fullDate);
-              const asignadosList = event.asignados || [];
+            {hitos.map((hito) => {
+              const status = getStatus(hito.fullDate);
+              const asignadosList = hito.asignados || [];
               
               return (
-                <div key={event.id} className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
+                <div key={hito.id} className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
                   {canCreate && (
-                    <button onClick={() => showConfirm("Eliminar Hito", "¿Seguro que deseas eliminar este hito del Timing?", () => executeDeleteEvent(event.id), true)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors p-1 bg-slate-900 rounded border border-slate-700 shadow z-10">
+                    <button onClick={() => showConfirm("Eliminar Hito", "¿Seguro que deseas eliminar este hito del Timing?", () => executeDeleteHito(hito.id), true)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors p-1 bg-slate-900 rounded border border-slate-700 shadow z-10">
                       <Trash2 size={16} />
                     </button>
                   )}
@@ -543,19 +489,19 @@ export default function App() {
                         <span className={`w-3 h-3 rounded-full ${status.dot} ${status.pulse ? 'animate-pulse' : ''}`}></span>
                         <span className={`text-xs font-black uppercase tracking-wider ${status.textClass}`}>{status.text}</span>
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-2 pr-8">{event.title}</h3>
+                      <h3 className="text-xl font-bold text-white mb-2 pr-8">{hito.title}</h3>
                       <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400 font-bold mb-4">
-                        <span className="flex items-center gap-1"><Calendar size={14}/> {event.date}</span>
-                        <span className="flex items-center gap-1 text-emerald-400"><Clock size={14}/> {event.time}</span>
-                        <span className="flex items-center gap-1"><MapPin size={14}/> {event.location}</span>
+                        <span className="flex items-center gap-1"><Calendar size={14}/> {hito.date}</span>
+                        <span className="flex items-center gap-1 text-emerald-400"><Clock size={14}/> {hito.time}</span>
+                        <span className="flex items-center gap-1"><MapPin size={14}/> {hito.location}</span>
                       </div>
 
                       {/* Sección de Asignaciones */}
                       <div className="border-t border-slate-700/50 pt-3">
                         <p className="text-xs text-slate-500 mb-2 font-bold">CREW ASIGNADO</p>
-                        {assigningEvent === event.id ? (
+                        {assigningHito === hito.id ? (
                            <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 mt-2 animate-fade-in">
-                             <p className="text-xs text-slate-400 mb-3">Selecciona al personal para este evento:</p>
+                             <p className="text-xs text-slate-400 mb-3">Selecciona al personal para este hito:</p>
                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto mb-4 custom-scrollbar">
                                {globalUsers.map(u => (
                                  <label key={u.email} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer p-1 hover:bg-slate-800 rounded">
@@ -570,8 +516,8 @@ export default function App() {
                                ))}
                              </div>
                              <div className="flex gap-2">
-                               <Button variant="secondary" className="flex-1 py-1" onClick={() => setAssigningEvent(null)}>Cancelar</Button>
-                               <Button variant="primary" className="flex-1 py-1" onClick={() => handleAssignCrew(event.id, asignadosList)}>Guardar Asignación</Button>
+                               <Button variant="secondary" className="flex-1 py-1" onClick={() => setAssigningHito(null)}>Cancelar</Button>
+                               <Button variant="primary" className="flex-1 py-1" onClick={() => handleAssignCrew(hito.id, asignadosList)}>Guardar Asignación</Button>
                              </div>
                            </div>
                         ) : (
@@ -587,7 +533,7 @@ export default function App() {
                               )}
                               {asignadosList.length > 5 && <div className="inline-block h-8 w-8 rounded-full ring-2 ring-slate-800 bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">+{asignadosList.length - 5}</div>}
                             </div>
-                            {canCreate && <Button variant="ghost" className="text-xs px-2 py-1 h-8" icon={UserPlus2} onClick={() => setAssigningEvent(event.id)}>Asignar Crew</Button>}
+                            {canCreate && <Button variant="ghost" className="text-xs px-2 py-1 h-8" icon={UserPlus2} onClick={() => setAssigningHito(hito.id)}>Asignar Crew</Button>}
                           </div>
                         )}
                       </div>
@@ -626,7 +572,6 @@ export default function App() {
     
     const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TECH].includes(currentUser.role);
 
-    // Evitamos el símbolo "=" que rompe Google Sheets, usando "-"
     const defaultContent = {
       importante: '',
       contacto: { mgmtCel: '', mgmtCorreo: '', prodCel: '', prodCorreo: '' },
@@ -1412,6 +1357,7 @@ export default function App() {
 
       <main className="flex-1 relative overflow-y-auto h-screen bg-slate-950">
         <div className="p-4 md:p-8">
+          {currentView === 'CONDUCTOR_VIEW' && <ConductorView />}
           {currentView === 'DASHBOARD' && <Dashboard />}
           {currentView === 'PROJECT_DETAILS' && selectedProject && <ProjectDetailsView />}
           {currentView === 'TIMING' && <TimingGlobalView />}
