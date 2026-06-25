@@ -20,7 +20,7 @@ const ROLES = {
 
 const ESQUEMAS_MASTER_SECRET = 'Tk9fTWVfSGFja2VlczIwMjYhQCM='; 
 
-// Wrapper para Fetch que inyecta el Secret automáticamente (Zero Trust)
+//// Wrapper para Fetch que inyecta el Secret automáticamente
 const apiFetch = async (action, payload = {}) => {
   const response = await fetch('/.netlify/functions/api', {
     method: 'POST',
@@ -29,8 +29,7 @@ const apiFetch = async (action, payload = {}) => {
   return response.json();
 };
 
-// --- COMPONENTES REUTILIZABLES ---
-const Card = ({ children, className = '', onClick }) => (
+//const Card = ({ children, className = '', onClick }) => (
   <div onClick={onClick} className={`bg-slate-800 rounded-xl border border-slate-700 shadow-lg overflow-hidden ${onClick ? 'cursor-pointer hover:border-emerald-500 transition-colors' : ''} ${className}`}>
     {children}
   </div>
@@ -56,6 +55,15 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
 const openWhatsApp = (phone) => window.open(`https://wa.me/${phone.replace('+', '')}`, '_blank');
 const openEmail = (email) => window.open(`mailto:${email}`, '_blank');
 const handlePrint = () => window.print();
+
+//const LiveClock = () => {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return <div className="text-2xl font-black text-white tracking-widest font-mono">{time.toLocaleTimeString()}</div>;
+};
 
 // --- 1. AUTENTICACIÓN ---
 const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
@@ -150,7 +158,7 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   );
 };
 
-// --- 2. VISTA EXCLUSIVA CONDUCTOR ---
+//// --- 2. VISTA EXCLUSIVA CONDUCTOR ---
 const ConductorView = ({ currentUser, showToast }) => {
   const r = currentUser.routeInfo;
   const [status, setStatus] = useState(r.status);
@@ -253,8 +261,13 @@ const TransportView = ({ currentUser, showToast }) => {
         </Card>
       )}
 
-      {fetchError && <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> Error de conexión.</div>}
-      {loading && !fetchError ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : (
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3">
+          <AlertCircle size={20} /> Error de conexión.
+        </div>
+      ) : loading && transports.length === 0 ? (
+        <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {transports.map((t, idx) => {
             const statusColors = { 'PENDING': 'bg-slate-700', 'LLEGUE': 'bg-amber-500 animate-pulse', 'EN RUTA': 'bg-blue-500', 'FINALIZADO': 'bg-emerald-600' };
@@ -276,14 +289,14 @@ const TransportView = ({ currentUser, showToast }) => {
               </Card>
             )
           })}
-          {!fetchError && transports.length === 0 && <div className="col-span-full text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay transportes agendados.</div>}
+          {transports.length === 0 && <div className="col-span-full text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay transportes agendados.</div>}
         </div>
       )}
     </div>
   );
 };
 
-// --- 4. MÓDULO RIDERS TÉCNICOS (Exportable / Print Ready) ---
+//// --- 4. MÓDULO RIDERS TÉCNICOS (Exportable / Print Ready) ---
 const RidersView = ({ currentUser, showToast, requestConfirm }) => {
   const [riders, setRiders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -473,11 +486,16 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
             <Button variant="primary" className="flex-1 py-3" onClick={handleSave} icon={Save}>Guardar Documento</Button>
           </div>
         </Card>
-      ) : fetchError ? <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3 print:hidden"><AlertCircle size={20} /> Error al cargar Riders.</div> : loading ? <div className="flex justify-center p-10 print:hidden"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : (
+      ) : fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3 print:hidden">
+          <AlertCircle size={20} /> Error al cargar Riders.
+        </div>
+      ) : loading && riders.length === 0 ? (
+        <div className="flex justify-center p-10 print:hidden"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
+      ) : (
         <div className="grid grid-cols-1 gap-8 print:gap-10">
           {riders.map((r, idx) => {
             const IconType = icons[r.type] || FileText;
-            // Componente Rider adaptado para impresión (blanco/negro en @media print, dark en pantalla)
             return (
               <div key={idx} className="border-t-4 border-t-emerald-500 bg-slate-900 print:bg-white print:border-t-black print:border print:text-black rounded-xl overflow-hidden page-break-inside-avoid shadow-lg print:shadow-none">
                 <div className="p-5 border-b border-slate-800 print:border-black flex justify-between items-center">
@@ -607,7 +625,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
   );
 };
 
-// --- 5. DIRECTORIO STAFF Y REPORTE DE CATERING ---
+//// --- 5. DIRECTORIO STAFF Y REPORTE DE CATERING ---
 const StaffDirectory = ({ currentUser }) => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -698,8 +716,13 @@ const StaffDirectory = ({ currentUser }) => {
         </div>
       )}
 
-      {fetchError && <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3 print:hidden"><AlertCircle size={20} /> Error al cargar el directorio.</div>}
-      {loading && !fetchError ? ( <div className="flex justify-center p-10 print:hidden"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> ) : (
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3 print:hidden">
+          <AlertCircle size={20} /> Error al cargar el directorio.
+        </div>
+      ) : loading && localDirectory.length === 0 ? ( 
+        <div className="flex justify-center p-10 print:hidden"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> 
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 print:hidden">
           {localDirectory.map((user, idx) => (
             <Card key={idx} className="p-5 flex flex-col justify-between">
@@ -708,14 +731,14 @@ const StaffDirectory = ({ currentUser }) => {
               <div className="flex flex-row gap-2 mt-auto border-t border-slate-700 pt-4"><Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700" icon={Mail} onClick={() => openEmail(user.email)}>Correo</Button><Button variant="primary" className="flex-1" icon={MessageSquare} onClick={() => openWhatsApp(user.phone)}>WhatsApp</Button></div>
             </Card>
           ))}
-          {!fetchError && localDirectory.length === 0 && ( <div className="col-span-full text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No se encontraron contactos asignados.</div> )}
+          {localDirectory.length === 0 && ( <div className="col-span-full text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No se encontraron contactos asignados.</div> )}
         </div>
       )}
     </div>
   );
 };
 
-// --- 6. CHAT GLOBAL (Conectado a la BD) ---
+//// --- 6. CHAT GLOBAL (Conectado a la BD) ---
 const ChatView = ({ currentUser, showToast }) => {
   const [messages, setMessages] = useState([]);
   const [newMsg, setNewMsg] = useState('');
@@ -740,7 +763,6 @@ const ChatView = ({ currentUser, showToast }) => {
     setLoading(false);
   };
 
-  // Auto-fetch al montar y manual Refresh
   useEffect(() => {
     fetchMessages();
   }, []);
@@ -753,22 +775,19 @@ const ChatView = ({ currentUser, showToast }) => {
     const tempId = Date.now();
     const newMsgObj = { id: tempId, sender: currentUser.name, role: currentUser.role, text: newMsg, time: timeStr, readBy: [] };
     
-    // Update UI Optimistically
     setMessages([...messages, newMsgObj]); 
     setNewMsg('');
     setTimeout(scrollToBottom, 100);
 
-    // Send to DB
     try {
       await apiFetch('sendMensaje', { sender: currentUser.name, role: currentUser.role, text: newMsgObj.text, time: timeStr });
-      fetchMessages(); // Sincronizar ID real de la BD
+      fetchMessages();
     } catch (e) {
       showToast("No se pudo enviar el mensaje.");
     }
   };
 
   const toggleReadReceipt = async (msgId) => {
-    // Optimistic update
     setMessages(messages.map(m => {
       if (m.id === msgId) {
         const hasRead = m.readBy.includes(currentUser.name);
@@ -776,8 +795,6 @@ const ChatView = ({ currentUser, showToast }) => {
       }
       return m;
     }));
-
-    // Send to DB
     try {
       await apiFetch('marcarLeido', { id: msgId, userName: currentUser.name });
     } catch (e) {
@@ -835,7 +852,6 @@ const TimingGlobalView = ({ currentUser }) => {
     const fetchGlobalTiming = async () => {
       setLoading(true); setFetchError('');
       try {
-        // Fetch paralelo optimizado
         const [resProyectos, resHitos] = await Promise.all([
           apiFetch('getProyectos'),
           apiFetch('getHitos')
@@ -845,7 +861,6 @@ const TimingGlobalView = ({ currentUser }) => {
           const proyectosActivos = resProyectos.data.filter(p => p.status === 'ACTIVO');
           const mapProyectosActivos = new Map(proyectosActivos.map(p => [String(p.id), p.name]));
 
-          // Filtrar hitos solo de proyectos activos
           const hitosValidos = resHitos.data.filter(h => mapProyectosActivos.has(String(h.proyectoId)));
 
           const parsedHitos = hitosValidos.map(ev => {
@@ -857,24 +872,19 @@ const TimingGlobalView = ({ currentUser }) => {
                const dateObj = new Date(`${dStr}T${tStr}:00`);
                if(!isNaN(dateObj.getTime())) {
                  fullDate = dateObj;
-                 // Formatear bonita la fecha
                  const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
                  dateStrFormateada = dateObj.toLocaleDateString('es-ES', opts);
-                 // Capitalizar
                  dateStrFormateada = dateStrFormateada.charAt(0).toUpperCase() + dateStrFormateada.slice(1);
                }
             } catch(e) { console.error("Error parseando fecha", e); }
             
             return { 
-              ...ev, 
-              fullDate, 
-              dateStrFormateada,
+              ...ev, fullDate, dateStrFormateada,
               proyectoName: mapProyectosActivos.get(String(ev.proyectoId)),
               asignados: Array.isArray(ev.asignados) ? ev.asignados : [] 
             };
           });
 
-          // Ordenar todo cronológicamente
           parsedHitos.sort((a,b) => a.fullDate - b.fullDate);
           setHitosGlobales(parsedHitos);
         } else {
@@ -889,7 +899,6 @@ const TimingGlobalView = ({ currentUser }) => {
     fetchGlobalTiming();
   }, []);
 
-  // Agrupar Hitos por Día para renderizado limpio
   const agrupadosPorDia = hitosGlobales.reduce((acc, hito) => {
     const groupKey = hito.dateStrFormateada;
     if (!acc[groupKey]) acc[groupKey] = [];
@@ -904,10 +913,10 @@ const TimingGlobalView = ({ currentUser }) => {
         <p className="text-sm text-slate-400 mt-2">Visión unificada del Run of Show de todos los Proyectos y Giras actualmente <span className="text-emerald-400 font-bold uppercase">Activos</span>.</p>
       </header>
 
-      {loading ? (
-        <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
-      ) : fetchError ? (
+      {fetchError ? (
         <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
+      ) : loading && hitosGlobales.length === 0 ? (
+        <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
       ) : hitosGlobales.length === 0 ? (
         <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
            <Calendar className="mx-auto text-slate-600 mb-4" size={48} />
@@ -917,12 +926,9 @@ const TimingGlobalView = ({ currentUser }) => {
         <div className="space-y-10">
           {Object.entries(agrupadosPorDia).map(([dia, hitosDia]) => (
             <div key={dia} className="relative">
-              {/* Cabecera del Día */}
               <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-md py-3 mb-4 border-b border-slate-800">
                 <h2 className="text-lg font-black text-emerald-400 flex items-center gap-2"><Calendar size={18} /> {dia}</h2>
               </div>
-              
-              {/* Línea de tiempo visual */}
               <div className="absolute left-[27px] top-[60px] bottom-0 w-0.5 bg-slate-800 z-0 hidden md:block"></div>
 
               <div className="space-y-4 md:pl-12 relative z-10">
@@ -932,7 +938,6 @@ const TimingGlobalView = ({ currentUser }) => {
 
                   return (
                     <div key={hito.id} className={`p-4 md:p-5 rounded-xl border flex flex-col md:flex-row gap-4 transition-colors ${isPast ? 'bg-slate-900/50 border-slate-800 opacity-60' : 'bg-slate-800 border-slate-700 shadow-lg'}`}>
-                      {/* Dot Conector (solo en desktop) */}
                       <div className={`hidden md:flex absolute left-[21px] w-3 h-3 rounded-full mt-5 ${isPast ? 'bg-slate-600' : 'bg-emerald-500 ring-4 ring-slate-950'}`}></div>
                       
                       <div className="md:w-32 shrink-0 border-b md:border-b-0 md:border-r border-slate-700/50 pb-3 md:pb-0 md:pr-4 flex md:flex-col justify-between items-center md:items-start">
@@ -963,7 +968,7 @@ const TimingGlobalView = ({ currentUser }) => {
   );
 };
 
-// --- 8. PANEL DE ADMINISTRADOR ---
+//// --- 8. PANEL DE ADMINISTRADOR ---
 const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
   const [dbUsers, setDbUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1010,8 +1015,6 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
 
   const handleEditSave = async (e) => {
     e.preventDefault();
-    // Actualización optimista en panel (lo ideal sería endpoint updateRole/Status, 
-    // usando updateProfile por simplicidad pero status de Admin es delicado)
     showToast("La edición desde admin aún requiere el endpoint de admin. Visualmente actualizado."); 
     setDbUsers(prev => prev.map(u => u.email === editingUser.email ? editingUser : u));
     setEditingUser(null);
@@ -1033,8 +1036,11 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
         <Button variant={activeTab === 'INVITAR' ? 'primary' : 'secondary'} onClick={() => setActiveTab('INVITAR')} icon={UserPlus}>Invitar Staff</Button>
       </div>
       
-      {fetchError && <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> Error de conexión al cargar la data.</div>}
-      {loading && !fetchError ? ( <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> ) : !fetchError && (
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> Error de conexión al cargar la data.</div>
+      ) : loading && dbUsers.length === 0 ? ( 
+        <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> 
+      ) : (
         <>
           {activeTab === 'PENDIENTES' && (
             <div className="space-y-4">
@@ -1152,7 +1158,7 @@ const ProfileView = ({ currentUser, setCurrentUser, showToast }) => {
   );
 };
 
-// --- 10. DASHBOARD PRINCIPAL (MÓDULO DE PROYECTOS) ---
+//// --- 10. DASHBOARD PRINCIPAL (MÓDULO DE PROYECTOS) ---
 const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast, directory }) => {
   const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
   const [proyectos, setProyectos] = useState([]);
@@ -1163,7 +1169,8 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
   const [assigningProject, setAssigningProject] = useState(null);
 
   const fetchProyectos = async () => {
-    setLoading(true); setFetchError(false);
+    // Ya no limpiamos la pantalla a menos que el array esté verdaderamente vacío
+    setFetchError(false);
     try {
       const res = await apiFetch('getProyectos');
       if (res.status === 'success') {
@@ -1178,26 +1185,25 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
   useEffect(() => { fetchProyectos(); }, []);
 
   const handleCreateProyecto = async (e) => {
-    e.preventDefault(); setLoading(true);
+    e.preventDefault(); 
     try {
       const payload = { ...form, manager: currentUser.name };
       const res = await apiFetch('createProyecto', payload);
       if (res.status === 'success') {
         showToast("Proyecto creado exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
       } else {
-        showToast(res.message); setLoading(false);
+        showToast(res.message);
       }
-    } catch(e) { showToast("Error al crear proyecto."); setLoading(false); }
+    } catch(e) { showToast("Error al crear proyecto."); }
   };
 
   const handleUpdateStatus = async (e, id, currentStatus) => {
     e.stopPropagation(); 
     const newStatus = currentStatus === 'ACTIVO' ? 'FINALIZADO' : 'ACTIVO';
-    setLoading(true);
     try {
       await apiFetch('updateProyectoStatus', { id, status: newStatus });
       showToast("Estado actualizado."); fetchProyectos();
-    } catch(e) { showToast("Error al actualizar."); setLoading(false); }
+    } catch(e) { showToast("Error al actualizar."); }
   };
 
   const toggleAssignProject = (email) => {
@@ -1209,11 +1215,10 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
   };
 
   const saveProjectAsignaciones = async () => {
-    setLoading(true);
     try {
       await apiFetch('updateProyectoAsignaciones', { id: assigningProject.id, asignados: assigningProject.asignados });
       showToast("Asignaciones de proyecto guardadas."); setAssigningProject(null); fetchProyectos();
-    } catch(e) { showToast("Error al guardar."); setLoading(false); }
+    } catch(e) { showToast("Error al guardar."); }
   };
 
   return (
@@ -1243,7 +1248,15 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
 
       <div>
         <h2 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2"><Navigation size={20}/> Proyectos Activos</h2>
-        {fetchError ? <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div> : loading ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : proyectos.length === 0 ? <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay proyectos activos registrados.</div> : (
+        
+        {/* Lógica Anti-Parpadeo (Solo muestra loader si la bd no tiene data en memoria) */}
+        {fetchError ? (
+          <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
+        ) : loading && proyectos.length === 0 ? (
+          <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
+        ) : proyectos.length === 0 ? (
+          <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay proyectos activos registrados.</div>
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {proyectos.map(proyecto => (
               <Card 
@@ -1304,10 +1317,72 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
                 );
               })}
             </div>
-            <Button onClick={saveProjectAsignaciones} className="w-full py-3" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Guardar Asignaciones'}</Button>
+            <Button onClick={saveProjectAsignaciones} className="w-full py-3">Guardar Asignaciones</Button>
           </Card>
         </div>
       )}
+    </div>
+  );
+};
+
+//// Función helper fuera del componente para evitar recrearla
+const getEventStatus = (targetDate, currentTime) => {
+  if (targetDate.getTime() === 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'Fecha inválida', timeText: '--:--', pulse: false, textClass: 'text-slate-500' };
+  const diffMs = targetDate - currentTime;
+  if (diffMs <= 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'Finalizado', timeText: '00h 00m 00s', pulse: false, textClass: 'text-slate-500' };
+  const diffSec = Math.floor(diffMs / 1000);
+  const hours = Math.floor(diffSec / 3600);
+  const minutes = Math.floor((diffSec % 3600) / 60);
+  const seconds = diffSec % 60;
+  const hh = String(hours).padStart(2, '0');
+  const mm = String(minutes).padStart(2, '0');
+  const ss = String(seconds).padStart(2, '0');
+  const timeText = `Faltan ${hh}h ${mm}m ${ss}s`;
+
+  if (hours < 2) return { border: 'border-red-500/50', bg: 'bg-red-500/10', dot: 'bg-red-500', text: '¡INMINENTE!', timeText, pulse: true, textClass: 'text-red-500' };
+  else if (hours < 24) return { border: 'border-amber-500/50', bg: 'bg-amber-500/10', dot: 'bg-amber-500', text: 'En preparación', timeText, pulse: false, textClass: 'text-amber-500' };
+  else return { border: 'border-emerald-500/50', bg: 'bg-emerald-500/10', dot: 'bg-emerald-500', text: 'Agendado', timeText, pulse: false, textClass: 'text-emerald-500' };
+};
+
+// Componente Micro-Aislado para los Hitos. Su reloj propio evita que todo el padre colapse en re-renders.
+const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, currentUser, requestConfirm }) => {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const status = getEventStatus(event.fullDate, now);
+  const isAssignedToMe = event.asignados.includes(currentUser.email);
+
+  return (
+    <div className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
+      {canManage && (
+        <button onClick={() => requestConfirm("¿Eliminar este Hito de forma permanente?", () => handleDeleteHito(event.id))} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18} /></button>
+      )}
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`w-3 h-3 rounded-full ${status.dot} ${status.pulse ? 'animate-pulse' : ''}`}></span>
+            <span className={`text-xs font-black uppercase tracking-wider ${status.textClass}`}>{status.text}</span>
+            {isAssignedToMe && <span className="ml-2 text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-500/50">Asignado a ti</span>}
+          </div>
+          <h3 className="text-xl font-bold text-white mb-1 pr-8">{event.title}</h3>
+          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400 font-bold mb-3">
+            <span className="flex items-center gap-1"><Calendar size={14}/> {String(event.date).split('T')[0]}</span>
+            <span className="flex items-center gap-1 text-emerald-400"><Clock size={14}/> {String(event.time).substring(0,5)}</span>
+            <span className="flex items-center gap-1"><MapPin size={14}/> {event.location}</span>
+          </div>
+          {canManage && (
+            <Button variant="ghost" className="bg-slate-900 border border-slate-700 text-xs py-1" icon={Users} onClick={() => setAssigningHito(event)}>
+              Personal Asignado ({event.asignados.length})
+            </Button>
+          )}
+        </div>
+        <div className={`shrink-0 flex items-center gap-2 px-4 py-3 rounded-lg border bg-slate-900 ${status.border} ${status.textClass} font-mono font-black text-lg tracking-wider`}>
+          <Hourglass size={18} className={status.pulse ? 'animate-spin-slow' : ''} />{status.timeText}
+        </div>
+      </div>
     </div>
   );
 };
@@ -1316,7 +1391,6 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
 const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, showToast, directory, requestConfirm }) => {
   const p = selectedProject;
   const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [hitos, setHitos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -1324,13 +1398,8 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
   const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
   const [assigningHito, setAssigningHito] = useState(null);
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   const fetchHitos = async () => {
-    setLoading(true); setFetchError(false);
+    setFetchError(false);
     try {
       const res = await apiFetch('getHitos');
       if (res.status === 'success') {
@@ -1354,24 +1423,23 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
   useEffect(() => { fetchHitos(); }, []);
 
   const handleCreateHito = async (e) => {
-    e.preventDefault(); setLoading(true);
+    e.preventDefault(); 
     try {
       const payload = { ...form, proyectoId: p.id };
       const res = await apiFetch('createHito', payload);
       if (res.status === 'success') {
         showToast("Hito agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchHitos();
       } else {
-        showToast("Error: " + res.message); setLoading(false);
+        showToast("Error: " + res.message); 
       }
-    } catch(e) { showToast("Error al crear hito."); setLoading(false); }
+    } catch(e) { showToast("Error al crear hito."); }
   };
 
   const handleDeleteHito = async (id) => {
-    setLoading(true);
     try {
       await apiFetch('deleteHito', { id });
       showToast("Hito eliminado."); fetchHitos();
-    } catch(e) { showToast("Error al eliminar."); setLoading(false); }
+    } catch(e) { showToast("Error al eliminar."); }
   };
 
   const captureGPS = () => {
@@ -1392,29 +1460,10 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
   };
 
   const saveAsignaciones = async () => {
-    setLoading(true);
     try {
       await apiFetch('updateHitoAsignaciones', { id: assigningHito.id, asignados: assigningHito.asignados });
       showToast("Asignaciones guardadas."); setAssigningHito(null); fetchHitos();
-    } catch(e) { showToast("Error al guardar."); setLoading(false); }
-  };
-
-  const getStatus = (targetDate) => {
-    if (targetDate.getTime() === 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'Fecha inválida', timeText: '--:--', pulse: false, textClass: 'text-slate-500' };
-    const diffMs = targetDate - currentTime;
-    if (diffMs <= 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'Finalizado', timeText: '00h 00m 00s', pulse: false, textClass: 'text-slate-500' };
-    const diffSec = Math.floor(diffMs / 1000);
-    const hours = Math.floor(diffSec / 3600);
-    const minutes = Math.floor((diffSec % 3600) / 60);
-    const seconds = diffSec % 60;
-    const hh = String(hours).padStart(2, '0');
-    const mm = String(minutes).padStart(2, '0');
-    const ss = String(seconds).padStart(2, '0');
-    const timeText = `Faltan ${hh}h ${mm}m ${ss}s`;
-
-    if (hours < 2) return { border: 'border-red-500/50', bg: 'bg-red-500/10', dot: 'bg-red-500', text: '¡INMINENTE!', timeText, pulse: true, textClass: 'text-red-500' };
-    else if (hours < 24) return { border: 'border-amber-500/50', bg: 'bg-amber-500/10', dot: 'bg-amber-500', text: 'En preparación', timeText, pulse: false, textClass: 'text-amber-500' };
-    else return { border: 'border-emerald-500/50', bg: 'bg-emerald-500/10', dot: 'bg-emerald-500', text: 'Agendado', timeText, pulse: false, textClass: 'text-emerald-500' };
+    } catch(e) { showToast("Error al guardar."); }
   };
 
   return (
@@ -1422,7 +1471,11 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
       <button onClick={() => setCurrentView('DASHBOARD')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"><ChevronLeft size={20}/> Volver a Proyectos</button>
       <header className="border-b border-slate-800 pb-6 flex flex-col md:flex-row items-center justify-between gap-4">
         <div><span className="text-[10px] bg-slate-800 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider mb-2 inline-block">VISTA PROYECTO</span><h1 className="text-3xl font-black text-white leading-tight">{p.name}</h1><p className="text-sm text-slate-400 mt-1 flex items-center gap-2"><User size={14}/> Liderado por: {p.manager}</p></div>
-        <div className="bg-slate-900 border border-slate-700 px-6 py-3 rounded-xl flex items-center gap-3 shadow-inner"><Timer className="text-emerald-500 animate-pulse" size={20} /><div className="text-2xl font-black text-white tracking-widest font-mono">{currentTime.toLocaleTimeString()}</div></div>
+        <div className="bg-slate-900 border border-slate-700 px-6 py-3 rounded-xl flex items-center gap-3 shadow-inner">
+          <Timer className="text-emerald-500 animate-pulse" size={20} />
+          {/* Reloj aislado para no provocar re-renders del padre */}
+          <LiveClock />
+        </div>
       </header>
 
       <div className="flex justify-between items-center mt-8 mb-4">
@@ -1455,48 +1508,30 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
         </Card>
       )}
 
-      {fetchError && <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>}
-      {loading && !fetchError ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : !fetchError && hitos.length === 0 ? (
+      {/* Lógica Anti-Parpadeo (Optimistic UI) */}
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
+      ) : loading && hitos.length === 0 ? (
+        <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
+      ) : hitos.length === 0 ? (
         <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
           <CalendarPlus className="mx-auto text-slate-600 mb-4" size={48} />
           <p className="text-slate-400 text-sm max-w-md mx-auto">Aún no has agregado hitos al timing de este proyecto.</p>
         </div>
-      ) : !fetchError && (
+      ) : (
         <div className="space-y-4">
-          {hitos.map((event) => {
-            const status = getStatus(event.fullDate);
-            const isAssignedToMe = event.asignados.includes(currentUser.email);
-            return (
-              <div key={event.id} className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
-                {canManage && (
-                  <button onClick={() => requestConfirm("¿Eliminar este Hito de forma permanente?", () => handleDeleteHito(event.id))} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18} /></button>
-                )}
-                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`w-3 h-3 rounded-full ${status.dot} ${status.pulse ? 'animate-pulse' : ''}`}></span>
-                      <span className={`text-xs font-black uppercase tracking-wider ${status.textClass}`}>{status.text}</span>
-                      {isAssignedToMe && <span className="ml-2 text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-500/50">Asignado a ti</span>}
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-1 pr-8">{event.title}</h3>
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400 font-bold mb-3">
-                      <span className="flex items-center gap-1"><Calendar size={14}/> {String(event.date).split('T')[0]}</span>
-                      <span className="flex items-center gap-1 text-emerald-400"><Clock size={14}/> {String(event.time).substring(0,5)}</span>
-                      <span className="flex items-center gap-1"><MapPin size={14}/> {event.location}</span>
-                    </div>
-                    {canManage && (
-                      <Button variant="ghost" className="bg-slate-900 border border-slate-700 text-xs py-1" icon={Users} onClick={() => setAssigningHito(event)}>
-                        Personal Asignado ({event.asignados.length})
-                      </Button>
-                    )}
-                  </div>
-                  <div className={`shrink-0 flex items-center gap-2 px-4 py-3 rounded-lg border bg-slate-900 ${status.border} ${status.textClass} font-mono font-black text-lg tracking-wider`}>
-                    <Hourglass size={18} className={status.pulse ? 'animate-spin-slow' : ''} />{status.timeText}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {hitos.map((event) => (
+             // Pasamos al micro-componente aislado
+            <EventCard 
+               key={event.id} 
+               event={event} 
+               canManage={canManage} 
+               handleDeleteHito={handleDeleteHito} 
+               setAssigningHito={setAssigningHito} 
+               currentUser={currentUser} 
+               requestConfirm={requestConfirm} 
+            />
+          ))}
         </div>
       )}
 
@@ -1522,7 +1557,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
                 );
               })}
             </div>
-            <Button onClick={saveAsignaciones} className="w-full py-3" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Guardar Asignaciones'}</Button>
+            <Button onClick={saveAsignaciones} className="w-full py-3">Guardar Asignaciones</Button>
           </Card>
         </div>
       )}
@@ -1530,7 +1565,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
   );
 };
 
-export default function App() {
+//export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentView, setCurrentView] = useState('DASHBOARD');
   const [selectedProject, setSelectedProject] = useState(null);
@@ -1570,8 +1605,6 @@ export default function App() {
     return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, time, riders, transport, chat, dir, profile ];
   };
 
-  // Esta función es la que causaba el bucle porque alteraba el estado global (App).
-  // Ahora, al tener los componentes AFUERA de App(), evitamos que todo se remonte.
   const fetchDirectoryGlobal = async () => {
     try {
       const res = await apiFetch('getUsuarios');
@@ -1579,7 +1612,6 @@ export default function App() {
     } catch(e) { console.error("Error fetching global directory", e); }
   };
 
-  // Solo se llama 1 vez cuando el usuario entra a la plataforma.
   useEffect(() => {
     if (currentUser && currentUser.role !== 'CONDUCTOR') {
       fetchDirectoryGlobal();
