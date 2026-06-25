@@ -406,16 +406,19 @@ export default function App() {
         const json = await res.json();
         if (json.status === 'success') {
           const parsedHitos = json.data
-            .filter(ev => ev.proyectoId === p.id) // Filtrar por Tour ID
+            // FIX CRÍTICO: Convertimos ambos a String para evitar que Google Sheets y React se confundan con tipos de datos.
+            .filter(ev => String(ev.proyectoId) === String(p.id)) 
             .map(ev => {
               const dateObj = new Date(`${ev.date}T${ev.time}:00`);
               return { ...ev, fullDate: isNaN(dateObj.getTime()) ? null : dateObj };
             });
           setHitos(parsedHitos.filter(e => e.fullDate !== null).sort((a,b) => a.fullDate - b.fullDate));
         } else {
-          showToast("Error del servidor: " + (json.message || "No se pudo obtener hitos."));
+          showConfirm("Error del servidor", json.message || "No se pudo obtener hitos.", () => {}, true);
         }
-      } catch (error) {}
+      } catch (error) {
+        showToast("Fallo de red al descargar hitos.");
+      }
       setLoading(false);
     };
 
@@ -424,15 +427,29 @@ export default function App() {
     const handleCreateHito = async (e) => {
       e.preventDefault(); setLoading(true);
       try {
-        const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createHito', payload: { ...form, proyectoId: p.id } }) });
-        const json = await res.json();
+        const payloadToSave = { ...form, proyectoId: p.id };
+        console.log("Intentando guardar hito:", payloadToSave); // Rastro en consola del navegador
+
+        const res = await fetch('/.netlify/functions/api', { 
+          method: 'POST', 
+          body: JSON.stringify({ action: 'createHito', payload: payloadToSave }) 
+        });
+        
+        const textRes = await res.text(); // Leer crudo para evitar crasheos si no es JSON
+        console.log("Respuesta cruda de Google:", textRes);
+
+        const json = JSON.parse(textRes);
         if(json.status === 'success') {
            showToast("Hito agregado al Proyecto."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchHitos();
         } else {
-           showToast("Error BD: " + (json.message || json.error));
+           // AHORA TE MOSTRARÁ EN UN POPUP EXACTAMENTE QUÉ PASÓ EN GOOGLE SHEETS
+           showConfirm("Error de Base de Datos", "Google Sheets devolvió esto: " + (json.message || json.error), () => {}, true);
            setLoading(false);
         }
-      } catch(e) { showToast("Error de conexión al crear hito."); setLoading(false); }
+      } catch(e) { 
+        showConfirm("Error de Red / Proxy", "Fallo al enviar el hito a Netlify: " + e.message, () => {}, true);
+        setLoading(false); 
+      }
     };
 
     const executeDeleteHito = async (id) => {
