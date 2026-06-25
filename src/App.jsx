@@ -299,6 +299,7 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
       {/* CANVAS DEL ESCENARIO */}
       <div className="flex-1 bg-slate-800 p-2 md:p-4 rounded-xl border border-slate-700 print:bg-white print:border-none print:p-0 flex items-center justify-center overflow-hidden">
         <div 
+          id="canvas-bg"
           ref={canvasRef}
           className={`relative w-full max-h-full bg-slate-950 print:bg-white border-2 border-slate-700 print:border-black touch-none shadow-inner`}
           style={{ 
@@ -308,7 +309,11 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
-          onClick={() => !draggedId && setSelectedId(null)} 
+          onPointerDown={(e) => {
+            if (e.target.id === 'canvas-bg') {
+              setSelectedId(null);
+            }
+          }}
         >
           {/* Rejilla */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#334155_1px,transparent_1px),linear-gradient(to_bottom,#334155_1px,transparent_1px)] bg-[size:5%_5%] opacity-20 print:opacity-10 pointer-events-none"></div>
@@ -323,18 +328,17 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
             return (
               <div 
                 key={item.id}
-                className="absolute flex flex-col items-center justify-center cursor-move print:cursor-default"
+                className="absolute flex flex-col items-center justify-center print:cursor-default"
                 style={{ 
                   left: `${item.x}%`, top: `${item.y}%`, 
                   width: `${def.width}%`, height: `${def.height}%`,
                   transform: `translate(-50%, -50%)`, 
                   zIndex: isSelected ? 50 : 10
                 }}
-                onPointerDown={(e) => handlePointerDown(e, item.id)}
               >
                 {/* Menú Flotante Inline */}
                 {isSelected && (
-                  <div className="absolute top-[-55px] left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl p-1.5 flex items-center gap-1.5 z-[60] pointer-events-auto"
+                  <div className="absolute top-[-55px] left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl p-1.5 flex items-center gap-1.5 z-[60] cursor-default pointer-events-auto"
                        onPointerDown={e => e.stopPropagation()}>
                     <input 
                       className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] text-white w-24 outline-none focus:border-emerald-500" 
@@ -347,14 +351,17 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
                   </div>
                 )}
 
+                {/* Zona Arrastrable y SVG */}
                 <div 
-                  className={`w-full h-full transition-transform ${isSelected ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950 rounded-sm' : ''} print:ring-0`}
+                  className={`w-full h-full cursor-move transition-transform ${isSelected ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950 rounded-sm' : ''} print:ring-0`}
                   style={{ transform: `rotate(${item.rotation}deg)` }}
+                  onPointerDown={(e) => handlePointerDown(e, item.id)}
                 >
                   {def.render()}
                 </div>
                 
-                {item.label && !isSelected && (
+                {/* Etiqueta (Si no está seleccionado o en impresión) */}
+                {item.label && (!isSelected || readOnly) && (
                   <div className="absolute top-[105%] left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-900/80 print:bg-transparent print:text-black px-1.5 py-0.5 rounded text-[8px] md:text-[10px] font-bold text-white text-center pointer-events-none">
                     {item.label}
                   </div>
@@ -925,7 +932,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
             {editTab === 'AUDIO' && activeTabs.includes('AUDIO') && (
               <div className="space-y-6">
                 <div>
-                  <div className="flex justify-between items-end mb-2"><h3 className="text-xs md:text-sm font-bold text-emerald-500">OUTPUT / MONITOR ({form.content.outputs.length}/100)</h3><Button variant="secondary" className="py-1 px-2.5 text-[10px]" icon={Plus} onClick={() => addRow('outputs', { mix: '', player: '', monitor: '', obs: '' })}>Fila</Button></div>
+                  <div className="flex justify-between items-end mb-2"><h3 className="text-xs md:text-sm font-bold text-emerald-500">OUTPUT / MONITOR ({form.content.outputs.length}/100)</h3><Button variant="secondary" className="py-1 px-2.5 text-[10px]" icon={Plus} onClick={() => addRow('outputs', { mix: String(form.content.outputs.length + 1), player: '', monitor: '', obs: '' })}>Fila</Button></div>
                   <div className="overflow-x-auto rounded border border-slate-700 bg-slate-900">
                     <table className="w-full text-left text-xs md:text-sm text-slate-300 min-w-[500px]"><thead className="bg-slate-800 text-[10px] md:text-xs border-b border-slate-700"><tr><th className="p-1.5 md:p-2 w-16">MIX</th><th className="p-1.5 md:p-2">PLAYER</th><th className="p-1.5 md:p-2">MONITOR</th><th className="p-1.5 md:p-2">OBS</th><th className="p-1.5 md:p-2 w-10 text-center">X</th></tr></thead><tbody>{form.content.outputs.map((row, i) => (<tr key={i} className="border-b border-slate-800 last:border-0"><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.mix} onChange={e=>updateTable('outputs', i, 'mix', e.target.value)} /></td><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.player} onChange={e=>updateTable('outputs', i, 'player', e.target.value)} /></td><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.monitor} onChange={e=>updateTable('outputs', i, 'monitor', e.target.value)} /></td><td className="p-1"><AutoResizeTextarea className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.obs} onChange={e=>updateTable('outputs', i, 'obs', e.target.value)} /></td><td className="p-1 text-center"><button type="button" onClick={()=>removeRow('outputs', i)} className="text-red-500 p-1 hover:bg-red-500/20 rounded"><Trash2 size={12}/></button></td></tr>))}</tbody></table>
                   </div>
