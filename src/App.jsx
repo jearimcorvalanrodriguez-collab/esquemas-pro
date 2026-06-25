@@ -62,7 +62,7 @@ const LiveClock = () => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-  return <div className="text-2xl font-black text-white tracking-widest font-mono">{time.toLocaleTimeString()}</div>;
+  return <div className="text-xl md:text-2xl font-black text-white tracking-widest font-mono">{time.toLocaleTimeString()}</div>;
 };
 
 // --- 1. AUTENTICACIÓN ---
@@ -158,7 +158,7 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   );
 };
 
-//// --- 2. VISTA EXCLUSIVA CONDUCTOR ---
+// --- 2. VISTA EXCLUSIVA CONDUCTOR ---
 const ConductorView = ({ currentUser, showToast }) => {
   const r = currentUser.routeInfo;
   const [status, setStatus] = useState(r.status);
@@ -296,7 +296,7 @@ const TransportView = ({ currentUser, showToast }) => {
   );
 };
 
-//// --- 4. MÓDULO RIDERS TÉCNICOS (Exportable / Print Ready) ---
+// --- 4. MÓDULO RIDERS TÉCNICOS (Exportable / Print Ready) ---
 const RidersView = ({ currentUser, showToast, requestConfirm }) => {
   const [riders, setRiders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -625,7 +625,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
   );
 };
 
-//// --- 5. DIRECTORIO STAFF Y REPORTE DE CATERING ---
+// --- 5. DIRECTORIO STAFF Y REPORTE DE CATERING ---
 const StaffDirectory = ({ currentUser }) => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -738,7 +738,7 @@ const StaffDirectory = ({ currentUser }) => {
   );
 };
 
-//// --- 6. CHAT GLOBAL (Conectado a la BD) ---
+// --- 6. CHAT GLOBAL (Conectado a la BD) ---
 const ChatView = ({ currentUser, showToast }) => {
   const [messages, setMessages] = useState([]);
   const [newMsg, setNewMsg] = useState('');
@@ -842,165 +842,82 @@ const ChatView = ({ currentUser, showToast }) => {
   );
 };
 
-// --- 7. TIMING GLOBAL (Merge de Hitos de todos los Proyectos Activos) ---
-  const TimingGlobalView = ({ currentUser }) => {
-    const [hitosGlobales, setHitosGlobales] = useState([]);
-    const [proyectosActivos, setProyectosActivos] = useState([]);
-    const [selectedProjectId, setSelectedProjectId] = useState('ALL');
-    const [loading, setLoading] = useState(true);
-    const [fetchError, setFetchError] = useState('');
+// --- 7. TIMING GLOBAL (Selector de Proyectos Activos) ---
+const TimingGlobalView = ({ currentUser, setCurrentView, setSelectedProject, showToast }) => {
+  const [proyectos, setProyectos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
-    useEffect(() => {
-      const fetchGlobalTiming = async () => {
-        setLoading(true); setFetchError('');
-        try {
-          const [resProyectos, resHitos] = await Promise.all([
-            apiFetch('getProyectos'),
-            apiFetch('getHitos')
-          ]);
-
-          if (resProyectos.status === 'success' && resHitos.status === 'success') {
-            const pActivos = resProyectos.data.filter(p => p.status === 'ACTIVO');
-            setProyectosActivos(pActivos);
-            const mapProyectosActivos = new Map(pActivos.map(p => [String(p.id), p.name]));
-
-            const hitosValidos = resHitos.data.filter(h => mapProyectosActivos.has(String(h.proyectoId)));
-
-            const parsedHitos = hitosValidos.map(ev => {
-              let fullDate = new Date(0); 
-              let dateStrFormateada = 'Sin Fecha';
-              let timeFmt = '--:--';
-              try {
-                 let dStr = typeof ev.date === 'string' ? ev.date.split('T')[0] : new Date(ev.date).toISOString().split('T')[0];
-                 
-                 // FIX BUG GOOGLE SHEETS (1899-12-30T...)
-                 let tRaw = String(ev.time);
-                 let tStr = tRaw.includes('T') ? tRaw.split('T')[1].substring(0,5) : tRaw.substring(0,5);
-                 timeFmt = tStr;
-
-                 const dateObj = new Date(`${dStr}T${tStr}:00`);
-                 if(!isNaN(dateObj.getTime())) {
-                   fullDate = dateObj;
-                   const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                   dateStrFormateada = dateObj.toLocaleDateString('es-ES', opts);
-                   dateStrFormateada = dateStrFormateada.charAt(0).toUpperCase() + dateStrFormateada.slice(1);
-                 }
-              } catch(e) { console.error("Error parseando fecha", e); }
-              
-              return { 
-                ...ev, fullDate, dateStrFormateada, timeFmt,
-                proyectoName: mapProyectosActivos.get(String(ev.proyectoId)),
-                asignados: Array.isArray(ev.asignados) ? ev.asignados : [] 
-              };
-            });
-
-            parsedHitos.sort((a,b) => a.fullDate - b.fullDate);
-            setHitosGlobales(parsedHitos);
-          } else {
-            setFetchError("Error obteniendo datos del servidor.");
-          }
-        } catch (error) {
-          setFetchError("Fallo de red al generar Timing Global.");
-        }
-        setLoading(false);
-      };
-
-      fetchGlobalTiming();
-    }, []);
-
-    // Filtrar por el proyecto seleccionado en el Dropdown
-    const hitosFiltrados = selectedProjectId === 'ALL' 
-      ? hitosGlobales 
-      : hitosGlobales.filter(h => String(h.proyectoId) === String(selectedProjectId));
-
-    const agrupadosPorDia = hitosFiltrados.reduce((acc, hito) => {
-      const groupKey = hito.dateStrFormateada;
-      if (!acc[groupKey]) acc[groupKey] = [];
-      acc[groupKey].push(hito);
-      return acc;
-    }, {});
-
-    return (
-      <div className="space-y-6 animate-fade-in pb-24 max-w-4xl mx-auto">
-        <header className="border-b border-slate-800 pb-6">
-          <h1 className="text-3xl font-black text-white leading-tight flex items-center gap-3"><CalendarDays className="text-emerald-500" size={32} /> Timing Global</h1>
-          <p className="text-sm text-slate-400 mt-2">Visión unificada del Run of Show. Selecciona un proyecto para ver sus horarios.</p>
-          
-          {/* Selector de Proyectos */}
-          {proyectosActivos.length > 0 && (
-            <div className="mt-6 p-4 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap flex items-center gap-2"><Navigation size={14}/> Gira Activa:</span>
-              <select 
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-emerald-400 font-black outline-none focus:border-emerald-500 appearance-none cursor-pointer"
-                value={selectedProjectId} 
-                onChange={(e) => setSelectedProjectId(e.target.value)}
-              >
-                <option value="ALL">🗓️ Mostrar Todos los Proyectos (Vista Consolidada)</option>
-                {proyectosActivos.map(p => (
-                  <option key={p.id} value={p.id}>🎤 {p.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </header>
-
-        {fetchError ? (
-          <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
-        ) : loading && hitosGlobales.length === 0 ? (
-          <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
-        ) : hitosFiltrados.length === 0 ? (
-          <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
-             <Calendar className="mx-auto text-slate-600 mb-4" size={48} />
-             <p className="text-slate-400 text-sm">No hay hitos agendados para tu selección.</p>
-          </div>
-        ) : (
-          <div className="space-y-10">
-            {Object.entries(agrupadosPorDia).map(([dia, hitosDia]) => (
-              <div key={dia} className="relative">
-                <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-md py-3 mb-4 border-b border-slate-800">
-                  <h2 className="text-lg font-black text-emerald-400 flex items-center gap-2"><Calendar size={18} /> {dia}</h2>
-                </div>
-                <div className="absolute left-[27px] top-[60px] bottom-0 w-0.5 bg-slate-800 z-0 hidden md:block"></div>
-
-                <div className="space-y-4 md:pl-12 relative z-10">
-                  {hitosDia.map((hito) => {
-                    const isAssignedToMe = hito.asignados.includes(currentUser.email);
-                    const isPast = hito.fullDate.getTime() !== 0 && hito.fullDate < new Date();
-
-                    return (
-                      <div key={hito.id} className={`p-4 md:p-5 rounded-xl border flex flex-col md:flex-row gap-4 transition-colors ${isPast ? 'bg-slate-900/50 border-slate-800 opacity-60' : 'bg-slate-800 border-slate-700 shadow-lg'}`}>
-                        <div className={`hidden md:flex absolute left-[21px] w-3 h-3 rounded-full mt-5 ${isPast ? 'bg-slate-600' : 'bg-emerald-500 ring-4 ring-slate-950'}`}></div>
-                        
-                        <div className="md:w-32 shrink-0 border-b md:border-b-0 md:border-r border-slate-700/50 pb-3 md:pb-0 md:pr-4 flex md:flex-col justify-between items-center md:items-start">
-                          <div className="text-2xl font-black text-white tracking-wider flex items-center gap-2"><Clock size={16} className="text-emerald-500 md:hidden"/> {hito.timeFmt}</div>
-                          {isPast && <span className="text-[10px] text-slate-500 font-bold uppercase mt-1">Finalizado</span>}
-                        </div>
-                        
-                        <div className="flex-1">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">{hito.proyectoName}</p>
-                          <h3 className={`text-xl font-bold mb-2 ${isPast ? 'text-slate-300' : 'text-white'}`}>{hito.title}</h3>
-                          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hito.location)}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 hover:text-blue-300 underline decoration-blue-500/30 underline-offset-2 flex items-center gap-2 w-fit mb-2"><MapPin size={14}/> {hito.location}</a>
-                          
-                          {isAssignedToMe && (
-                            <span className="inline-block mt-2 text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-500/50">
-                              Asignado a ti
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+  const fetchProyectos = async () => {
+    setFetchError(false);
+    try {
+      const res = await apiFetch('getProyectos');
+      if (res.status === 'success') {
+        const pActivos = res.data.filter(p => p.status === 'ACTIVO');
+        setProyectos(pActivos);
+      }
+      else setFetchError(res.message || "Error al obtener proyectos");
+    } catch (e) { setFetchError("No se pudo conectar al servidor."); }
+    setLoading(false);
   };
 
+  useEffect(() => { fetchProyectos(); }, []);
 
-//// --- 8. PANEL DE ADMINISTRADOR ---
+  return (
+    <div className="space-y-6 animate-fade-in pb-24 max-w-6xl mx-auto">
+      <header className="border-b border-slate-800 pb-6">
+        <h1 className="text-3xl font-black text-white leading-tight flex items-center gap-3"><CalendarDays className="text-emerald-500" size={32} /> Timing Global</h1>
+        <p className="text-sm text-slate-400 mt-2">Selecciona un proyecto activo para ver su Run of Show y cronograma detallado.</p>
+      </header>
+
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
+      ) : loading ? (
+        <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
+      ) : proyectos.length === 0 ? (
+        <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay proyectos activos registrados para el Timing.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {proyectos.map(proyecto => {
+            const projectDate = new Date(Number(proyecto.id));
+            const formattedProjectDate = `${String(projectDate.getDate()).padStart(2, '0')}/${String(projectDate.getMonth() + 1).padStart(2, '0')}/${projectDate.getFullYear()}`;
+
+            return (
+              <Card 
+                key={proyecto.id} 
+                onClick={() => { setSelectedProject(proyecto); setCurrentView('PROJECT_DETAILS'); }}
+                className="group cursor-pointer hover:border-emerald-500 transition-colors"
+              >
+                <div className="p-5">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center group-hover:bg-emerald-500/20"><CalendarDays className="text-emerald-500" size={24} /></div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded block w-fit text-emerald-500 bg-emerald-500/10">{proyecto.status}</span>
+                  </div>
+                  
+                  <h2 className="text-xl font-bold text-white leading-tight mb-2">{proyecto.name}</h2>
+                  <div className="space-y-1 mb-4">
+                    <p className="text-sm text-slate-300 flex items-center gap-2">
+                      <Calendar size={14}/> {formattedProjectDate}
+                    </p>
+                    <p className="text-sm text-slate-400 flex items-center gap-2"><User size={14}/> Liderado por: {proyecto.manager}</p>
+                  </div>
+                  
+                  <div className="border-t border-slate-700 pt-4 mt-4">
+                    <Button variant="ghost" className="w-full bg-slate-900 border border-slate-700 hover:text-emerald-400 text-xs" icon={Clock}>
+                      Ver Timing de Gira
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- 8. PANEL DE ADMINISTRADOR ---
 const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
   const [dbUsers, setDbUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1038,9 +955,13 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
   const handleDirectInvite = async (e) => {
     e.preventDefault(); setProcessingId('inviting');
     try {
-      await apiFetch('solicitarAcceso', { name: invName, email: invEmail, phone: invPhone, role: invRole });
-      const res = await apiFetch('aprobarUsuario', { email: invEmail });
-      if(res.status === 'success') { showToast(`Acceso creado. Credenciales enviadas a ${invEmail}`); setInvName(''); setInvEmail(''); setActiveTab('DIRECTORIO'); fetchUsers(); }
+      const resSolicitud = await apiFetch('solicitarAcceso', { name: invName, email: invEmail, phone: invPhone, role: invRole });
+      if(resSolicitud.status === 'success') {
+        const resAprob = await apiFetch('aprobarUsuario', { email: invEmail });
+        if(resAprob.status === 'success') {
+          showToast(`Acceso creado. Credenciales enviadas a ${invEmail}`); setInvName(''); setInvEmail(''); setActiveTab('DIRECTORIO'); fetchUsers();
+        }
+      }
     } catch(e) { showToast("Error al invitar integrante."); }
     setProcessingId(null);
   };
@@ -1122,254 +1043,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
   );
 };
 
-// --- 9. MI PERFIL ---
-const ProfileView = ({ currentUser, setCurrentUser, showToast }) => {
-  const [pPhone, setPPhone] = useState(currentUser.phone || '');
-  const [pTalla, setPTalla] = useState(currentUser.talla || 'M');
-  const [pDieta, setPDieta] = useState(currentUser.dieta || 'OMNÍVORA');
-  
-  const [oldPass, setOldPass] = useState('');
-  const [newPass, setNewPass] = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const handleUpdate = async (e) => {
-    e.preventDefault();
-    if (newPass && newPass !== confirmPass) return showToast("Las contraseñas no coinciden.");
-
-    setSaving(true);
-    try {
-      const payload = { email: currentUser.email, phone: pPhone, talla: pTalla, dieta: pDieta };
-      if (newPass && oldPass) { payload.oldPassword = oldPass; payload.newPassword = newPass; }
-      const res = await apiFetch('updateProfile', payload);
-      if (res.status === 'success') {
-        setCurrentUser({ ...currentUser, phone: pPhone, talla: pTalla, dieta: pDieta });
-        setOldPass(''); setNewPass(''); setConfirmPass('');
-        showToast(newPass ? "¡Perfil y Contraseña actualizados!" : "¡Perfil actualizado!");
-      } else { showToast(res.message); }
-    } catch (err) { showToast("Error al guardar."); }
-    setSaving(false);
-  };
-
-  return (
-    <div className="max-w-xl mx-auto animate-fade-in pb-24">
-      <header className="mb-6"><h1 className="text-2xl font-black text-white flex items-center gap-3"><User className="text-emerald-500" size={28}/> Mi Perfil</h1></header>
-      <Card className="p-6">
-        <form onSubmit={handleUpdate} className="space-y-5">
-          <div className="pb-4 border-b border-slate-700"><label className="block text-xs font-bold text-slate-400 mb-1">Nombre</label><input type="text" value={currentUser.name} disabled className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-slate-500 text-sm cursor-not-allowed" /></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label><input type="text" value={pPhone} onChange={e=>setPPhone(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" required /></div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1">Talla (Merch/Crew)</label>
-              <select value={pTalla} onChange={e=>setPTalla(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
-                <option value="XS">XS - Extra Pequeño</option><option value="S">S - Pequeño</option><option value="M">M - Mediano</option><option value="L">L - Grande</option><option value="XL">XL - Extra Grande</option><option value="XXL">XXL - Doble Extra Grande</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1">Preferencia de Alimentación (Catering)</label>
-            <select value={pDieta} onChange={e=>setPDieta(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500">
-              <option value="OMNÍVORA">Omnívora (Estándar)</option><option value="VEGETARIANA">Vegetariana</option><option value="VEGANA">Vegana</option><option value="CRUDÍVORA">Crudívora</option><option value="FLEXITARIANA">Flexitariana</option><option value="SIN GLUTEN">Sin Gluten</option><option value="BAJA EN FODMAP">Baja en FODMAP</option><option value="HIPOSÓDICA">Hiposódica</option><option value="DIABÉTICA">Diabética</option><option value="KETO">Keto</option><option value="MEDITERRÁNEA">Mediterránea</option>
-            </select>
-          </div>
-          <div className="bg-slate-800/80 border border-slate-700 rounded-lg p-3 flex gap-3 items-start mt-2">
-            <Shield size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-slate-400 leading-relaxed font-bold">La información será utilizada únicamente para informar a la producción.</p>
-          </div>
-          <div className="pt-4 border-t border-slate-700 mt-4 space-y-3">
-            <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2"><Key size={16}/> Cambiar Contraseña (Opcional)</h3>
-            <input type="password" placeholder="Contraseña Actual" value={oldPass} onChange={e=>setOldPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" />
-            <input type="password" placeholder="Nueva Contraseña" value={newPass} onChange={e=>setNewPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm outline-none focus:border-emerald-500" />
-            <input type="password" placeholder="Confirmar Nueva Contraseña" value={confirmPass} onChange={e=>setConfirmPass(e.target.value)} className={`w-full bg-slate-900 border rounded-lg p-3 text-white text-sm outline-none ${confirmPass && newPass !== confirmPass ? 'border-red-500' : 'border-slate-700 focus:border-emerald-500'}`} />
-            {confirmPass && newPass !== confirmPass && <p className="text-xs text-red-500 font-bold">Las contraseñas no coinciden</p>}
-          </div>
-          <Button type="submit" variant="primary" className="w-full py-4 mt-6" disabled={saving || (confirmPass && newPass !== confirmPass)}>{saving ? <Loader2 className="animate-spin"/> : 'Guardar Cambios'}</Button>
-        </form>
-      </Card>
-    </div>
-  );
-};
-
-//// --- 10. DASHBOARD PRINCIPAL (MÓDULO DE PROYECTOS) ---
-const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast, directory }) => {
-  const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
-  const [proyectos, setProyectos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [form, setForm] = useState({ name: '', type: 'Gira Musical' });
-  const [assigningProject, setAssigningProject] = useState(null);
-
-  const fetchProyectos = async () => {
-    setFetchError(false);
-    try {
-      const res = await apiFetch('getProyectos');
-      if (res.status === 'success') {
-        const parsed = res.data.map(p => ({ ...p, asignados: Array.isArray(p.asignados) ? p.asignados : [] }));
-        setProyectos(parsed);
-      }
-      else setFetchError(res.message || "Error al obtener proyectos");
-    } catch (e) { setFetchError("No se pudo conectar al servidor."); }
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchProyectos(); }, []);
-
-  const handleCreateProyecto = async (e) => {
-    e.preventDefault(); 
-    try {
-      const payload = { ...form, manager: currentUser.name };
-      const res = await apiFetch('createProyecto', payload);
-      if (res.status === 'success') {
-        showToast("Proyecto creado exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
-      } else {
-        showToast(res.message);
-      }
-    } catch(e) { showToast("Error al crear proyecto."); }
-  };
-
-  const handleUpdateStatus = async (e, id, currentStatus) => {
-    e.stopPropagation(); 
-    const newStatus = currentStatus === 'ACTIVO' ? 'FINALIZADO' : 'ACTIVO';
-    try {
-      await apiFetch('updateProyectoStatus', { id, status: newStatus });
-      showToast("Estado actualizado."); fetchProyectos();
-    } catch(e) { showToast("Error al actualizar."); }
-  };
-
-  const toggleAssignProject = (email) => {
-    setAssigningProject(prev => {
-      const isAssigned = prev.asignados.includes(email);
-      const newAsignados = isAssigned ? prev.asignados.filter(e => e !== email) : [...prev.asignados, email];
-      return { ...prev, asignados: newAsignados };
-    });
-  };
-
-  const saveProjectAsignaciones = async () => {
-    try {
-      await apiFetch('updateProyectoAsignaciones', { id: assigningProject.id, asignados: assigningProject.asignados });
-      showToast("Asignaciones de proyecto guardadas."); setAssigningProject(null); fetchProyectos();
-    } catch(e) { showToast("Error al guardar."); }
-  };
-
-  return (
-    <div className="space-y-6 animate-fade-in pb-24 max-w-6xl mx-auto">
-      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b border-slate-800 pb-6">
-        <div><h1 className="text-3xl font-black text-white leading-tight">Hola, {currentUser.name.split(' ')[0]}</h1><p className="text-emerald-400 text-sm font-black uppercase tracking-wider">{currentUser.role}</p></div>
-        <div className="flex flex-wrap gap-2">
-          {canCreate && !isCreating && <Button icon={FolderPlus} variant="primary" onClick={() => setIsCreating(true)}>Nuevo Proyecto</Button>}
-        </div>
-      </header>
-
-      {isCreating && (
-        <Card className="p-6 border-emerald-500 mb-6 max-w-2xl">
-          <h2 className="text-lg font-bold text-white mb-4">Iniciar Nuevo Proyecto / Gira</h2>
-          <form onSubmit={handleCreateProyecto} className="space-y-4">
-            <div><label className="text-xs text-slate-400 block mb-1">Nombre del Proyecto (Ej: Gira Sudamérica 2026)</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} /></div>
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">Tipo de Producción</label>
-              <select className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
-                <option value="Gira Musical">Gira Musical (Tour)</option><option value="Festival">Festival</option><option value="Show Único">Show Único (One-Off)</option><option value="Evento Corporativo">Evento Corporativo</option>
-              </select>
-            </div>
-            <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Proyecto</Button></div>
-          </form>
-        </Card>
-      )}
-
-      <div>
-        <h2 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2"><Navigation size={20}/> Proyectos Activos</h2>
-        
-        {fetchError ? (
-          <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
-        ) : loading && proyectos.length === 0 ? (
-          <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
-        ) : proyectos.length === 0 ? (
-          <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay proyectos activos registrados.</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {proyectos.map(proyecto => {
-              // Calculamos la fecha de creación a partir del timestamp ID (o se puede traer del primer hito, pero este es el estándar seguro por proyecto en la app)
-              const projectDate = new Date(Number(proyecto.id));
-              const formattedProjectDate = `${String(projectDate.getDate()).padStart(2, '0')}/${String(projectDate.getMonth() + 1).padStart(2, '0')}/${projectDate.getFullYear()}`;
-
-              return (
-                <Card 
-                  key={proyecto.id} 
-                  onClick={() => { setSelectedProject(proyecto); setCurrentView('PROJECT_DETAILS'); }}
-                  className={`group cursor-pointer ${proyecto.status === 'ACTIVO' ? 'hover:border-emerald-500' : 'opacity-70 grayscale hover:grayscale-0'}`}
-                >
-                  <div className="p-5">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center group-hover:bg-emerald-500/20"><Music className="text-emerald-500" size={24} /></div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded block w-fit ${proyecto.status === 'ACTIVO' ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-400 bg-slate-800 border border-slate-700'}`}>{proyecto.status}</span>
-                        <span className="text-[10px] bg-slate-800 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider">{proyecto.type}</span>
-                      </div>
-                    </div>
-                    
-                    <h2 className="text-xl font-bold text-white leading-tight mb-2">{proyecto.name}</h2>
-                    <div className="space-y-1 mb-4">
-                      <p className="text-sm text-slate-300 flex items-center gap-2">
-                        <Calendar size={14}/> {formattedProjectDate}
-                      </p>
-                      <p className="text-sm text-slate-400 flex items-center gap-2"><User size={14}/> Liderado por: {proyecto.manager}</p>
-                    </div>
-                    
-                    <div className="flex flex-col gap-2 border-t border-slate-700 pt-4">
-                      {canCreate && (
-                        <Button variant="ghost" className="w-full bg-slate-900 border border-slate-700 hover:text-white text-xs mb-2" icon={Users} onClick={(e) => { e.stopPropagation(); setAssigningProject(proyecto); }}>
-                          Asignar Equipo ({proyecto.asignados.length})
-                        </Button>
-                      )}
-                      {canCreate && (
-                        <div className="flex gap-2">
-                          <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-white text-xs" onClick={(e) => { e.stopPropagation(); showToast("Para editar nombre hazlo desde la Base de Datos."); }}>Editar</Button>
-                          <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-emerald-400 text-xs" onClick={(e) => handleUpdateStatus(e, proyecto.id, proyecto.status)}>
-                            {proyecto.status === 'ACTIVO' ? 'Finalizar' : 'Reactivar'}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {assigningProject && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
-          <Card className="w-full max-w-md p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
-            <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-800">
-              <h2 className="text-lg font-bold text-white">Asignar Equipo al Proyecto</h2>
-              <button onClick={() => setAssigningProject(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
-            </div>
-            <p className="text-sm text-emerald-400 font-bold mb-4">{assigningProject.name}</p>
-            
-            <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2 custom-scrollbar">
-              {directory.length === 0 ? <p className="text-slate-500 text-sm text-center">Cargando directorio...</p> : directory.map(u => {
-                const isChecked = assigningProject.asignados.includes(u.email);
-                return (
-                  <button key={u.email} onClick={() => toggleAssignProject(u.email)} className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${isChecked ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
-                    <div className="flex items-center gap-3">
-                      {isChecked ? <CheckSquare className="text-emerald-500" size={20}/> : <Square size={20}/>}
-                      <div className="text-left"><p className="font-bold text-sm">{u.name}</p><p className="text-[10px] uppercase tracking-wider">{u.role}</p></div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <Button onClick={saveProjectAsignaciones} className="w-full py-3">Guardar Asignaciones</Button>
-          </Card>
-        </div>
-      )}
-    </div>
-  );
-};
-
-//// Función helper fuera del componente para evitar recrearla
+// Función helper fuera del componente para evitar recrearla
 const getEventStatus = (targetDate, currentTime) => {
   if (targetDate.getTime() === 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'Fecha inválida', timeText: '--:--', pulse: false, textClass: 'text-slate-500' };
   const diffMs = targetDate - currentTime;
@@ -1388,7 +1062,7 @@ const getEventStatus = (targetDate, currentTime) => {
   else return { border: 'border-emerald-500/50', bg: 'bg-emerald-500/10', dot: 'bg-emerald-500', text: 'Agendado', timeText, pulse: false, textClass: 'text-emerald-500' };
 };
 
-// Componente Micro-Aislado para los Hitos. Su reloj propio evita que todo el padre colapse en re-renders.
+// Componente Micro-Aislado para los Hitos
 const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, currentUser, requestConfirm }) => {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -1399,13 +1073,20 @@ const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, curre
   const status = getEventStatus(event.fullDate, now);
   const isAssignedToMe = event.asignados.includes(currentUser.email);
 
-  // Formateo estricto solicitado: DD/MM/AAA
-  const [year, month, day] = String(event.date).split('T')[0].split('-');
-  const formattedDate = `${day}/${month}/${year}`;
+  // Parseo Robusto para evitar errores en fechas "1899-" u otras de Sheets
+  let formattedDate = 'Fecha Inválida';
+  let dRaw = String(event.date);
+  if (dRaw.includes('T')) dRaw = dRaw.split('T')[0];
+  const matchISO = dRaw.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (matchISO) {
+    formattedDate = `${matchISO[3]}/${matchISO[2]}/${matchISO[1]}`;
+  } else {
+    const matchLoc = dRaw.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+    if(matchLoc) formattedDate = `${matchLoc[1]}/${matchLoc[2]}/${matchLoc[3]}`;
+  }
   
-  // Formateo de horario en 24h: 00:00 h
-  const rawTime = String(event.time).includes('T') ? String(event.time).split('T')[1].substring(0,5) : String(event.time).substring(0,5);
-  const formattedTime = `${rawTime} h`;
+  const timeMatch = String(event.time).match(/\d{2}:\d{2}/);
+  const formattedTime = timeMatch ? `${timeMatch[0]} h` : '--:-- h';
 
   return (
     <div className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
@@ -1414,16 +1095,16 @@ const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, curre
       )}
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div className="flex-1">
-          {/* 1. Título del hito primero */}
+          {/* 1. Título del hito */}
           <h3 className="text-xl font-bold text-white mb-2 pr-8">{event.title}</h3>
           
-          {/* 2. Fecha y Horario (Resaltado) */}
+          {/* 2. Fecha y Horario */}
           <div className="flex flex-wrap items-center gap-3 text-sm font-bold mb-3">
             <span className="flex items-center gap-1 text-slate-300"><Calendar size={14}/> {formattedDate}</span>
             <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20"><Clock size={14}/> {formattedTime}</span>
           </div>
           
-          {/* 3. Locación interactiva que abre Google Maps */}
+          {/* 3. Locación enlazada a Maps */}
           <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 hover:text-blue-300 underline decoration-blue-500/30 underline-offset-2 flex items-center gap-2 w-fit mb-4">
             <MapPin size={14}/> {event.location}
           </a>
@@ -1449,209 +1130,218 @@ const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, curre
 };
 
 // --- 11. DETALLES DEL PROYECTO (HITOS INTERNOS) ---
-  const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, showToast, directory, requestConfirm }) => {
-    const p = selectedProject;
-    const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
-    const [hitos, setHitos] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [fetchError, setFetchError] = useState(false);
-    const [isCreating, setIsCreating] = useState(false);
-    const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
-    const [assigningHito, setAssigningHito] = useState(null);
+const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, showToast, directory, requestConfirm }) => {
+  const p = selectedProject;
+  const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+  const [hitos, setHitos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
+  const [assigningHito, setAssigningHito] = useState(null);
 
-    const fetchHitos = async () => {
-      setFetchError(false);
-      try {
-        const res = await apiFetch('getHitos');
-        if (res.status === 'success') {
-          const projectHitos = res.data.filter(ev => String(ev.proyectoId) === String(p.id));
-          const parsedEvents = projectHitos.map(ev => {
-            let fullDate = new Date(0); 
-            try {
-               let dStr = typeof ev.date === 'string' ? ev.date.split('T')[0] : new Date(ev.date).toISOString().split('T')[0];
-               // FIX BUG GOOGLE SHEETS (1899-12-30T...)
-               let tRaw = String(ev.time);
-               let tStr = tRaw.includes('T') ? tRaw.split('T')[1].substring(0,5) : tRaw.substring(0,5);
-
-               const dateObj = new Date(`${dStr}T${tStr}:00`);
-               if(!isNaN(dateObj.getTime())) fullDate = dateObj;
-            } catch(e) { console.error("Error parseando fecha", e); }
-            return { ...ev, fullDate, asignados: Array.isArray(ev.asignados) ? ev.asignados : [] };
-          });
-          setHitos(parsedEvents.sort((a,b) => a.fullDate - b.fullDate));
-        } else setFetchError(res.message || "Error al obtener hitos");
-      } catch(e) { setFetchError("Fallo de red al obtener hitos."); }
-      setLoading(false);
-    };
-
-    useEffect(() => { fetchHitos(); }, []);
-
-    const firstHito = hitos.length > 0 ? hitos[0] : null;
-    let projectDateStr = "Sin hitos programados";
-    let showClock = false;
-
-    if (firstHito && firstHito.fullDate && firstHito.fullDate.getTime() !== 0) {
-      const fd = firstHito.fullDate;
-      projectDateStr = `${String(fd.getDate()).padStart(2, '0')}/${String(fd.getMonth() + 1).padStart(2, '0')}/${fd.getFullYear()} - ${String(fd.getHours()).padStart(2, '0')}:${String(fd.getMinutes()).padStart(2, '0')} h`;
-      
-      const diffMs = fd.getTime() - new Date().getTime();
-      const hoursDiff = diffMs / (1000 * 60 * 60);
-      if (hoursDiff <= 72) {
-        showClock = true;
-      }
-    }
-
-    const handleCreateHito = async (e) => {
-      e.preventDefault(); 
-      try {
-        const payload = { ...form, proyectoId: p.id };
-        const res = await apiFetch('createHito', payload);
-        if (res.status === 'success') {
-          showToast("Hito agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchHitos();
-        } else {
-          showToast("Error: " + res.message); 
-        }
-      } catch(e) { showToast("Error al crear hito."); }
-    };
-
-    const handleDeleteHito = async (id) => {
-      try {
-        await apiFetch('deleteHito', { id });
-        showToast("Hito eliminado."); fetchHitos();
-      } catch(e) { showToast("Error al eliminar."); }
-    };
-
-    const captureGPS = () => {
-      if(navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((pos) => {
-          setForm(prev => ({...prev, location: `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`}));
-          showToast("GPS Capturado correctamente");
-        }, () => showToast("Error al obtener GPS. Activa los permisos."));
-      } else showToast("Tu navegador no soporta GPS.");
-    };
-
-    const toggleAssign = (email) => {
-      setAssigningHito(prev => {
-        const isAssigned = prev.asignados.includes(email);
-        const newAsignados = isAssigned ? prev.asignados.filter(e => e !== email) : [...prev.asignados, email];
-        return { ...prev, asignados: newAsignados };
-      });
-    };
-
-    const saveAsignaciones = async () => {
-      try {
-        await apiFetch('updateHitoAsignaciones', { id: assigningHito.id, asignados: assigningHito.asignados });
-        showToast("Asignaciones guardadas."); setAssigningHito(null); fetchHitos();
-      } catch(e) { showToast("Error al guardar."); }
-    };
-
-    return (
-      <div className="space-y-6 animate-fade-in pb-24 max-w-4xl mx-auto">
-        <button onClick={() => setCurrentView('DASHBOARD')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"><ChevronLeft size={20}/> Volver a Proyectos</button>
-        
-        <header className="border-b border-slate-800 pb-6 flex flex-col items-start gap-4">
-          <div>
-            <span className="text-[10px] bg-slate-800 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider mb-2 inline-block">VISTA PROYECTO</span>
-            <h1 className="text-3xl font-black text-white leading-tight">{p.name}</h1>
-            <div className="mt-2 space-y-1">
-              <p className="text-sm text-slate-400 flex items-center gap-2"><User size={14}/> Liderado por: {p.manager}</p>
-              <p className="text-sm text-slate-300 flex items-center gap-2"><Calendar size={14}/> {projectDateStr}</p>
-            </div>
-          </div>
-        </header>
-
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-8 mb-4 gap-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2"><Clock className="text-emerald-500"/> Run of Show / Timing</h2>
-            {showClock && (
-              <div className="bg-slate-900 border border-slate-700 px-4 py-1.5 rounded-lg flex items-center gap-2 shadow-inner animate-fade-in">
-                <Timer className="text-emerald-500 animate-pulse" size={16} />
-                <LiveClock />
-              </div>
-            )}
-          </div>
-          {canManage && !isCreating && <Button icon={Plus} onClick={() => setIsCreating(true)}>Agregar Hito</Button>}
-        </div>
-
-        {isCreating && (
-          <Card className="p-6 border-emerald-500 mb-6">
-            <h2 className="text-lg font-bold text-white mb-4">Agendar Nuevo Hito</h2>
-            <form onSubmit={handleCreateHito} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">Título del Hito</label>
-                  <input list="hitos-list" required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" placeholder="Ej: Soundcheck, Load In..." value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
-                  <datalist id="hitos-list"><option value="Load In (Montaje)" /><option value="Soundcheck (Prueba de Sonido)" /><option value="Puertas (Apertura al público)" /><option value="Show Telonero" /><option value="Show Principal" /><option value="Load Out (Desmontaje)" /></datalist>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">Ubicación / Locación</label>
-                  <div className="flex items-center gap-2">
-                    <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" placeholder="Ej: Escenario Principal" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
-                    <Button type="button" variant="secondary" icon={MapPin} onClick={captureGPS} title="Usar mi ubicación actual" />
-                  </div>
-                </div>
-                <div><label className="text-xs text-slate-400 block mb-1">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, date: e.target.value})} /></div>
-                <div><label className="text-xs text-slate-400 block mb-1">Hora</label><input required type="time" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, time: e.target.value})} /></div>
-              </div>
-              <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Hito</Button></div>
-            </form>
-          </Card>
-        )}
-
-        {fetchError ? (
-          <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
-        ) : loading && hitos.length === 0 ? (
-          <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
-        ) : hitos.length === 0 ? (
-          <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
-            <CalendarPlus className="mx-auto text-slate-600 mb-4" size={48} />
-            <p className="text-slate-400 text-sm max-w-md mx-auto">Aún no has agregado hitos al timing de este proyecto.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {hitos.map((event) => (
-              <EventCard 
-                 key={event.id} 
-                 event={event} 
-                 canManage={canManage} 
-                 handleDeleteHito={handleDeleteHito} 
-                 setAssigningHito={setAssigningHito} 
-                 currentUser={currentUser} 
-                 requestConfirm={requestConfirm} 
-              />
-            ))}
-          </div>
-        )}
-
-        {assigningHito && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
-            <Card className="w-full max-w-md p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
-              <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-800">
-                <h2 className="text-lg font-bold text-white">Asignar Crew al Hito</h2>
-                <button onClick={() => setAssigningHito(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
-              </div>
-              <p className="text-sm text-emerald-400 font-bold mb-4">{assigningHito.title}</p>
+  const fetchHitos = async () => {
+    setFetchError(false);
+    try {
+      const res = await apiFetch('getHitos');
+      if (res.status === 'success') {
+        const projectHitos = res.data.filter(ev => String(ev.proyectoId) === String(p.id));
+        const parsedEvents = projectHitos.map(ev => {
+          let fullDate = new Date(0); 
+          try {
+              let dStr = '';
+              let dRaw = String(ev.date);
+              if (dRaw.includes('T')) dRaw = dRaw.split('T')[0];
+              const matchISO = dRaw.match(/(\d{4})-(\d{2})-(\d{2})/);
+              if (matchISO) dStr = matchISO[0];
+              else {
+                  const matchLoc = dRaw.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+                  if(matchLoc) dStr = `${matchLoc[3]}-${matchLoc[2]}-${matchLoc[1]}`;
+              }
               
-              <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2 custom-scrollbar">
-                {directory.length === 0 ? <p className="text-slate-500 text-sm text-center">Cargando directorio...</p> : directory.map(u => {
-                  const isChecked = assigningHito.asignados.includes(u.email);
-                  return (
-                    <button key={u.email} onClick={() => toggleAssign(u.email)} className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${isChecked ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
-                      <div className="flex items-center gap-3">
-                        {isChecked ? <CheckSquare className="text-emerald-500" size={20}/> : <Square size={20}/>}
-                        <div className="text-left"><p className="font-bold text-sm">{u.name}</p><p className="text-[10px] uppercase tracking-wider">{u.role}</p></div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <Button onClick={saveAsignaciones} className="w-full py-3">Guardar Asignaciones</Button>
-            </Card>
-          </div>
-        )}
-      </div>
-    );
+              let tStr = '00:00';
+              const timeMatch = String(ev.time).match(/\d{2}:\d{2}/);
+              if(timeMatch) tStr = timeMatch[0];
+
+              const dateObj = new Date(`${dStr}T${tStr}:00`);
+              if(!isNaN(dateObj.getTime())) fullDate = dateObj;
+          } catch(e) { console.error("Error parseando fecha", e); }
+          return { ...ev, fullDate, asignados: Array.isArray(ev.asignados) ? ev.asignados : [] };
+        });
+        setHitos(parsedEvents.sort((a,b) => a.fullDate - b.fullDate));
+      } else setFetchError(res.message || "Error al obtener hitos");
+    } catch(e) { setFetchError("Fallo de red al obtener hitos."); }
+    setLoading(false);
   };
+
+  useEffect(() => { fetchHitos(); }, []);
+
+  const firstHito = hitos.length > 0 ? hitos[0] : null;
+  let projectDateStr = "Sin hitos programados";
+  let showClock = false;
+
+  if (firstHito && firstHito.fullDate && firstHito.fullDate.getTime() !== 0) {
+    const fd = firstHito.fullDate;
+    projectDateStr = `${String(fd.getDate()).padStart(2, '0')}/${String(fd.getMonth() + 1).padStart(2, '0')}/${fd.getFullYear()} - ${String(fd.getHours()).padStart(2, '0')}:${String(fd.getMinutes()).padStart(2, '0')} h`;
+    
+    const diffMs = fd.getTime() - new Date().getTime();
+    const hoursDiff = diffMs / (1000 * 60 * 60);
+    if (hoursDiff <= 72) {
+      showClock = true;
+    }
+  }
+
+  const handleCreateHito = async (e) => {
+    e.preventDefault(); 
+    try {
+      const payload = { ...form, proyectoId: p.id };
+      const res = await apiFetch('createHito', payload);
+      if (res.status === 'success') {
+        showToast("Hito agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchHitos();
+      } else {
+        showToast("Error: " + res.message); 
+      }
+    } catch(e) { showToast("Error al crear hito."); }
+  };
+
+  const handleDeleteHito = async (id) => {
+    try {
+      await apiFetch('deleteHito', { id });
+      showToast("Hito eliminado."); fetchHitos();
+    } catch(e) { showToast("Error al eliminar."); }
+  };
+
+  const captureGPS = () => {
+    if(navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        setForm(prev => ({...prev, location: `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`}));
+        showToast("GPS Capturado correctamente");
+      }, () => showToast("Error al obtener GPS. Activa los permisos."));
+    } else showToast("Tu navegador no soporta GPS.");
+  };
+
+  const toggleAssign = (email) => {
+    setAssigningHito(prev => {
+      const isAssigned = prev.asignados.includes(email);
+      const newAsignados = isAssigned ? prev.asignados.filter(e => e !== email) : [...prev.asignados, email];
+      return { ...prev, asignados: newAsignados };
+    });
+  };
+
+  const saveAsignaciones = async () => {
+    try {
+      await apiFetch('updateHitoAsignaciones', { id: assigningHito.id, asignados: assigningHito.asignados });
+      showToast("Asignaciones guardadas."); setAssigningHito(null); fetchHitos();
+    } catch(e) { showToast("Error al guardar."); }
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in pb-24 max-w-4xl mx-auto">
+      <button onClick={() => setCurrentView('DASHBOARD')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"><ChevronLeft size={20}/> Volver a Proyectos</button>
+      
+      <header className="border-b border-slate-800 pb-6 flex flex-col items-start gap-4">
+        <div>
+          <span className="text-[10px] bg-slate-800 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider mb-2 inline-block">VISTA PROYECTO</span>
+          <h1 className="text-3xl font-black text-white leading-tight">{p.name}</h1>
+          <div className="mt-2 space-y-1">
+            <p className="text-sm text-slate-300 flex items-center gap-2"><Calendar size={14}/> Inicio: {projectDateStr}</p>
+            <p className="text-sm text-slate-400 flex items-center gap-2"><User size={14}/> Liderado por: {p.manager}</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-8 mb-4 gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2"><Clock className="text-emerald-500"/> Run of Show / Timing</h2>
+          {showClock && (
+            <div className="bg-slate-900 border border-slate-700 px-4 py-1.5 rounded-lg flex items-center gap-2 shadow-inner animate-fade-in">
+              <Timer className="text-emerald-500 animate-pulse" size={16} />
+              <LiveClock />
+            </div>
+          )}
+        </div>
+        {canManage && !isCreating && <Button icon={Plus} onClick={() => setIsCreating(true)}>Agregar Hito</Button>}
+      </div>
+
+      {isCreating && (
+        <Card className="p-6 border-emerald-500 mb-6">
+          <h2 className="text-lg font-bold text-white mb-4">Agendar Nuevo Hito</h2>
+          <form onSubmit={handleCreateHito} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Título del Hito</label>
+                <input list="hitos-list" required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" placeholder="Ej: Soundcheck, Load In..." value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                <datalist id="hitos-list"><option value="Load In (Montaje)" /><option value="Soundcheck (Prueba de Sonido)" /><option value="Puertas (Apertura al público)" /><option value="Show Telonero" /><option value="Show Principal" /><option value="Load Out (Desmontaje)" /></datalist>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Ubicación / Locación</label>
+                <div className="flex items-center gap-2">
+                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" placeholder="Ej: Escenario Principal" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
+                  <Button type="button" variant="secondary" icon={MapPin} onClick={captureGPS} title="Usar mi ubicación actual" />
+                </div>
+              </div>
+              <div><label className="text-xs text-slate-400 block mb-1">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, date: e.target.value})} /></div>
+              <div><label className="text-xs text-slate-400 block mb-1">Hora</label><input required type="time" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, time: e.target.value})} /></div>
+            </div>
+            <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Hito</Button></div>
+          </form>
+        </Card>
+      )}
+
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
+      ) : loading && hitos.length === 0 ? (
+        <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
+      ) : hitos.length === 0 ? (
+        <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
+          <CalendarPlus className="mx-auto text-slate-600 mb-4" size={48} />
+          <p className="text-slate-400 text-sm max-w-md mx-auto">Aún no has agregado hitos al timing de este proyecto.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {hitos.map((event) => (
+            <EventCard 
+               key={event.id} 
+               event={event} 
+               canManage={canManage} 
+               handleDeleteHito={handleDeleteHito} 
+               setAssigningHito={setAssigningHito} 
+               currentUser={currentUser} 
+               requestConfirm={requestConfirm} 
+            />
+          ))}
+        </div>
+      )}
+
+      {assigningHito && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <Card className="w-full max-w-md p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-white">Asignar Crew al Hito</h2>
+              <button onClick={() => setAssigningHito(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+            </div>
+            <p className="text-sm text-emerald-400 font-bold mb-4">{assigningHito.title}</p>
+            
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2 custom-scrollbar">
+              {directory.length === 0 ? <p className="text-slate-500 text-sm text-center">Cargando directorio...</p> : directory.map(u => {
+                const isChecked = assigningHito.asignados.includes(u.email);
+                return (
+                  <button key={u.email} onClick={() => toggleAssign(u.email)} className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${isChecked ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                    <div className="flex items-center gap-3">
+                      {isChecked ? <CheckSquare className="text-emerald-500" size={20}/> : <Square size={20}/>}
+                      <div className="text-left"><p className="font-bold text-sm">{u.name}</p><p className="text-[10px] uppercase tracking-wider">{u.role}</p></div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <Button onClick={saveAsignaciones} className="w-full py-3">Guardar Asignaciones</Button>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -1772,7 +1462,7 @@ export default function App() {
           {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} />}
           {currentView === 'STAFF' && <StaffDirectory currentUser={currentUser} />}
           {currentView === 'CHAT' && <ChatView currentUser={currentUser} showToast={showToast} />}
-          {currentView === 'TIMING' && <TimingGlobalView currentUser={currentUser} />}
+          {currentView === 'TIMING' && <TimingGlobalView currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} />}
           {currentView === 'TRANSPORT' && <TransportView currentUser={currentUser} showToast={showToast} />}
           {currentView === 'RIDERS' && <RidersView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} />}
         </div>
