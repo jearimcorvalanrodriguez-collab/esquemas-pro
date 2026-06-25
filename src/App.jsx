@@ -50,6 +50,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState('DASHBOARD');
   const [selectedProject, setSelectedProject] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [directory, setDirectory] = useState([]); // Guardar directorio de staff de forma global
   
   // Custom Confirm Modal State
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', onConfirm: null });
@@ -85,6 +86,14 @@ export default function App() {
     if (r === ROLES.MANAGER || r === ROLES.TOUR_MANAGER) return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, time, riders, transport, chat, dir, profile ];
     
     return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, time, riders, transport, chat, dir, profile ];
+  };
+
+  const fetchDirectoryGlobal = async () => {
+    try {
+      const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getUsuarios' }) });
+      const json = await res.json();
+      if (json.status === 'success') setDirectory(json.data.filter(u => u.status === 'ACTIVO'));
+    } catch(e) { console.error("Error fetching global directory", e); }
   };
 
   // --- 1. AUTENTICACIÓN ---
@@ -593,9 +602,9 @@ export default function App() {
 
   // --- 5. DIRECTORIO STAFF ---
   const StaffDirectory = () => {
-    const [directory, setDirectory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState(false);
+    const [localDirectory, setLocalDirectory] = useState([]);
 
     useEffect(() => {
       const fetchDirectory = async () => {
@@ -605,8 +614,8 @@ export default function App() {
           if (json.status === 'success') {
             const activeUsers = json.data.filter(u => u.status === 'ACTIVO' && u.email !== currentUser.email);
             const canSeeEveryone = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
-            if (canSeeEveryone) setDirectory(activeUsers);
-            else setDirectory(activeUsers.filter(u => u.role === ROLES.TOUR_MANAGER));
+            if (canSeeEveryone) setLocalDirectory(activeUsers);
+            else setLocalDirectory(activeUsers.filter(u => u.role === ROLES.TOUR_MANAGER));
           }
         } catch(e) { setFetchError(true); }
         setLoading(false);
@@ -623,14 +632,14 @@ export default function App() {
         {fetchError && <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> Error al cargar el directorio.</div>}
         {loading && !fetchError ? ( <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {directory.map((user, idx) => (
+            {localDirectory.map((user, idx) => (
               <Card key={idx} className="p-5 flex flex-col justify-between">
                 <div className="flex items-start gap-4 mb-4"><div className="w-12 h-12 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-xl shrink-0">{user.name.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-white text-lg truncate">{user.name}</h3><span className="text-[10px] bg-slate-900 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold">{user.role}</span></div></div>
                 <div className="space-y-2 mb-4 text-sm text-slate-300"><p className="flex items-center gap-2"><Phone size={14} className="text-slate-500"/> {user.phone}</p><p className="flex items-center gap-2 truncate"><Mail size={14} className="text-slate-500"/> {user.email}</p></div>
                 <div className="flex flex-row gap-2 mt-auto border-t border-slate-700 pt-4"><Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700" icon={Mail} onClick={() => openEmail(user.email)}>Correo</Button><Button variant="primary" className="flex-1" icon={MessageSquare} onClick={() => openWhatsApp(user.phone)}>WhatsApp</Button></div>
               </Card>
             ))}
-            {!fetchError && directory.length === 0 && ( <div className="col-span-full text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No se encontraron contactos asignados.</div> )}
+            {!fetchError && localDirectory.length === 0 && ( <div className="col-span-full text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No se encontraron contactos asignados.</div> )}
           </div>
         )}
       </div>
@@ -902,36 +911,63 @@ export default function App() {
     const [isCreating, setIsCreating] = useState(false);
     const [form, setForm] = useState({ name: '', type: 'Gira Musical' });
 
+    // Estado para asignar personal al proyecto completo
+    const [assigningProject, setAssigningProject] = useState(null);
+
     const fetchProyectos = async () => {
       setLoading(true); setFetchError(false);
       try {
         const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getProyectos' }) });
         const json = await res.json();
-        if (json.status === 'success') setProyectos(json.data);
-        else setFetchError(true);
-      } catch (e) { setFetchError(true); }
+        if (json.status === 'success') {
+          const parsed = json.data.map(p => ({ ...p, asignados: Array.isArray(p.asignados) ? p.asignados : [] }));
+          setProyectos(parsed);
+        }
+        else setFetchError(json.message || "Error al obtener proyectos");
+      } catch (e) { setFetchError("No se pudo conectar al servidor."); }
       setLoading(false);
     };
 
-    useEffect(() => { fetchProyectos(); }, []);
+    useEffect(() => { fetchProyectos(); fetchDirectoryGlobal(); }, []);
 
     const handleCreateProyecto = async (e) => {
       e.preventDefault(); setLoading(true);
       try {
         const payload = { ...form, manager: currentUser.name };
-        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createProyecto', payload }) });
-        showToast("Proyecto creado exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
+        const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createProyecto', payload }) });
+        const json = await res.json();
+        if (json.status === 'success') {
+          showToast("Proyecto creado exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
+        } else {
+          showToast(json.message); setLoading(false);
+        }
       } catch(e) { showToast("Error al crear proyecto."); setLoading(false); }
     };
 
     const handleUpdateStatus = async (e, id, currentStatus) => {
-      e.stopPropagation(); // Evita que se abra el proyecto al hacer clic en este botón
+      e.stopPropagation(); 
       const newStatus = currentStatus === 'ACTIVO' ? 'FINALIZADO' : 'ACTIVO';
       setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'updateProyectoStatus', payload: { id, status: newStatus } }) });
         showToast("Estado actualizado."); fetchProyectos();
       } catch(e) { showToast("Error al actualizar."); setLoading(false); }
+    };
+
+    const toggleAssignProject = (email) => {
+      setAssigningProject(prev => {
+        const isAssigned = prev.asignados.includes(email);
+        const newAsignados = isAssigned ? prev.asignados.filter(e => e !== email) : [...prev.asignados, email];
+        return { ...prev, asignados: newAsignados };
+      });
+    };
+
+    const saveProjectAsignaciones = async () => {
+      setLoading(true);
+      try {
+        await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'updateProyectoAsignaciones', payload: { id: assigningProject.id, asignados: assigningProject.asignados } }) });
+        showToast("Asignaciones de proyecto guardadas."); setAssigningProject(null); fetchProyectos();
+      } catch(e) { showToast("Error al guardar."); setLoading(false); }
     };
 
     return (
@@ -961,7 +997,7 @@ export default function App() {
 
         <div>
           <h2 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2"><Navigation size={20}/> Proyectos Activos</h2>
-          {fetchError ? <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> Error de conexión al cargar proyectos.</div> : loading ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : proyectos.length === 0 ? <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay proyectos activos registrados.</div> : (
+          {fetchError ? <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div> : loading ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : proyectos.length === 0 ? <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay proyectos activos registrados.</div> : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {proyectos.map(proyecto => (
                 <Card 
@@ -977,14 +1013,20 @@ export default function App() {
                     <h2 className="text-xl font-bold text-white leading-tight mb-1">{proyecto.name}</h2>
                     <p className="text-[11px] font-bold uppercase text-emerald-400 mb-3">{proyecto.type}</p>
                     <p className="text-sm text-slate-400 mb-4 flex items-center gap-2"><User size={14}/> Manager: {proyecto.manager}</p>
-                    <div className="flex flex-row gap-2 border-t border-slate-700 pt-4">
+                    
+                    <div className="flex flex-col gap-2 border-t border-slate-700 pt-4">
                       {canCreate && (
-                        <>
+                        <Button variant="ghost" className="w-full bg-slate-900 border border-slate-700 hover:text-white text-xs mb-2" icon={Users} onClick={(e) => { e.stopPropagation(); setAssigningProject(proyecto); }}>
+                          Asignar Equipo al Proyecto ({proyecto.asignados.length})
+                        </Button>
+                      )}
+                      {canCreate && (
+                        <div className="flex gap-2">
                           <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-white text-xs" onClick={(e) => { e.stopPropagation(); showToast("Para editar nombre hazlo desde la Base de Datos."); }}>Editar</Button>
                           <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-emerald-400 text-xs" onClick={(e) => handleUpdateStatus(e, proyecto.id, proyecto.status)}>
                             {proyecto.status === 'ACTIVO' ? 'Finalizar' : 'Reactivar'}
                           </Button>
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -993,6 +1035,34 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* Modal de Asignación de Proyecto */}
+        {assigningProject && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+            <Card className="w-full max-w-md p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
+              <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-800">
+                <h2 className="text-lg font-bold text-white">Asignar Equipo al Proyecto</h2>
+                <button onClick={() => setAssigningProject(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+              </div>
+              <p className="text-sm text-emerald-400 font-bold mb-4">{assigningProject.name}</p>
+              
+              <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2 custom-scrollbar">
+                {directory.length === 0 ? <p className="text-slate-500 text-sm text-center">Cargando directorio...</p> : directory.map(u => {
+                  const isChecked = assigningProject.asignados.includes(u.email);
+                  return (
+                    <button key={u.email} onClick={() => toggleAssignProject(u.email)} className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${isChecked ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                      <div className="flex items-center gap-3">
+                        {isChecked ? <CheckSquare className="text-emerald-500" size={20}/> : <Square size={20}/>}
+                        <div className="text-left"><p className="font-bold text-sm">{u.name}</p><p className="text-[10px] uppercase tracking-wider">{u.role}</p></div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <Button onClick={saveProjectAsignaciones} className="w-full py-3" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Guardar Asignaciones'}</Button>
+            </Card>
+          </div>
+        )}
       </div>
     );
   };
@@ -1008,9 +1078,7 @@ export default function App() {
     const [isCreating, setIsCreating] = useState(false);
     const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
     
-    // Asignación Modal
     const [assigningHito, setAssigningHito] = useState(null);
-    const [directory, setDirectory] = useState([]);
 
     useEffect(() => {
       const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -1024,32 +1092,27 @@ export default function App() {
         const json = await res.json();
         
         if (json.status === 'success') {
-          // Filtro ESTRICTO validando IDs como strings para evitar pérdidas por tipos de datos
           const projectHitos = json.data.filter(ev => String(ev.proyectoId) === String(p.id));
           
           const parsedEvents = projectHitos.map(ev => {
-            let fullDate = null;
-            if(ev.date && ev.time) {
-               const dateObj = new Date(`${ev.date}T${ev.time}:00`);
+            let fullDate = new Date(0); // Fecha por defecto si no es parseable para que NUNCA se oculte el hito
+            try {
+               let dStr = typeof ev.date === 'string' ? ev.date.split('T')[0] : new Date(ev.date).toISOString().split('T')[0];
+               let tStr = typeof ev.time === 'string' ? ev.time.substring(0,5) : ev.time;
+               const dateObj = new Date(`${dStr}T${tStr}:00`);
                if(!isNaN(dateObj.getTime())) fullDate = dateObj;
-            }
-            return { ...ev, fullDate };
+            } catch(e) { console.error("Error parseando fecha", e); }
+            
+            return { ...ev, fullDate, asignados: Array.isArray(ev.asignados) ? ev.asignados : [] };
           });
-          setHitos(parsedEvents.filter(e => e.fullDate !== null).sort((a,b) => a.fullDate - b.fullDate));
-        } else setFetchError(json.message);
+          
+          setHitos(parsedEvents.sort((a,b) => a.fullDate - b.fullDate));
+        } else setFetchError(json.message || "Error al obtener hitos");
       } catch(e) { setFetchError("Fallo de red al obtener hitos."); }
       setLoading(false);
     };
 
-    useEffect(() => { fetchHitos(); }, []);
-
-    const fetchDirectory = async () => {
-      try {
-        const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getUsuarios' }) });
-        const json = await res.json();
-        if (json.status === 'success') setDirectory(json.data.filter(u => u.status === 'ACTIVO'));
-      } catch(e) { showToast("No se pudo cargar el directorio."); }
-    };
+    useEffect(() => { fetchHitos(); fetchDirectoryGlobal(); }, []);
 
     const handleCreateHito = async (e) => {
       e.preventDefault(); setLoading(true);
@@ -1099,8 +1162,9 @@ export default function App() {
     };
 
     const getStatus = (targetDate) => {
+      if (targetDate.getTime() === 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'Fecha inválida', timeText: '--:--', pulse: false, textClass: 'text-slate-500' };
       const diffMs = targetDate - currentTime;
-      if (diffMs <= 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'En curso o Finalizado', timeText: '00h 00m 00s', pulse: false, textClass: 'text-slate-500' };
+      if (diffMs <= 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'En curso / Finalizado', timeText: '00h 00m 00s', pulse: false, textClass: 'text-slate-500' };
       const diffSec = Math.floor(diffMs / 1000);
       const hours = Math.floor(diffSec / 3600);
       const minutes = Math.floor((diffSec % 3600) / 60);
@@ -1178,12 +1242,12 @@ export default function App() {
                       </div>
                       <h3 className="text-xl font-bold text-white mb-1 pr-8">{event.title}</h3>
                       <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400 font-bold mb-3">
-                        <span className="flex items-center gap-1"><Calendar size={14}/> {event.date}</span>
-                        <span className="flex items-center gap-1 text-emerald-400"><Clock size={14}/> {event.time}</span>
+                        <span className="flex items-center gap-1"><Calendar size={14}/> {String(event.date).split('T')[0]}</span>
+                        <span className="flex items-center gap-1 text-emerald-400"><Clock size={14}/> {String(event.time).substring(0,5)}</span>
                         <span className="flex items-center gap-1"><MapPin size={14}/> {event.location}</span>
                       </div>
                       {canManage && (
-                        <Button variant="ghost" className="bg-slate-900 border border-slate-700 text-xs py-1" icon={Users} onClick={() => { setAssigningHito(event); fetchDirectory(); }}>
+                        <Button variant="ghost" className="bg-slate-900 border border-slate-700 text-xs py-1" icon={Users} onClick={() => setAssigningHito(event)}>
                           Personal Asignado ({event.asignados.length})
                         </Button>
                       )}
@@ -1198,12 +1262,12 @@ export default function App() {
           </div>
         )}
 
-        {/* Modal de Asignación de Personal */}
+        {/* Modal de Asignación de Hito */}
         {assigningHito && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
             <Card className="w-full max-w-md p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
               <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-800">
-                <h2 className="text-lg font-bold text-white">Asignar Crew a Hito</h2>
+                <h2 className="text-lg font-bold text-white">Asignar Crew al Hito</h2>
                 <button onClick={() => setAssigningHito(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
               </div>
               <p className="text-sm text-emerald-400 font-bold mb-4">{assigningHito.title}</p>
