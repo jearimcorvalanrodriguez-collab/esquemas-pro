@@ -29,7 +29,7 @@ const apiFetch = async (action, payload = {}) => {
   return response.json();
 };
 
-//const Card = ({ children, className = '', onClick }) => (
+const Card = ({ children, className = '', onClick }) => (
   <div onClick={onClick} className={`bg-slate-800 rounded-xl border border-slate-700 shadow-lg overflow-hidden ${onClick ? 'cursor-pointer hover:border-emerald-500 transition-colors' : ''} ${className}`}>
     {children}
   </div>
@@ -56,7 +56,7 @@ const openWhatsApp = (phone) => window.open(`https://wa.me/${phone.replace('+', 
 const openEmail = (email) => window.open(`mailto:${email}`, '_blank');
 const handlePrint = () => window.print();
 
-//const LiveClock = () => {
+const LiveClock = () => {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -841,7 +841,8 @@ const ChatView = ({ currentUser, showToast }) => {
     </div>
   );
 };
- // --- 7. TIMING GLOBAL (Merge de Hitos de todos los Proyectos Activos) ---
+
+// --- 7. TIMING GLOBAL (Merge de Hitos de todos los Proyectos Activos) ---
   const TimingGlobalView = ({ currentUser }) => {
     const [hitosGlobales, setHitosGlobales] = useState([]);
     const [proyectosActivos, setProyectosActivos] = useState([]);
@@ -1200,7 +1201,6 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
   const [assigningProject, setAssigningProject] = useState(null);
 
   const fetchProyectos = async () => {
-    // Ya no limpiamos la pantalla a menos que el array esté verdaderamente vacío
     setFetchError(false);
     try {
       const res = await apiFetch('getProyectos');
@@ -1280,7 +1280,6 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
       <div>
         <h2 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2"><Navigation size={20}/> Proyectos Activos</h2>
         
-        {/* Lógica Anti-Parpadeo (Solo muestra loader si la bd no tiene data en memoria) */}
         {fetchError ? (
           <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
         ) : loading && proyectos.length === 0 ? (
@@ -1289,39 +1288,53 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
           <div className="text-center p-10 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay proyectos activos registrados.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {proyectos.map(proyecto => (
-              <Card 
-                key={proyecto.id} 
-                onClick={() => { setSelectedProject(proyecto); setCurrentView('PROJECT_DETAILS'); }}
-                className={`group cursor-pointer ${proyecto.status === 'ACTIVO' ? 'hover:border-emerald-500' : 'opacity-70 grayscale hover:grayscale-0'}`}
-              >
-                <div className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center group-hover:bg-emerald-500/20"><Music className="text-emerald-500" size={24} /></div>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded block w-fit ${proyecto.status === 'ACTIVO' ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-400 bg-slate-800 border border-slate-700'}`}>{proyecto.status}</span>
-                  </div>
-                  <h2 className="text-xl font-bold text-white leading-tight mb-1">{proyecto.name}</h2>
-                  <p className="text-[11px] font-bold uppercase text-emerald-400 mb-3">{proyecto.type}</p>
-                  <p className="text-sm text-slate-400 mb-4 flex items-center gap-2"><User size={14}/> Manager: {proyecto.manager}</p>
-                  
-                  <div className="flex flex-col gap-2 border-t border-slate-700 pt-4">
-                    {canCreate && (
-                      <Button variant="ghost" className="w-full bg-slate-900 border border-slate-700 hover:text-white text-xs mb-2" icon={Users} onClick={(e) => { e.stopPropagation(); setAssigningProject(proyecto); }}>
-                        Asignar Equipo ({proyecto.asignados.length})
-                      </Button>
-                    )}
-                    {canCreate && (
-                      <div className="flex gap-2">
-                        <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-white text-xs" onClick={(e) => { e.stopPropagation(); showToast("Para editar nombre hazlo desde la Base de Datos."); }}>Editar</Button>
-                        <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-emerald-400 text-xs" onClick={(e) => handleUpdateStatus(e, proyecto.id, proyecto.status)}>
-                          {proyecto.status === 'ACTIVO' ? 'Finalizar' : 'Reactivar'}
-                        </Button>
+            {proyectos.map(proyecto => {
+              // Calculamos la fecha de creación a partir del timestamp ID (o se puede traer del primer hito, pero este es el estándar seguro por proyecto en la app)
+              const projectDate = new Date(Number(proyecto.id));
+              const formattedProjectDate = `${String(projectDate.getDate()).padStart(2, '0')}/${String(projectDate.getMonth() + 1).padStart(2, '0')}/${projectDate.getFullYear()}`;
+
+              return (
+                <Card 
+                  key={proyecto.id} 
+                  onClick={() => { setSelectedProject(proyecto); setCurrentView('PROJECT_DETAILS'); }}
+                  className={`group cursor-pointer ${proyecto.status === 'ACTIVO' ? 'hover:border-emerald-500' : 'opacity-70 grayscale hover:grayscale-0'}`}
+                >
+                  <div className="p-5">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center group-hover:bg-emerald-500/20"><Music className="text-emerald-500" size={24} /></div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded block w-fit ${proyecto.status === 'ACTIVO' ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-400 bg-slate-800 border border-slate-700'}`}>{proyecto.status}</span>
+                        <span className="text-[10px] bg-slate-800 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider">{proyecto.type}</span>
                       </div>
-                    )}
+                    </div>
+                    
+                    <h2 className="text-xl font-bold text-white leading-tight mb-2">{proyecto.name}</h2>
+                    <div className="space-y-1 mb-4">
+                      <p className="text-sm text-slate-300 flex items-center gap-2">
+                        <Calendar size={14}/> {formattedProjectDate}
+                      </p>
+                      <p className="text-sm text-slate-400 flex items-center gap-2"><User size={14}/> Liderado por: {proyecto.manager}</p>
+                    </div>
+                    
+                    <div className="flex flex-col gap-2 border-t border-slate-700 pt-4">
+                      {canCreate && (
+                        <Button variant="ghost" className="w-full bg-slate-900 border border-slate-700 hover:text-white text-xs mb-2" icon={Users} onClick={(e) => { e.stopPropagation(); setAssigningProject(proyecto); }}>
+                          Asignar Equipo ({proyecto.asignados.length})
+                        </Button>
+                      )}
+                      {canCreate && (
+                        <div className="flex gap-2">
+                          <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-white text-xs" onClick={(e) => { e.stopPropagation(); showToast("Para editar nombre hazlo desde la Base de Datos."); }}>Editar</Button>
+                          <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-emerald-400 text-xs" onClick={(e) => handleUpdateStatus(e, proyecto.id, proyecto.status)}>
+                            {proyecto.status === 'ACTIVO' ? 'Finalizar' : 'Reactivar'}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
@@ -1386,6 +1399,14 @@ const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, curre
   const status = getEventStatus(event.fullDate, now);
   const isAssignedToMe = event.asignados.includes(currentUser.email);
 
+  // Formateo estricto solicitado: DD/MM/AAA
+  const [year, month, day] = String(event.date).split('T')[0].split('-');
+  const formattedDate = `${day}/${month}/${year}`;
+  
+  // Formateo de horario en 24h: 00:00 h
+  const rawTime = String(event.time).includes('T') ? String(event.time).split('T')[1].substring(0,5) : String(event.time).substring(0,5);
+  const formattedTime = `${rawTime} h`;
+
   return (
     <div className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
       {canManage && (
@@ -1393,17 +1414,26 @@ const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, curre
       )}
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
+          {/* 1. Título del hito primero */}
+          <h3 className="text-xl font-bold text-white mb-2 pr-8">{event.title}</h3>
+          
+          {/* 2. Fecha y Horario (Resaltado) */}
+          <div className="flex flex-wrap items-center gap-3 text-sm font-bold mb-3">
+            <span className="flex items-center gap-1 text-slate-300"><Calendar size={14}/> {formattedDate}</span>
+            <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20"><Clock size={14}/> {formattedTime}</span>
+          </div>
+          
+          {/* 3. Locación interactiva que abre Google Maps */}
+          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 hover:text-blue-300 underline decoration-blue-500/30 underline-offset-2 flex items-center gap-2 w-fit mb-4">
+            <MapPin size={14}/> {event.location}
+          </a>
+
+          <div className="flex items-center gap-2 mb-3">
             <span className={`w-3 h-3 rounded-full ${status.dot} ${status.pulse ? 'animate-pulse' : ''}`}></span>
             <span className={`text-xs font-black uppercase tracking-wider ${status.textClass}`}>{status.text}</span>
             {isAssignedToMe && <span className="ml-2 text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-500/50">Asignado a ti</span>}
           </div>
-          <h3 className="text-xl font-bold text-white mb-1 pr-8">{event.title}</h3>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400 font-bold mb-3">
-            <span className="flex items-center gap-1"><Calendar size={14}/> {String(event.date).split('T')[0]}</span>
-            <span className="flex items-center gap-1 text-emerald-400"><Clock size={14}/> {String(event.time).substring(0,5)}</span>
-            <span className="flex items-center gap-1"><MapPin size={14}/> {event.location}</span>
-          </div>
+
           {canManage && (
             <Button variant="ghost" className="bg-slate-900 border border-slate-700 text-xs py-1" icon={Users} onClick={() => setAssigningHito(event)}>
               Personal Asignado ({event.asignados.length})
@@ -1525,7 +1555,7 @@ const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, curre
             <h1 className="text-3xl font-black text-white leading-tight">{p.name}</h1>
             <div className="mt-2 space-y-1">
               <p className="text-sm text-slate-400 flex items-center gap-2"><User size={14}/> Liderado por: {p.manager}</p>
-              <p className="text-sm text-slate-300 flex items-center gap-2"><Calendar size={14}/> Inicio: {projectDateStr}</p>
+              <p className="text-sm text-slate-300 flex items-center gap-2"><Calendar size={14}/> {projectDateStr}</p>
             </div>
           </div>
         </header>
@@ -1622,64 +1652,8 @@ const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, curre
       </div>
     );
   };
-      {/* Lógica Anti-Parpadeo (Optimistic UI) */}
-      {fetchError ? (
-        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
-      ) : loading && hitos.length === 0 ? (
-        <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
-      ) : hitos.length === 0 ? (
-        <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
-          <CalendarPlus className="mx-auto text-slate-600 mb-4" size={48} />
-          <p className="text-slate-400 text-sm max-w-md mx-auto">Aún no has agregado hitos al timing de este proyecto.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {hitos.map((event) => (
-             // Pasamos al micro-componente aislado
-            <EventCard 
-               key={event.id} 
-               event={event} 
-               canManage={canManage} 
-               handleDeleteHito={handleDeleteHito} 
-               setAssigningHito={setAssigningHito} 
-               currentUser={currentUser} 
-               requestConfirm={requestConfirm} 
-            />
-          ))}
-        </div>
-      )}
 
-      {assigningHito && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
-          <Card className="w-full max-w-md p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
-            <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-800">
-              <h2 className="text-lg font-bold text-white">Asignar Crew al Hito</h2>
-              <button onClick={() => setAssigningHito(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
-            </div>
-            <p className="text-sm text-emerald-400 font-bold mb-4">{assigningHito.title}</p>
-            
-            <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2 custom-scrollbar">
-              {directory.length === 0 ? <p className="text-slate-500 text-sm text-center">Cargando directorio...</p> : directory.map(u => {
-                const isChecked = assigningHito.asignados.includes(u.email);
-                return (
-                  <button key={u.email} onClick={() => toggleAssign(u.email)} className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${isChecked ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
-                    <div className="flex items-center gap-3">
-                      {isChecked ? <CheckSquare className="text-emerald-500" size={20}/> : <Square size={20}/>}
-                      <div className="text-left"><p className="font-bold text-sm">{u.name}</p><p className="text-[10px] uppercase tracking-wider">{u.role}</p></div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <Button onClick={saveAsignaciones} className="w-full py-3">Guardar Asignaciones</Button>
-          </Card>
-        </div>
-      )}
-    </div>
-  );
-};
-
-//export default function App() {
+export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentView, setCurrentView] = useState('DASHBOARD');
   const [selectedProject, setSelectedProject] = useState(null);
