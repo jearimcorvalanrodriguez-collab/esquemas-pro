@@ -7,7 +7,7 @@ import {
   Phone, Mail, CheckCheck, Send, Timer, Hourglass,
   Shield, CalendarPlus, FileText, Mic2, Lightbulb, Map as MapIcon, Save,
   Trash2, FolderPlus, RefreshCw, ChevronLeft, CheckSquare, Square, Printer, Utensils, CalendarDays,
-  RotateCw, Maximize, Minimize
+  RotateCw, Maximize, Minimize, Link
 } from 'lucide-react';
 
 const ROLES = {
@@ -736,16 +736,20 @@ const TransportDetailsView = ({ currentUser, setCurrentView, selectedProject, sh
   );
 };
 
-const RidersView = ({ currentUser, showToast, requestConfirm }) => {
+const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setActiveRider }) => {
   const [riders, setRiders] = useState([]);
+  const [proyectos, setProyectos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  
+  // viewMode can be 'LIST', 'DETAIL', 'EDIT'
+  const [viewMode, setViewMode] = useState(activeRider ? 'DETAIL' : 'LIST');
   const [editTab, setEditTab] = useState('GENERAL');
   
   const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TECH].includes(currentUser.role);
 
   const defaultContent = {
+    proyectoId: '', // Asociado a la Gira
     importante: '',
     contacto: { mgmtNombre: '', mgmtCel: '', mgmtCorreo: '', prodNombre: '', prodCel: '', prodCorreo: '' },
     soundcheck: '',
@@ -766,27 +770,48 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
 
   const [form, setForm] = useState({ id: null, title: '', type: 'COMPLETO', content: defaultContent });
 
-  const fetchRiders = async () => {
+  const fetchData = async () => {
     setLoading(true); setFetchError(false);
     try {
-      const res = await apiFetch('getRiders');
-      if (res.status === 'success') {
-        const parsedRiders = res.data.map(r => {
+      const [resRiders, resProyectos] = await Promise.all([
+        apiFetch('getRiders'),
+        apiFetch('getProyectos')
+      ]);
+
+      if (resProyectos.status === 'success') {
+         setProyectos(resProyectos.data.filter(p => p.status === 'ACTIVO'));
+      }
+
+      if (resRiders.status === 'success') {
+        const parsedRiders = resRiders.data.map(r => {
           let parsedContent;
           try { 
             parsedContent = JSON.parse(r.content); 
             if(!parsedContent.stageplot) parsedContent.stageplot = [];
             if(!parsedContent.stageplotConfig) parsedContent.stageplotConfig = { width: 10, depth: 8 };
+            if(!parsedContent.proyectoId) parsedContent.proyectoId = '';
           } 
           catch(e) { parsedContent = { ...defaultContent, importante: r.content }; }
           return { ...r, content: parsedContent };
         });
         setRiders(parsedRiders);
+        
+        // Si entramos por acceso directo y ya traíamos el activeRider, actualizamos su data fresca
+        if (activeRider) {
+           const updatedActive = parsedRiders.find(r => String(r.id) === String(activeRider.id));
+           if (updatedActive) setActiveRider(updatedActive);
+        }
       }
     } catch(e) { setFetchError(true); }
     setLoading(false);
   };
-  useEffect(() => { fetchRiders(); }, []);
+  
+  useEffect(() => { fetchData(); }, []);
+  
+  // Controlar la navegación desde afuera (Ej: ProjectDetails -> Click en Documento)
+  useEffect(() => {
+    if (activeRider) setViewMode('DETAIL');
+  }, [activeRider]);
 
   const handleSave = async (e) => {
     e.preventDefault(); setLoading(true);
@@ -794,7 +819,10 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
       const action = form.id ? 'updateRider' : 'createRider';
       const payloadToSave = { ...form, content: JSON.stringify(form.content) };
       await apiFetch(action, payloadToSave);
-      showToast("Rider guardado correctamente."); setIsEditing(false); fetchRiders();
+      showToast("Rider guardado correctamente."); 
+      setViewMode('LIST');
+      setActiveRider(null);
+      fetchData();
     } catch(e) { showToast("Error al guardar rider."); setLoading(false); }
   };
 
@@ -802,18 +830,22 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
     setLoading(true);
     try {
       await apiFetch('deleteRider', { id });
-      showToast("Rider eliminado permanentemente."); fetchRiders();
+      showToast("Rider eliminado permanentemente."); 
+      setViewMode('LIST');
+      setActiveRider(null);
+      fetchData();
     } catch(e) { showToast("Error al eliminar."); setLoading(false); }
   };
 
   const openEditor = (rider = null) => {
     if (rider) setForm({ ...rider });
     else setForm({ id: null, title: 'Nuevo Rider Téc.', type: 'COMPLETO', content: JSON.parse(JSON.stringify(defaultContent)) });
-    setEditTab('GENERAL'); setIsEditing(true);
+    setEditTab('GENERAL'); 
+    setViewMode('EDIT');
   };
 
   const restoreDefaults = () => {
-    setForm(prev => ({ ...prev, content: JSON.parse(JSON.stringify(defaultContent)) }));
+    setForm(prev => ({ ...prev, content: { ...JSON.parse(JSON.stringify(defaultContent)), proyectoId: prev.content.proyectoId } }));
     showToast("Plantilla restaurada.");
   };
 
@@ -861,24 +893,42 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
     }
   };
 
+  const getProjectName = (pId) => {
+     const p = proyectos.find(proj => String(proj.id) === String(pId));
+     return p ? p.name : 'Documento General';
+  };
+
   return (
     <div className="space-y-4 animate-fade-in pb-24 max-w-5xl mx-auto print:m-0 print:p-0 print:w-full print:max-w-none">
+      
+      {/* HEADER PRINCIPAL */}
       <header className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 print:hidden">
-        <div><h1 className="text-2xl font-black text-white flex items-center gap-2"><FileText className="text-emerald-500" size={24}/> Riders Técnicos</h1><p className="text-xs md:text-sm text-slate-400 mt-1">Especificaciones Oficiales. Presiona Imprimir para generar PDF.</p></div>
+        <div>
+           {viewMode !== 'LIST' && (
+             <button onClick={() => { setViewMode('LIST'); setActiveRider(null); }} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a Documentos</button>
+           )}
+           <h1 className="text-2xl font-black text-white flex items-center gap-2">
+             <FileText className="text-emerald-500" size={24}/> 
+             {viewMode === 'EDIT' ? 'Editor de Rider' : 'Riders Técnicos'}
+           </h1>
+           <p className="text-xs md:text-sm text-slate-400 mt-1">Especificaciones Oficiales de Producción.</p>
+        </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          {!isEditing && <Button icon={Printer} variant="secondary" onClick={handlePrint} className="flex-1 sm:flex-none" title="Imprimir o Descargar en PDF">Imprimir PDF</Button>}
-          {canManageRiders && !isEditing && <Button icon={Plus} onClick={() => openEditor(null)} className="flex-1 sm:flex-none">Crear Rider</Button>}
+          {viewMode === 'DETAIL' && <Button icon={Printer} variant="secondary" onClick={handlePrint} className="flex-1 sm:flex-none" title="Imprimir o Descargar en PDF">Imprimir PDF</Button>}
+          {viewMode === 'DETAIL' && canManageRiders && <Button icon={Edit3} onClick={() => openEditor(activeRider)} className="flex-1 sm:flex-none">Editar</Button>}
+          {viewMode === 'LIST' && canManageRiders && <Button icon={Plus} onClick={() => openEditor(null)} className="flex-1 sm:flex-none">Crear Rider</Button>}
         </div>
       </header>
 
-      {isEditing ? (
+      {/* --- VISTA: EDITOR --- */}
+      {viewMode === 'EDIT' && (
         <Card className="p-0 border-emerald-500 overflow-hidden flex flex-col h-[85vh]">
           <div className="p-3 md:p-4 border-b border-slate-700 bg-slate-900 shrink-0">
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-base md:text-lg font-bold text-white">{form.id ? 'Editar Rider' : 'Generar Nuevo Rider'}</h2>
               <Button variant="ghost" className="text-[10px] py-1 px-2 border border-slate-700" icon={RefreshCw} onClick={() => requestConfirm('¿Restaurar plantilla? Se borrarán los datos no guardados.', restoreDefaults)}>Restaurar</Button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div><label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Título del Documento</label><input required className="w-full bg-slate-800 border-slate-700 rounded p-2 text-xs md:text-sm text-white outline-none focus:border-emerald-500" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} /></div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Área / Tipo</label>
@@ -887,6 +937,13 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
                   <option value="SONIDO">SONIDO</option>
                   <option value="ILUMINACIÓN">ILUMINACIÓN</option>
                   <option value="STAGEPLOT">STAGEPLOT / BACKLINE</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Vincular a Gira / Proyecto</label>
+                <select className="w-full bg-slate-800 border-slate-700 rounded p-2 text-xs md:text-sm text-white font-bold outline-none focus:border-emerald-500 max-w-full break-words" value={form.content.proyectoId || ''} onChange={e=>setForm({...form, content: {...form.content, proyectoId: e.target.value}})}>
+                  <option value="">Documento General (Sin Asignar)</option>
+                  {proyectos.map(p => <option key={p.id} value={p.id}>🎤 {p.name}</option>)}
                 </select>
               </div>
             </div>
@@ -941,7 +998,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
                 <div>
                   <div className="flex justify-between items-end mb-2"><h3 className="text-xs md:text-sm font-bold text-emerald-500">INPUT LIST ({form.content.inputs.length}/100)</h3><Button variant="secondary" className="py-1 px-2.5 text-[10px]" icon={Plus} onClick={() => addRow('inputs', { ch: String(form.content.inputs.length + 1), name: '', mic: '', v48: '', stand: '', position: '', obs: '' })}>Fila</Button></div>
                   <div className="overflow-x-auto rounded border border-slate-700 bg-slate-900">
-                    <table className="w-full text-left text-xs md:text-sm text-slate-300 min-w-[700px]"><thead className="bg-slate-800 text-[10px] md:text-xs border-b border-slate-700"><tr><th className="p-1.5 md:p-2 w-12">CH</th><th className="p-1.5 md:p-2">NAME</th><th className="p-1.5 md:p-2">MIC/DI</th><th className="p-1.5 md:p-2 w-10">48v</th><th className="p-1.5 md:p-2">STAND</th><th className="p-1.5 md:p-2">POSITION</th><th className="p-1.5 md:p-2">OBS</th><th className="p-1.5 md:p-2 w-10 text-center">X</th></tr></thead><tbody>{form.content.inputs.map((row, i) => (<tr key={i} className="border-b border-slate-800 last:border-0"><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 text-center outline-none focus:border-emerald-500 text-xs" value={row.ch} onChange={e=>updateTable('inputs', i, 'ch', e.target.value)} /></td><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.name} onChange={e=>updateTable('inputs', i, 'name', e.target.value)} /></td><td className="p-1"><MicDiSelect value={row.mic} onChange={val=>updateTable('inputs', i, 'mic', val)} /></td><td className="p-1"><select className="w-full bg-transparent border border-slate-700 rounded p-1 text-center outline-none focus:border-emerald-500 text-xs" value={row.v48} onChange={e=>updateTable('inputs', i, 'v48', e.target.value)}><option value=""></option><option value="SI">SI</option><option value="NO">NO</option></select></td><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.stand} onChange={e=>updateTable('inputs', i, 'stand', e.target.value)} /></td><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.position} onChange={e=>updateTable('inputs', i, 'position', e.target.value)} /></td><td className="p-1"><AutoResizeTextarea className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.obs} onChange={e=>updateTable('inputs', i, 'obs', e.target.value)} /></td><td className="p-1 text-center"><button type="button" onClick={()=>removeRow('inputs', i)} className="text-red-500 p-1 hover:bg-red-500/20 rounded"><Trash2 size={12}/></button></td></tr>))}</tbody></table>
+                    <table className="w-full text-left text-xs md:text-sm text-slate-300 min-w-[700px]"><thead className="bg-slate-800 text-[10px] md:text-xs border-b border-slate-700"><tr><th className="p-1.5 md:p-2 w-12">CH</th><th className="p-1.5 md:p-2">NAME</th><th className="p-1.5 md:p-2">MIC/DI</th><th className="p-1.5 md:p-2 w-16">48v</th><th className="p-1.5 md:p-2">STAND</th><th className="p-1.5 md:p-2">POSITION</th><th className="p-1.5 md:p-2">OBS</th><th className="p-1.5 md:p-2 w-10 text-center">X</th></tr></thead><tbody>{form.content.inputs.map((row, i) => (<tr key={i} className="border-b border-slate-800 last:border-0"><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 text-center outline-none focus:border-emerald-500 text-xs" value={row.ch} onChange={e=>updateTable('inputs', i, 'ch', e.target.value)} /></td><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.name} onChange={e=>updateTable('inputs', i, 'name', e.target.value)} /></td><td className="p-1"><MicDiSelect value={row.mic} onChange={val=>updateTable('inputs', i, 'mic', val)} /></td><td className="p-1"><select className="w-full bg-transparent border border-slate-700 rounded p-1 text-center outline-none focus:border-emerald-500 text-xs" value={row.v48} onChange={e=>updateTable('inputs', i, 'v48', e.target.value)}><option value=""></option><option value="SI">SI</option><option value="NO">NO</option></select></td><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.stand} onChange={e=>updateTable('inputs', i, 'stand', e.target.value)} /></td><td className="p-1"><input className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.position} onChange={e=>updateTable('inputs', i, 'position', e.target.value)} /></td><td className="p-1"><AutoResizeTextarea className="w-full bg-transparent border border-slate-700 rounded p-1 outline-none focus:border-emerald-500 text-xs" value={row.obs} onChange={e=>updateTable('inputs', i, 'obs', e.target.value)} /></td><td className="p-1 text-center"><button type="button" onClick={()=>removeRow('inputs', i)} className="text-red-500 p-1 hover:bg-red-500/20 rounded"><Trash2 size={12}/></button></td></tr>))}</tbody></table>
                   </div>
                 </div>
               </div>
@@ -979,167 +1036,192 @@ const RidersView = ({ currentUser, showToast, requestConfirm }) => {
           </div>
 
           <div className="p-3 md:p-4 border-t border-slate-700 bg-slate-900 shrink-0 flex gap-2">
-            <Button variant="secondary" className="flex-1 py-2" onClick={() => setIsEditing(false)}>Cancelar</Button>
+            <Button variant="secondary" className="flex-1 py-2" onClick={() => { setIsEditing(false); if(!form.id) setViewMode('LIST'); else setViewMode('DETAIL'); }}>Cancelar</Button>
             <Button variant="primary" className="flex-1 py-2" onClick={handleSave} icon={Save}>Guardar Documento</Button>
           </div>
         </Card>
-      ) : fetchError ? (
-        <div className="bg-red-500/10 border border-red-500/50 p-3 md:p-4 rounded-xl text-red-400 flex items-center gap-2 text-sm print:hidden">
-          <AlertCircle size={18} /> Error al cargar Riders.
-        </div>
-      ) : loading && riders.length === 0 ? (
-        <div className="flex justify-center p-8 print:hidden"><Loader2 className="animate-spin text-emerald-500" size={28}/></div>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 print:gap-10">
-          {riders.map((r, idx) => {
-            const IconType = icons[r.type] || FileText;
-            return (
-              <div key={idx} className="border-t-4 border-t-emerald-500 bg-slate-900 print:bg-white print:border-t-black print:border print:text-black rounded-xl overflow-hidden page-break-inside-avoid shadow-sm print:shadow-none">
-                <div className="p-4 md:p-5 border-b border-slate-800 print:border-black flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 md:w-10 md:h-10 bg-slate-800 print:bg-transparent print:border print:border-black rounded-lg flex justify-center items-center"><IconType className="text-emerald-500 print:text-black" size={18}/></div>
-                    <div>
-                      <h3 className="font-black text-white print:text-black text-lg md:text-xl leading-none">{r.title}</h3>
-                      <span className="text-[10px] bg-slate-800 text-emerald-400 print:bg-transparent print:text-black px-2 py-0.5 rounded border border-slate-700 print:border-black font-bold uppercase mt-1.5 inline-block">{r.type}</span>
-                    </div>
-                  </div>
-                  {canManageRiders && (
-                    <div className="flex gap-2 print:hidden">
-                      <Button variant="danger" className="px-2.5 py-1.5 bg-slate-800" icon={Trash2} onClick={() => requestConfirm("¿Eliminar este Rider permanentemente?", () => handleDelete(r.id))}></Button>
-                      <Button variant="secondary" className="py-1.5" icon={Edit3} onClick={() => openEditor(r)}>Editar</Button>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="p-4 md:p-5 space-y-4 md:space-y-6">
-                  {r.content.importante && (
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 print:bg-transparent print:border-black p-3 md:p-4 rounded-lg">
-                      <h4 className="text-emerald-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">Importante</h4>
-                      <p className="text-xs md:text-sm text-emerald-100 print:text-black whitespace-pre-wrap">{r.content.importante}</p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                    {r.content.contacto && (r.content.contacto.mgmtNombre || r.content.contacto.mgmtCel || r.content.contacto.mgmtCorreo) && (
-                      <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black">
-                        <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-2 uppercase">Contacto Management</h4>
-                        {r.content.contacto.mgmtNombre && <p className="text-xs md:text-sm text-white print:text-black font-bold mb-1">👤 {r.content.contacto.mgmtNombre}</p>}
-                        {r.content.contacto.mgmtCel && <p className="text-xs md:text-sm text-white print:text-black">📱 {r.content.contacto.mgmtCel}</p>}
-                        {r.content.contacto.mgmtCorreo && <p className="text-xs md:text-sm text-white print:text-black">✉️ {r.content.contacto.mgmtCorreo}</p>}
-                      </div>
-                    )}
-                    {r.content.contacto && (r.content.contacto.prodNombre || r.content.contacto.prodCel || r.content.contacto.prodCorreo) && (
-                      <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black">
-                        <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-2 uppercase">Contacto Producción</h4>
-                        {r.content.contacto.prodNombre && <p className="text-xs md:text-sm text-white print:text-black font-bold mb-1">👤 {r.content.contacto.prodNombre}</p>}
-                        {r.content.contacto.prodCel && <p className="text-xs md:text-sm text-white print:text-black">📱 {r.content.contacto.prodCel}</p>}
-                        {r.content.contacto.prodCorreo && <p className="text-xs md:text-sm text-white print:text-black">✉️ {r.content.contacto.prodCorreo}</p>}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                    {r.content.soundcheck && (
-                       <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black">
-                         <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">Requisitos SoundCheck</h4>
-                         <p className="text-xs md:text-sm text-slate-300 print:text-black whitespace-pre-wrap">{r.content.soundcheck}</p>
-                       </div>
-                    )}
-                    {r.content.recordatorio && (
-                       <div className="bg-red-500/10 print:bg-transparent p-3 md:p-4 rounded-lg border border-red-500/20 print:border-black">
-                         <h4 className="text-red-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">Recordatorio</h4>
-                         <p className="text-xs md:text-sm text-red-100 print:text-black whitespace-pre-wrap">{r.content.recordatorio}</p>
-                       </div>
-                    )}
-                  </div>
-
-                  {/* Tablas (Renderizadas compactas) */}
-                  {r.content.inputs && r.content.inputs.length > 0 && r.content.inputs[0].name !== '' && (
-                    <div className="mt-3 md:mt-4 break-inside-avoid">
-                      <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">INPUT LIST</h4>
-                      <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
-                        <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black min-w-[500px]">
-                          <thead className="bg-slate-800 print:bg-gray-200 text-[10px] md:text-xs uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
-                            <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-8">CH</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">NAME</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">MIC/DI</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-10">48v</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">STAND</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">POSITION</th><th className="p-1.5 md:p-2">OBS</th></tr>
-                          </thead>
-                          <tbody>
-                            {r.content.inputs.map((row, i) => row.name && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.ch}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.name}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.mic}</td><td className="p-1.5 md:p-2 text-center border-r border-slate-800 print:border-black">{row.v48}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.stand}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.position}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.obs}</td></tr>)}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                  {r.content.outputs && r.content.outputs.length > 0 && r.content.outputs[0].mix !== '' && (
-                    <div className="mt-3 md:mt-4 break-inside-avoid">
-                      <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">OUTPUT / MONITOR LIST</h4>
-                      <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
-                        <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black min-w-[400px]">
-                          <thead className="bg-slate-800 print:bg-gray-200 text-[10px] md:text-xs uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
-                            <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-12">MIX</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">PLAYER</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">MONITOR</th><th className="p-1.5 md:p-2">OBS</th></tr>
-                          </thead>
-                          <tbody>
-                            {r.content.outputs.map((row, i) => row.mix && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.mix}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.player}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.monitor}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.obs}</td></tr>)}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                  {r.content.backline && r.content.backline.length > 0 && r.content.backline[0].col1 !== '' && (
-                    <div className="mt-3 md:mt-4 break-inside-avoid">
-                      <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">BACKLINE</h4>
-                      <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
-                        <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black min-w-[400px]">
-                          <thead className="bg-slate-800 print:bg-gray-200 text-[10px] md:text-xs uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
-                            <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">ITEM</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-12">CANT</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">ESPECIFICACIONES</th><th className="p-1.5 md:p-2">OBS</th></tr>
-                          </thead>
-                          <tbody>
-                            {r.content.backline.map((row, i) => row.col1 && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.col1}</td><td className="p-1.5 md:p-2 text-center border-r border-slate-800 print:border-black">{row.col2}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black whitespace-pre-wrap">{row.col3}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.col4}</td></tr>)}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                  {r.content.visuals && r.content.visuals.length > 0 && r.content.visuals[0].col1 !== '' && (
-                    <div className="mt-3 md:mt-4 break-inside-avoid">
-                      <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">VISUAL / LIGHTS</h4>
-                      <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
-                        <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black min-w-[400px]">
-                          <thead className="bg-slate-800 print:bg-gray-200 text-[10px] md:text-xs uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
-                            <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">SISTEMA/EQUIPO</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-12">CANT</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">UBICACIÓN</th><th className="p-1.5 md:p-2">OBS</th></tr>
-                          </thead>
-                          <tbody>
-                            {r.content.visuals.map((row, i) => row.col1 && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.col1}</td><td className="p-1.5 md:p-2 text-center border-r border-slate-800 print:border-black">{row.col2}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.col3}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.col4}</td></tr>)}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Render Stageplot in View Mode */}
-                  {r.content.stageplot && r.content.stageplot.length > 0 && (
-                     <div className="mt-3 md:mt-4 break-inside-avoid">
-                        <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">
-                           STAGEPLOT: {r.title} ({r.content.stageplotConfig?.width || 10}m x {r.content.stageplotConfig?.depth || 8}m)
-                        </h4>
-                        <div className="w-full rounded border-2 border-slate-700 print:border-black overflow-hidden bg-white">
-                           <StageplotBuilder 
-                              items={r.content.stageplot} 
-                              config={r.content.stageplotConfig || {width: 10, depth: 8}} 
-                              onChange={()=>{}} 
-                              onConfigChange={()=>{}} 
-                              readOnly={true} 
-                              projectName={r.title}
-                           />
-                        </div>
-                     </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          {riders.length === 0 && <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl text-slate-500 text-sm print:hidden">No hay Riders creados aún.</div>}
-        </div>
       )}
+
+      {/* --- VISTA: DETALLE DE RIDER (PRINT READY) --- */}
+      {viewMode === 'DETAIL' && activeRider && (
+         <div className="border-t-4 border-t-emerald-500 bg-slate-900 print:bg-white print:border-t-black print:border print:text-black rounded-xl overflow-hidden page-break-inside-avoid shadow-sm print:shadow-none">
+           <div className="p-4 md:p-5 border-b border-slate-800 print:border-black flex justify-between items-center">
+             <div className="flex items-center gap-3">
+               <div className="w-8 h-8 md:w-10 md:h-10 bg-slate-800 print:bg-transparent print:border print:border-black rounded-lg flex justify-center items-center">
+                 {React.createElement(icons[activeRider.type] || FileText, { className: "text-emerald-500 print:text-black", size: 18 })}
+               </div>
+               <div>
+                 <h3 className="font-black text-white print:text-black text-lg md:text-xl leading-none">{activeRider.title}</h3>
+                 <span className="text-[10px] bg-slate-800 text-emerald-400 print:bg-transparent print:text-black px-2 py-0.5 rounded border border-slate-700 print:border-black font-bold uppercase mt-1.5 inline-block">{activeRider.type}</span>
+               </div>
+             </div>
+             {canManageRiders && (
+               <div className="flex gap-2 print:hidden">
+                 <Button variant="danger" className="px-2.5 py-1.5 bg-slate-800" icon={Trash2} onClick={() => requestConfirm("¿Eliminar este Rider permanentemente?", () => handleDelete(activeRider.id))}></Button>
+                 <Button variant="secondary" className="py-1.5" icon={Edit3} onClick={() => openEditor(activeRider)}>Editar</Button>
+               </div>
+             )}
+           </div>
+           
+           <div className="p-4 md:p-5 space-y-4 md:space-y-6">
+             {activeRider.content.importante && (
+               <div className="bg-emerald-500/10 border border-emerald-500/20 print:bg-transparent print:border-black p-3 md:p-4 rounded-lg">
+                 <h4 className="text-emerald-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">Importante</h4>
+                 <p className="text-xs md:text-sm text-emerald-100 print:text-black whitespace-pre-wrap">{activeRider.content.importante}</p>
+               </div>
+             )}
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+               {activeRider.content.contacto && (activeRider.content.contacto.mgmtNombre || activeRider.content.contacto.mgmtCel || activeRider.content.contacto.mgmtCorreo) && (
+                 <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black">
+                   <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-2 uppercase">Contacto Management</h4>
+                   {activeRider.content.contacto.mgmtNombre && <p className="text-xs md:text-sm text-white print:text-black font-bold mb-1">👤 {activeRider.content.contacto.mgmtNombre}</p>}
+                   {activeRider.content.contacto.mgmtCel && <p className="text-xs md:text-sm text-white print:text-black">📱 {activeRider.content.contacto.mgmtCel}</p>}
+                   {activeRider.content.contacto.mgmtCorreo && <p className="text-xs md:text-sm text-white print:text-black">✉️ {activeRider.content.contacto.mgmtCorreo}</p>}
+                 </div>
+               )}
+               {activeRider.content.contacto && (activeRider.content.contacto.prodNombre || activeRider.content.contacto.prodCel || activeRider.content.contacto.prodCorreo) && (
+                 <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black">
+                   <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-2 uppercase">Contacto Producción</h4>
+                   {activeRider.content.contacto.prodNombre && <p className="text-xs md:text-sm text-white print:text-black font-bold mb-1">👤 {activeRider.content.contacto.prodNombre}</p>}
+                   {activeRider.content.contacto.prodCel && <p className="text-xs md:text-sm text-white print:text-black">📱 {activeRider.content.contacto.prodCel}</p>}
+                   {activeRider.content.contacto.prodCorreo && <p className="text-xs md:text-sm text-white print:text-black">✉️ {activeRider.content.contacto.prodCorreo}</p>}
+                 </div>
+               )}
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+               {activeRider.content.soundcheck && (
+                  <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black">
+                    <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">Requisitos SoundCheck</h4>
+                    <p className="text-xs md:text-sm text-slate-300 print:text-black whitespace-pre-wrap">{activeRider.content.soundcheck}</p>
+                  </div>
+               )}
+               {activeRider.content.recordatorio && (
+                  <div className="bg-red-500/10 print:bg-transparent p-3 md:p-4 rounded-lg border border-red-500/20 print:border-black">
+                    <h4 className="text-red-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">Recordatorio</h4>
+                    <p className="text-xs md:text-sm text-red-100 print:text-black whitespace-pre-wrap">{activeRider.content.recordatorio}</p>
+                  </div>
+               )}
+             </div>
+
+             {/* Tablas (Renderizadas compactas) */}
+             {activeRider.content.inputs && activeRider.content.inputs.length > 0 && activeRider.content.inputs[0].name !== '' && (
+               <div className="mt-3 md:mt-4 break-inside-avoid">
+                 <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">INPUT LIST</h4>
+                 <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
+                   <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black min-w-[500px]">
+                     <thead className="bg-slate-800 print:bg-gray-200 text-[10px] md:text-xs uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
+                       <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-8">CH</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">NAME</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">MIC/DI</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-10">48v</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">STAND</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">POSITION</th><th className="p-1.5 md:p-2">OBS</th></tr>
+                     </thead>
+                     <tbody>
+                       {activeRider.content.inputs.map((row, i) => row.name && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.ch}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.name}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.mic}</td><td className="p-1.5 md:p-2 text-center border-r border-slate-800 print:border-black">{row.v48}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.stand}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.position}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.obs}</td></tr>)}
+                     </tbody>
+                   </table>
+                 </div>
+               </div>
+             )}
+             {activeRider.content.outputs && activeRider.content.outputs.length > 0 && activeRider.content.outputs[0].mix !== '' && (
+               <div className="mt-3 md:mt-4 break-inside-avoid">
+                 <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">OUTPUT / MONITOR LIST</h4>
+                 <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
+                   <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black min-w-[400px]">
+                     <thead className="bg-slate-800 print:bg-gray-200 text-[10px] md:text-xs uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
+                       <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-12">MIX</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">PLAYER</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">MONITOR</th><th className="p-1.5 md:p-2">OBS</th></tr>
+                     </thead>
+                     <tbody>
+                       {activeRider.content.outputs.map((row, i) => row.mix && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.mix}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.player}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.monitor}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.obs}</td></tr>)}
+                     </tbody>
+                   </table>
+                 </div>
+               </div>
+             )}
+             {activeRider.content.backline && activeRider.content.backline.length > 0 && activeRider.content.backline[0].col1 !== '' && (
+               <div className="mt-3 md:mt-4 break-inside-avoid">
+                 <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">BACKLINE</h4>
+                 <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
+                   <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black min-w-[400px]">
+                     <thead className="bg-slate-800 print:bg-gray-200 text-[10px] md:text-xs uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
+                       <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">ITEM</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-12">CANT</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">ESPECIFICACIONES</th><th className="p-1.5 md:p-2">OBS</th></tr>
+                     </thead>
+                     <tbody>
+                       {activeRider.content.backline.map((row, i) => row.col1 && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.col1}</td><td className="p-1.5 md:p-2 text-center border-r border-slate-800 print:border-black">{row.col2}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black whitespace-pre-wrap">{row.col3}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.col4}</td></tr>)}
+                     </tbody>
+                   </table>
+                 </div>
+               </div>
+             )}
+             {activeRider.content.visuals && activeRider.content.visuals.length > 0 && activeRider.content.visuals[0].col1 !== '' && (
+               <div className="mt-3 md:mt-4 break-inside-avoid">
+                 <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">VISUAL / LIGHTS</h4>
+                 <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
+                   <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black min-w-[400px]">
+                     <thead className="bg-slate-800 print:bg-gray-200 text-[10px] md:text-xs uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
+                       <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">SISTEMA/EQUIPO</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-12">CANT</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">UBICACIÓN</th><th className="p-1.5 md:p-2">OBS</th></tr>
+                     </thead>
+                     <tbody>
+                       {activeRider.content.visuals.map((row, i) => row.col1 && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.col1}</td><td className="p-1.5 md:p-2 text-center border-r border-slate-800 print:border-black">{row.col2}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.col3}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.col4}</td></tr>)}
+                     </tbody>
+                   </table>
+                 </div>
+               </div>
+             )}
+
+             {/* Render Stageplot in View Mode */}
+             {activeRider.content.stageplot && activeRider.content.stageplot.length > 0 && (
+                <div className="mt-3 md:mt-4 break-inside-avoid">
+                   <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">
+                      STAGEPLOT ({activeRider.content.stageplotConfig?.width || 10}m x {activeRider.content.stageplotConfig?.depth || 8}m)
+                   </h4>
+                   <div className="w-full rounded border-2 border-slate-700 print:border-black overflow-hidden bg-white">
+                      <StageplotBuilder 
+                         items={activeRider.content.stageplot} 
+                         config={activeRider.content.stageplotConfig || {width: 10, depth: 8}} 
+                         onChange={()=>{}} 
+                         onConfigChange={()=>{}} 
+                         readOnly={true} 
+                         projectName={activeRider.title}
+                      />
+                   </div>
+                </div>
+             )}
+           </div>
+         </div>
+      )}
+
+      {/* --- VISTA: LISTA DE RIDERS (GRID) --- */}
+      {viewMode === 'LIST' && (
+        <>
+          {fetchError ? (
+            <div className="bg-red-500/10 border border-red-500/50 p-3 md:p-4 rounded-xl text-red-400 flex items-center gap-2 text-sm print:hidden">
+              <AlertCircle size={18} /> Error al cargar Riders.
+            </div>
+          ) : loading && riders.length === 0 ? (
+            <div className="flex justify-center p-8 print:hidden"><Loader2 className="animate-spin text-emerald-500" size={28}/></div>
+          ) : riders.length === 0 ? (
+            <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl text-slate-500 text-sm print:hidden">No hay Riders creados aún.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 print:hidden">
+              {riders.map((r) => {
+                const IconType = icons[r.type] || FileText;
+                return (
+                  <Card key={r.id} onClick={() => { setActiveRider(r); setIsEditing(false); }} className="p-3 md:p-4 group cursor-pointer hover:border-emerald-500 transition-colors">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center group-hover:bg-emerald-500/20"><IconType className="text-emerald-500" size={20} /></div>
+                      <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded block w-fit text-emerald-500 bg-emerald-500/10">{r.type}</span>
+                    </div>
+                    <h3 className="text-base md:text-lg font-bold text-white leading-tight mb-1.5">{r.title}</h3>
+                    <p className="text-[10px] md:text-xs text-slate-400 flex items-center gap-1.5">
+                      <Link size={12}/> {getProjectName(r.content.proyectoId)}
+                    </p>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
     </div>
   );
 };
@@ -1361,6 +1443,782 @@ const ChatView = ({ currentUser, showToast }) => {
   );
 };
 
+// --- 7. TIMING GLOBAL (Selector de Proyectos Activos) ---
+const TimingGlobalView = ({ currentUser, setCurrentView, setSelectedProject, showToast }) => {
+  const [proyectos, setProyectos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+
+  const fetchProyectos = async () => {
+    setFetchError(false);
+    try {
+      const res = await apiFetch('getProyectos');
+      if (res.status === 'success') {
+        const pActivos = res.data.filter(p => p.status === 'ACTIVO');
+        setProyectos(pActivos);
+      }
+      else setFetchError(res.message || "Error al obtener proyectos");
+    } catch (e) { setFetchError("No se pudo conectar al servidor."); }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchProyectos(); }, []);
+
+  return (
+    <div className="space-y-4 animate-fade-in pb-24 max-w-6xl mx-auto">
+      <header className="border-b border-slate-800 pb-4">
+        <h1 className="text-2xl md:text-3xl font-black text-white leading-tight flex items-center gap-2 md:gap-3"><CalendarDays className="text-emerald-500" size={28} /> Timing Global</h1>
+        <p className="text-xs md:text-sm text-slate-400 mt-1.5">Selecciona un proyecto activo para ver su Run of Show y cronograma detallado.</p>
+      </header>
+
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl text-red-400 flex items-center gap-2 text-sm"><AlertCircle size={18} /> {fetchError}</div>
+      ) : loading ? (
+        <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div>
+      ) : proyectos.length === 0 ? (
+        <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl text-slate-500 text-sm">No hay proyectos activos registrados para el Timing.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          {proyectos.map(proyecto => {
+            const projectDate = new Date(Number(proyecto.id));
+            const formattedProjectDate = `${String(projectDate.getDate()).padStart(2, '0')}/${String(projectDate.getMonth() + 1).padStart(2, '0')}/${projectDate.getFullYear()}`;
+
+            return (
+              <Card 
+                key={proyecto.id} 
+                onClick={() => { setSelectedProject(proyecto); setCurrentView('PROJECT_DETAILS'); }}
+                className="group cursor-pointer hover:border-emerald-500 transition-colors p-3 md:p-4"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center group-hover:bg-emerald-500/20"><CalendarDays className="text-emerald-500" size={20} /></div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded block w-fit text-emerald-500 bg-emerald-500/10">{proyecto.status}</span>
+                </div>
+                
+                <h2 className="text-lg font-bold text-white leading-tight mb-1.5">{proyecto.name}</h2>
+                <div className="space-y-1 mb-3">
+                  <p className="text-xs md:text-sm text-slate-300 flex items-center gap-1.5">
+                    <Calendar size={12}/> {formattedProjectDate}
+                  </p>
+                  <p className="text-xs md:text-sm text-slate-400 flex items-center gap-1.5"><User size={12}/> Liderado por: {proyecto.manager}</p>
+                </div>
+                
+                <div className="border-t border-slate-700 pt-3 mt-3">
+                  <Button variant="ghost" className="w-full bg-slate-900 border border-slate-700 hover:text-emerald-400 text-xs py-1.5" icon={Clock}>
+                    Ver Timing de Gira
+                  </Button>
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- 8. PANEL DE ADMINISTRADOR ---
+const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
+  const [dbUsers, setDbUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [activeTab, setActiveTab] = useState('PENDIENTES');
+  const [processingId, setProcessingId] = useState(null);
+  
+  const [invName, setInvName] = useState('');
+  const [invEmail, setInvEmail] = useState('');
+  const [invPhone, setInvPhone] = useState('+569');
+  const [invRole, setInvRole] = useState(ROLES.TECH);
+  const [editingUser, setEditingUser] = useState(null);
+
+  const fetchUsers = async () => {
+    setLoading(true); setFetchError(false);
+    try {
+      const res = await apiFetch('getUsuarios');
+      if (res.status === 'success') setDbUsers(res.data.filter(u => u.name));
+    } catch(e) { setFetchError(true); }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const handleApprove = async (email) => {
+    setProcessingId(email);
+    try {
+      const res = await apiFetch('aprobarUsuario', { email });
+      if (res.status === 'success') { showToast("Usuario aprobado. Clave enviada por correo."); fetchUsers(); } 
+      else { showToast("Error: " + res.message); }
+    } catch(e) { showToast("Error de conexión al aprobar."); }
+    setProcessingId(null);
+  };
+
+  const handleDirectInvite = async (e) => {
+    e.preventDefault(); setProcessingId('inviting');
+    try {
+      const resSolicitud = await apiFetch('solicitarAcceso', { name: invName, email: invEmail, phone: invPhone, role: invRole });
+      if(resSolicitud.status === 'success') {
+        const resAprob = await apiFetch('aprobarUsuario', { email: invEmail });
+        if(resAprob.status === 'success') {
+          showToast(`Acceso creado. Credenciales enviadas a ${invEmail}`); setInvName(''); setInvEmail(''); setActiveTab('DIRECTORIO'); fetchUsers();
+        }
+      }
+    } catch(e) { showToast("Error al invitar integrante."); }
+    setProcessingId(null);
+  };
+
+  const handleEditSave = async (e) => {
+    e.preventDefault();
+    showToast("Edición simulada. Requiere endpoint de admin."); 
+    setDbUsers(prev => prev.map(u => u.email === editingUser.email ? editingUser : u));
+    setEditingUser(null);
+  };
+
+  const pendingUsers = dbUsers.filter(u => u.status === 'PENDING');
+  const activeUsers = dbUsers.filter(u => u.status === 'ACTIVO' || u.status === 'INACTIVO');
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 pb-24 animate-fade-in">
+      <header className="border-b border-slate-800 pb-3 md:pb-4">
+        <h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3"><ShieldCheck className="text-emerald-500" size={24} /> Admin Panel</h1>
+        <p className="text-xs md:text-sm text-slate-400 mt-1">Gestión global de accesos, roles y perfiles.</p>
+      </header>
+
+      <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+        <Button variant={activeTab === 'PENDIENTES' ? 'primary' : 'secondary'} onClick={() => setActiveTab('PENDIENTES')} icon={Bell}>Solicitudes ({pendingUsers.length})</Button>
+        <Button variant={activeTab === 'DIRECTORIO' ? 'primary' : 'secondary'} onClick={() => setActiveTab('DIRECTORIO')} icon={Users}>Directorio</Button>
+        <Button variant={activeTab === 'INVITAR' ? 'primary' : 'secondary'} onClick={() => setActiveTab('INVITAR')} icon={UserPlus}>Invitar Staff</Button>
+      </div>
+      
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl text-red-400 flex items-center gap-2 text-sm"><AlertCircle size={18} /> Error al cargar la data.</div>
+      ) : loading && dbUsers.length === 0 ? ( 
+        <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> 
+      ) : (
+        <>
+          {activeTab === 'PENDIENTES' && (
+            <div className="space-y-3">
+              {pendingUsers.length === 0 ? <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl text-slate-500 text-sm">No hay solicitudes pendientes.</div> : pendingUsers.map(u => (
+                <Card key={u.email} className="p-4 border-l-4 border-l-amber-500">
+                  <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
+                    <div><h3 className="text-base font-bold text-white flex items-center gap-2">{u.name} <span className="bg-amber-500/20 text-amber-400 text-[9px] px-1.5 py-0.5 rounded uppercase font-black tracking-wider">PENDIENTE</span></h3><p className="text-xs text-slate-400 mt-0.5">{u.email} • {u.phone}</p><p className="text-[10px] text-emerald-400 font-bold mt-1 uppercase">Rol: {u.role}</p></div>
+                    <div className="flex flex-row gap-2 shrink-0 mt-2 md:mt-0"><Button variant="danger" icon={X} className="flex-1 py-1.5" onClick={() => requestConfirm("¿Rechazar esta solicitud?", () => showToast("Solicitud rechazada."))}>Rechazar</Button><Button variant="primary" icon={Key} className="flex-1 py-1.5" disabled={processingId === u.email} onClick={() => handleApprove(u.email)}>{processingId === u.email ? '...' : 'Aprobar'}</Button></div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+          {activeTab === 'DIRECTORIO' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+              {activeUsers.map(u => (
+                <Card key={u.email} className={`p-4 flex flex-col ${u.status === 'INACTIVO' ? 'opacity-50 grayscale' : ''}`}>
+                  {editingUser?.email === u.email ? (
+                    <form onSubmit={handleEditSave} className="space-y-2 animate-fade-in">
+                      <h4 className="text-xs font-bold text-emerald-400 border-b border-slate-700 pb-1.5">Editar a {u.name}</h4>
+                      <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name: e.target.value})} />
+                      <div className="grid grid-cols-2 gap-2"><input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" value={editingUser.phone} onChange={e=>setEditingUser({...editingUser, phone: e.target.value})} /><select className="w-full max-w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500 break-words" value={editingUser.role} onChange={e=>setEditingUser({...editingUser, role: e.target.value})}>{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+                      <select className="w-full max-w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white font-bold outline-none focus:border-emerald-500 break-words" value={editingUser.status} onChange={e=>setEditingUser({...editingUser, status: e.target.value})}><option value="ACTIVO">ACTIVO</option><option value="INACTIVO">BLOQUEADO</option></select>
+                      <div className="flex flex-row gap-2 mt-2"><Button variant="ghost" className="flex-1 bg-slate-800 py-1.5" onClick={() => setEditingUser(null)}>Cancelar</Button><Button type="submit" variant="primary" className="flex-1 py-1.5">Guardar</Button></div>
+                    </form>
+                  ) : (
+                    <><div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-base shrink-0">{u.name?.charAt(0) || '?'}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-white text-base truncate">{u.name}</h3><span className="text-[9px] bg-slate-900 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold inline-block mt-0.5">{u.role}</span></div>{u.status === 'INACTIVO' && <span className="text-[9px] text-red-500 font-bold border border-red-500/50 px-1.5 py-0.5 rounded">BLOCK</span>}</div><div className="mt-auto pt-3 border-t border-slate-700/50 flex flex-row gap-2"><Button variant="secondary" className="flex-1 py-1.5" icon={Edit3} onClick={() => setEditingUser(u)}>Editar Perfil</Button></div></>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+          {activeTab === 'INVITAR' && (
+            <Card className="max-w-xl mx-auto p-4 md:p-6 border-t-4 border-emerald-500">
+              <h2 className="text-lg md:text-xl font-bold text-white mb-3">Crear Acceso Directo</h2>
+              <form onSubmit={handleDirectInvite} className="space-y-3">
+                <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Nombre Completo</label><input type="text" value={invName} onChange={e=>setInvName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" required /></div>
+                <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Correo</label><input type="email" value={invEmail} onChange={e=>setInvEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" required /></div><div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Teléfono</label><input type="tel" value={invPhone} onChange={e=>setInvPhone(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" required /></div></div>
+                <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Rol</label><select value={invRole} onChange={e=>setInvRole(e.target.value)} className="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 break-words">{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+                <Button type="submit" variant="primary" className="w-full py-2.5 md:py-3 text-sm md:text-base mt-2" disabled={processingId === 'inviting'} icon={UserCheck}>{processingId === 'inviting' ? 'Generando...' : 'Crear y Enviar'}</Button>
+              </form>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+// --- 9. MI PERFIL ---
+const ProfileView = ({ currentUser, setCurrentUser, showToast }) => {
+  const [pPhone, setPPhone] = useState(currentUser.phone || '');
+  const [pTalla, setPTalla] = useState(currentUser.talla || 'M');
+  const [pDieta, setPDieta] = useState(currentUser.dieta || 'OMNÍVORA');
+  
+  const [oldPass, setOldPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (newPass && newPass !== confirmPass) return showToast("Las contraseñas no coinciden.");
+
+    setSaving(true);
+    try {
+      const payload = { email: currentUser.email, phone: pPhone, talla: pTalla, dieta: pDieta };
+      if (newPass && oldPass) { payload.oldPassword = oldPass; payload.newPassword = newPass; }
+      const res = await apiFetch('updateProfile', payload);
+      if (res.status === 'success') {
+        setCurrentUser({ ...currentUser, phone: pPhone, talla: pTalla, dieta: pDieta });
+        setOldPass(''); setNewPass(''); setConfirmPass('');
+        showToast(newPass ? "¡Perfil y Contraseña actualizados!" : "¡Perfil actualizado!");
+      } else { showToast(res.message); }
+    } catch (err) { showToast("Error al guardar."); }
+    setSaving(false);
+  };
+
+  return (
+    <div className="max-w-xl mx-auto animate-fade-in pb-24">
+      <header className="mb-4 md:mb-6"><h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3"><User className="text-emerald-500" size={24}/> Mi Perfil</h1></header>
+      <Card className="p-4 md:p-6">
+        <form onSubmit={handleUpdate} className="space-y-4">
+          <div className="pb-3 border-b border-slate-700"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Nombre</label><input type="text" value={currentUser.name} disabled className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-slate-500 text-sm cursor-not-allowed" /></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Teléfono</label><input type="text" value={pPhone} onChange={e=>setPPhone(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" required /></div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Talla (Merch)</label>
+              <select value={pTalla} onChange={e=>setPTalla(e.target.value)} className="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 break-words whitespace-normal">
+                <option value="XS">XS - Extra Pequeño</option><option value="S">S - Pequeño</option><option value="M">M - Mediano</option><option value="L">L - Grande</option><option value="XL">XL - Extra Grande</option><option value="XXL">XXL - Doble Extra Grande</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Preferencia Alimentación</label>
+            <select value={pDieta} onChange={e=>setPDieta(e.target.value)} className="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 break-words whitespace-normal">
+              <option value="OMNÍVORA">Omnívora (Estándar)</option><option value="VEGETARIANA">Vegetariana</option><option value="VEGANA">Vegana</option><option value="CRUDÍVORA">Crudívora</option><option value="FLEXITARIANA">Flexitariana</option><option value="SIN GLUTEN">Sin Gluten</option><option value="BAJA EN FODMAP">Baja en FODMAP</option><option value="HIPOSÓDICA">Hiposódica</option><option value="DIABÉTICA">Diabética</option><option value="KETO">Keto</option><option value="MEDITERRÁNEA">Mediterránea</option>
+            </select>
+          </div>
+          <div className="bg-slate-800/80 border border-slate-700 rounded-lg p-2.5 flex gap-2.5 items-start mt-1">
+            <Shield size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+            <p className="text-[10px] md:text-xs text-slate-400 leading-relaxed font-bold">Datos usados solo para logística de producción.</p>
+          </div>
+          <div className="pt-3 border-t border-slate-700 mt-3 space-y-2.5">
+            <h3 className="text-xs md:text-sm font-bold text-emerald-400 flex items-center gap-1.5"><Key size={14}/> Cambiar Contraseña (Opcional)</h3>
+            <input type="password" placeholder="Contraseña Actual" value={oldPass} onChange={e=>setOldPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" />
+            <input type="password" placeholder="Nueva Contraseña" value={newPass} onChange={e=>setNewPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" />
+            <input type="password" placeholder="Confirmar Contraseña" value={confirmPass} onChange={e=>setConfirmPass(e.target.value)} className={`w-full bg-slate-900 border rounded-lg p-2.5 text-white text-sm outline-none ${confirmPass && newPass !== confirmPass ? 'border-red-500' : 'border-slate-700 focus:border-emerald-500'}`} />
+            {confirmPass && newPass !== confirmPass && <p className="text-[10px] text-red-500 font-bold">Las contraseñas no coinciden</p>}
+          </div>
+          <Button type="submit" variant="primary" className="w-full py-3 mt-4" disabled={saving || (confirmPass && newPass !== confirmPass)}>{saving ? <Loader2 className="animate-spin"/> : 'Guardar Cambios'}</Button>
+        </form>
+      </Card>
+    </div>
+  );
+};
+
+// --- 10. DASHBOARD PRINCIPAL (MÓDULO DE PROYECTOS) ---
+const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast, directory }) => {
+  const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+  const [proyectos, setProyectos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [form, setForm] = useState({ name: '', type: 'Gira Musical' });
+  const [assigningProject, setAssigningProject] = useState(null);
+
+  const fetchProyectos = async () => {
+    setFetchError(false);
+    try {
+      const res = await apiFetch('getProyectos');
+      if (res.status === 'success') {
+        const parsed = res.data.map(p => ({ ...p, asignados: Array.isArray(p.asignados) ? p.asignados : [] }));
+        setProyectos(parsed);
+      }
+      else setFetchError(res.message || "Error al obtener proyectos");
+    } catch (e) { setFetchError("No se pudo conectar al servidor."); }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchProyectos(); }, []);
+
+  const handleCreateProyecto = async (e) => {
+    e.preventDefault(); 
+    try {
+      const payload = { ...form, manager: currentUser.name };
+      const res = await apiFetch('createProyecto', payload);
+      if (res.status === 'success') {
+        showToast("Proyecto creado exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
+      } else {
+        showToast(res.message);
+      }
+    } catch(e) { showToast("Error al crear proyecto."); }
+  };
+
+  const handleUpdateStatus = async (e, id, currentStatus) => {
+    e.stopPropagation(); 
+    const newStatus = currentStatus === 'ACTIVO' ? 'FINALIZADO' : 'ACTIVO';
+    try {
+      await apiFetch('updateProyectoStatus', { id, status: newStatus });
+      showToast("Estado actualizado."); fetchProyectos();
+    } catch(e) { showToast("Error al actualizar."); }
+  };
+
+  const toggleAssignProject = (email) => {
+    setAssigningProject(prev => {
+      const isAssigned = prev.asignados.includes(email);
+      const newAsignados = isAssigned ? prev.asignados.filter(e => e !== email) : [...prev.asignados, email];
+      return { ...prev, asignados: newAsignados };
+    });
+  };
+
+  const saveProjectAsignaciones = async () => {
+    try {
+      await apiFetch('updateProyectoAsignaciones', { id: assigningProject.id, asignados: assigningProject.asignados });
+      showToast("Asignaciones de proyecto guardadas."); setAssigningProject(null); fetchProyectos();
+    } catch(e) { showToast("Error al guardar."); }
+  };
+
+  return (
+    <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-6xl mx-auto">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 border-b border-slate-800 pb-4">
+        <div><h1 className="text-2xl md:text-3xl font-black text-white leading-tight">Hola, {currentUser.name.split(' ')[0]}</h1><p className="text-emerald-400 text-xs md:text-sm font-black uppercase tracking-wider">{currentUser.role}</p></div>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {canCreate && !isCreating && <Button icon={FolderPlus} variant="primary" className="flex-1 sm:flex-none" onClick={() => setIsCreating(true)}>Nuevo Proyecto</Button>}
+        </div>
+      </header>
+
+      {isCreating && (
+        <Card className="p-4 md:p-6 border-emerald-500 mb-4 max-w-2xl">
+          <h2 className="text-base md:text-lg font-bold text-white mb-3">Iniciar Nuevo Proyecto / Gira</h2>
+          <form onSubmit={handleCreateProyecto} className="space-y-3">
+            <div><label className="text-[10px] md:text-xs font-bold text-slate-400 block mb-1 uppercase">Nombre del Proyecto</label><input required className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} /></div>
+            <div>
+              <label className="text-[10px] md:text-xs font-bold text-slate-400 block mb-1 uppercase">Tipo de Producción</label>
+              <select className="w-full max-w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500 break-words" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
+                <option value="Gira Musical">Gira Musical (Tour)</option><option value="Festival">Festival</option><option value="Show Único">Show Único (One-Off)</option><option value="Evento Corporativo">Evento Corporativo</option>
+              </select>
+            </div>
+            <div className="flex gap-2 pt-1"><Button variant="secondary" className="flex-1 py-2 md:py-2.5" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1 py-2 md:py-2.5">Guardar Proyecto</Button></div>
+          </form>
+        </Card>
+      )}
+
+      <div>
+        <h2 className="text-base md:text-lg font-bold text-slate-300 mb-3 flex items-center gap-1.5"><Navigation size={18}/> Proyectos Activos</h2>
+        
+        {fetchError ? (
+          <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl text-red-400 flex items-center gap-2 text-sm"><AlertCircle size={18} /> {fetchError}</div>
+        ) : loading && proyectos.length === 0 ? (
+          <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div>
+        ) : proyectos.length === 0 ? (
+          <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl text-slate-500 text-sm">No hay proyectos activos.</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+            {proyectos.map(proyecto => {
+              const projectDate = new Date(Number(proyecto.id));
+              const formattedProjectDate = `${String(projectDate.getDate()).padStart(2, '0')}/${String(projectDate.getMonth() + 1).padStart(2, '0')}/${projectDate.getFullYear()}`;
+
+              return (
+                <Card 
+                  key={proyecto.id} 
+                  onClick={() => { setSelectedProject(proyecto); setCurrentView('PROJECT_DETAILS'); }}
+                  className={`group cursor-pointer ${proyecto.status === 'ACTIVO' ? 'hover:border-emerald-500' : 'opacity-70 grayscale hover:grayscale-0'}`}
+                >
+                  <div className="p-3 md:p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center group-hover:bg-emerald-500/20"><Music className="text-emerald-500" size={20} /></div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-[9px] md:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded block w-fit ${proyecto.status === 'ACTIVO' ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-400 bg-slate-800 border border-slate-700'}`}>{proyecto.status}</span>
+                        <span className="text-[9px] md:text-[10px] bg-slate-800 text-emerald-400 px-2 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider">{proyecto.type}</span>
+                      </div>
+                    </div>
+                    
+                    <h2 className="text-lg font-bold text-white leading-tight mb-2">{proyecto.name}</h2>
+                    <div className="space-y-1 mb-3">
+                      <p className="text-xs md:text-sm text-slate-300 flex items-center gap-1.5">
+                        <Calendar size={12}/> {formattedProjectDate}
+                      </p>
+                      <p className="text-xs md:text-sm text-slate-400 flex items-center gap-1.5"><User size={12}/> Liderado por: {proyecto.manager}</p>
+                    </div>
+                    
+                    <div className="flex flex-col gap-1.5 border-t border-slate-700 pt-3">
+                      {canCreate && (
+                        <Button variant="ghost" className="w-full bg-slate-900 border border-slate-700 hover:text-white text-[10px] md:text-xs py-1.5 mb-1" icon={Users} onClick={(e) => { e.stopPropagation(); setAssigningProject(proyecto); }}>
+                          Asignar Equipo ({proyecto.asignados.length})
+                        </Button>
+                      )}
+                      {canCreate && (
+                        <div className="flex gap-1.5">
+                          <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-white text-[10px] md:text-xs py-1.5" onClick={(e) => { e.stopPropagation(); showToast("Para editar nombre hazlo desde la BD."); }}>Editar</Button>
+                          <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 hover:text-emerald-400 text-[10px] md:text-xs py-1.5" onClick={(e) => handleUpdateStatus(e, proyecto.id, proyecto.status)}>
+                            {proyecto.status === 'ACTIVO' ? 'Finalizar' : 'Reactivar'}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {assigningProject && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <Card className="w-full max-w-md p-4 md:p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
+            <div className="flex justify-between items-center mb-3 border-b border-slate-800 pb-3">
+              <h2 className="text-base md:text-lg font-bold text-white">Asignar Equipo</h2>
+              <button onClick={() => setAssigningProject(null)} className="text-slate-400 hover:text-white"><X size={20}/></button>
+            </div>
+            <p className="text-xs md:text-sm text-emerald-400 font-bold mb-3">{assigningProject.name}</p>
+            
+            <div className="flex-1 overflow-y-auto space-y-1.5 mb-3 pr-2 custom-scrollbar">
+              {directory.length === 0 ? <p className="text-slate-500 text-xs md:text-sm text-center">Cargando directorio...</p> : directory.map(u => {
+                const isChecked = assigningProject.asignados.includes(u.email);
+                return (
+                  <button key={u.email} onClick={() => toggleAssignProject(u.email)} className={`w-full flex items-center justify-between p-2.5 rounded-lg border transition-colors ${isChecked ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                    <div className="flex items-center gap-2.5">
+                      {isChecked ? <CheckSquare className="text-emerald-500" size={18}/> : <Square size={18}/>}
+                      <div className="text-left"><p className="font-bold text-xs md:text-sm">{u.name}</p><p className="text-[9px] uppercase tracking-wider">{u.role}</p></div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <Button onClick={saveProjectAsignaciones} className="w-full py-2.5 md:py-3 text-xs md:text-sm">Guardar Asignaciones</Button>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Función helper para estado de Hitos
+const getEventStatus = (targetDate, currentTime) => {
+  if (targetDate.getTime() === 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'Fecha inválida', timeText: '--:--', pulse: false, textClass: 'text-slate-500' };
+  const diffMs = targetDate - currentTime;
+  if (diffMs <= 0) return { border: 'border-slate-700', bg: 'bg-slate-800/50', dot: 'bg-slate-500', text: 'Finalizado', timeText: '00h 00m 00s', pulse: false, textClass: 'text-slate-500' };
+  const diffSec = Math.floor(diffMs / 1000);
+  const hours = Math.floor(diffSec / 3600);
+  const minutes = Math.floor((diffSec % 3600) / 60);
+  const seconds = diffSec % 60;
+  const hh = String(hours).padStart(2, '0');
+  const mm = String(minutes).padStart(2, '0');
+  const ss = String(seconds).padStart(2, '0');
+  const timeText = `Faltan ${hh}h ${mm}m ${ss}s`;
+
+  if (hours < 2) return { border: 'border-red-500/50', bg: 'bg-red-500/10', dot: 'bg-red-500', text: '¡INMINENTE!', timeText, pulse: true, textClass: 'text-red-500' };
+  else if (hours < 24) return { border: 'border-amber-500/50', bg: 'bg-amber-500/10', dot: 'bg-amber-500', text: 'En preparación', timeText, pulse: false, textClass: 'text-amber-500' };
+  else return { border: 'border-emerald-500/50', bg: 'bg-emerald-500/10', dot: 'bg-emerald-500', text: 'Agendado', timeText, pulse: false, textClass: 'text-emerald-500' };
+};
+
+// Componente Micro-Aislado para los Hitos
+const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, currentUser, requestConfirm }) => {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const status = getEventStatus(event.fullDate, now);
+  const isAssignedToMe = event.asignados.includes(currentUser.email);
+
+  let formattedDate = 'Fecha Inválida';
+  let dRaw = String(event.date);
+  if (dRaw.includes('T')) dRaw = dRaw.split('T')[0];
+  const matchISO = dRaw.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (matchISO) {
+    formattedDate = `${matchISO[3]}/${matchISO[2]}/${matchISO[1]}`;
+  } else {
+    const matchLoc = dRaw.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+    if(matchLoc) formattedDate = `${matchLoc[1]}/${matchLoc[2]}/${matchLoc[3]}`;
+  }
+  
+  const timeMatch = String(event.time).match(/\d{2}:\d{2}/);
+  const formattedTime = timeMatch ? `${timeMatch[0]} h` : '--:-- h';
+
+  return (
+    <div className={`p-3 md:p-4 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
+      {canManage && (
+        <button onClick={() => requestConfirm("¿Eliminar este Hito de forma permanente?", () => handleDeleteHito(event.id))} className="absolute top-3 right-3 text-slate-500 hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
+      )}
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-3 md:gap-4">
+        <div className="flex-1">
+          <h3 className="text-lg font-bold text-white mb-1.5 pr-8">{event.title}</h3>
+          
+          <div className="flex flex-wrap items-center gap-2 text-[10px] md:text-xs font-bold mb-2">
+            <span className="flex items-center gap-1 text-slate-300"><Calendar size={12}/> {formattedDate}</span>
+            <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20"><Clock size={12}/> {formattedTime}</span>
+          </div>
+          
+          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:text-blue-300 underline decoration-blue-500/30 underline-offset-2 flex items-center gap-1 w-fit mb-3">
+            <MapPin size={12}/> {event.location}
+          </a>
+
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className={`w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${status.dot} ${status.pulse ? 'animate-pulse' : ''}`}></span>
+            <span className={`text-[10px] font-black uppercase tracking-wider ${status.textClass}`}>{status.text}</span>
+            {isAssignedToMe && <span className="ml-1.5 text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-500/50">Asignado a ti</span>}
+          </div>
+
+          {canManage && (
+            <Button variant="ghost" className="bg-slate-900 border border-slate-700 py-1 px-2 text-[10px]" icon={Users} onClick={() => setAssigningHito(event)}>
+              Asignado ({event.asignados.length})
+            </Button>
+          )}
+        </div>
+        <div className={`shrink-0 flex items-center gap-1.5 px-3 py-2 md:py-2.5 rounded-lg border bg-slate-900 ${status.border} ${status.textClass} font-mono font-black text-xs md:text-sm tracking-wider mt-2 md:mt-0`}>
+          <Hourglass size={14} className={status.pulse ? 'animate-spin-slow' : ''} />{status.timeText}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- 11. DETALLES DEL PROYECTO (HITOS INTERNOS) ---
+const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, showToast, directory, requestConfirm, setActiveRider }) => {
+  const p = selectedProject;
+  const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+  const [hitos, setHitos] = useState([]);
+  const [projectRiders, setProjectRiders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
+  const [assigningHito, setAssigningHito] = useState(null);
+
+  const fetchProjectData = async () => {
+    setFetchError(false);
+    try {
+      const [resHitos, resRiders] = await Promise.all([
+        apiFetch('getHitos'),
+        apiFetch('getRiders')
+      ]);
+
+      if (resHitos.status === 'success') {
+        const p_Hitos = resHitos.data.filter(ev => String(ev.proyectoId) === String(p.id));
+        const parsedEvents = p_Hitos.map(ev => {
+          let fullDate = new Date(0); 
+          try {
+              let dStr = '';
+              let dRaw = String(ev.date);
+              if (dRaw.includes('T')) dRaw = dRaw.split('T')[0];
+              const matchISO = dRaw.match(/(\d{4})-(\d{2})-(\d{2})/);
+              if (matchISO) dStr = matchISO[0];
+              else {
+                  const matchLoc = dRaw.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+                  if(matchLoc) dStr = `${matchLoc[3]}-${matchLoc[2]}-${matchLoc[1]}`;
+              }
+              
+              let tStr = '00:00';
+              const timeMatch = String(ev.time).match(/\d{2}:\d{2}/);
+              if(timeMatch) tStr = timeMatch[0];
+
+              const dateObj = new Date(`${dStr}T${tStr}:00`);
+              if(!isNaN(dateObj.getTime())) fullDate = dateObj;
+          } catch(e) { console.error("Error parseando fecha", e); }
+          return { ...ev, fullDate, asignados: Array.isArray(ev.asignados) ? ev.asignados : [] };
+        });
+        setHitos(parsedEvents.sort((a,b) => a.fullDate - b.fullDate));
+      } else {
+        setFetchError(resHitos.message || "Error al obtener hitos");
+      }
+
+      if (resRiders.status === 'success') {
+         const pRiders = resRiders.data.filter(r => {
+            try { return String(JSON.parse(r.content).proyectoId) === String(p.id); }
+            catch(e) { return false; }
+         }).map(r => ({...r, content: JSON.parse(r.content)}));
+         setProjectRiders(pRiders);
+      }
+
+    } catch(e) { setFetchError("Fallo de red al obtener datos del proyecto."); }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchProjectData(); }, []);
+
+  const firstHito = hitos.length > 0 ? hitos[0] : null;
+  let projectDateStr = "Sin hitos";
+  let showClock = false;
+
+  if (firstHito && firstHito.fullDate && firstHito.fullDate.getTime() !== 0) {
+    const fd = firstHito.fullDate;
+    projectDateStr = `${String(fd.getDate()).padStart(2, '0')}/${String(fd.getMonth() + 1).padStart(2, '0')}/${fd.getFullYear()} - ${String(fd.getHours()).padStart(2, '0')}:${String(fd.getMinutes()).padStart(2, '0')} h`;
+    
+    const diffMs = fd.getTime() - new Date().getTime();
+    const hoursDiff = diffMs / (1000 * 60 * 60);
+    if (hoursDiff <= 72) {
+      showClock = true;
+    }
+  }
+
+  const handleCreateHito = async (e) => {
+    e.preventDefault(); 
+    try {
+      const payload = { ...form, proyectoId: p.id };
+      const res = await apiFetch('createHito', payload);
+      if (res.status === 'success') {
+        showToast("Hito agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchProjectData();
+      } else {
+        showToast("Error: " + res.message); 
+      }
+    } catch(e) { showToast("Error al crear hito."); }
+  };
+
+  const handleDeleteHito = async (id) => {
+    try {
+      await apiFetch('deleteHito', { id });
+      showToast("Hito eliminado."); fetchProjectData();
+    } catch(e) { showToast("Error al eliminar."); }
+  };
+
+  const captureGPS = () => {
+    if(navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        setForm(prev => ({...prev, location: `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`}));
+        showToast("GPS Capturado correctamente");
+      }, () => showToast("Error al obtener GPS. Activa los permisos."));
+    } else showToast("Tu navegador no soporta GPS.");
+  };
+
+  const toggleAssign = (email) => {
+    setAssigningHito(prev => {
+      const isAssigned = prev.asignados.includes(email);
+      const newAsignados = isAssigned ? prev.asignados.filter(e => e !== email) : [...prev.asignados, email];
+      return { ...prev, asignados: newAsignados };
+    });
+  };
+
+  const saveAsignaciones = async () => {
+    try {
+      await apiFetch('updateHitoAsignaciones', { id: assigningHito.id, asignados: assigningHito.asignados });
+      showToast("Asignaciones guardadas."); setAssigningHito(null); fetchProjectData();
+    } catch(e) { showToast("Error al guardar."); }
+  };
+
+  return (
+    <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-4xl mx-auto">
+      <button onClick={() => setCurrentView('DASHBOARD')} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a Proyectos</button>
+      
+      <header className="border-b border-slate-800 pb-4 flex flex-col items-start gap-2">
+        <div>
+          <span className="text-[9px] md:text-[10px] bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider mb-1.5 inline-block">PROYECTO</span>
+          <h1 className="text-xl md:text-2xl font-black text-white leading-tight">{p.name}</h1>
+          <div className="mt-1.5 space-y-1">
+            <p className="text-xs md:text-sm text-slate-300 flex items-center gap-1.5"><Calendar size={12}/> {projectDateStr}</p>
+            <p className="text-xs md:text-sm text-slate-400 flex items-center gap-1.5"><User size={12}/> {p.manager}</p>
+          </div>
+        </div>
+      </header>
+
+      {/* --- SECCIÓN RIDERS ASOCIADOS --- */}
+      {projectRiders.length > 0 && (
+         <div className="mb-8">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2 mb-4"><FileText className="text-emerald-500" size={18}/> Documentos Técnicos Asociados</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+               {projectRiders.map(r => (
+                  <Card key={r.id} onClick={() => { setActiveRider(r); setCurrentView('RIDERS'); }} className="p-3 cursor-pointer hover:border-emerald-500 transition-colors flex items-center gap-3">
+                     <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center"><FileText className="text-emerald-500" size={18}/></div>
+                     <div>
+                        <h3 className="text-sm font-bold text-white leading-tight">{r.title}</h3>
+                        <span className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">{r.type}</span>
+                     </div>
+                  </Card>
+               ))}
+            </div>
+         </div>
+      )}
+
+      {/* --- SECCIÓN TIMING --- */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-6 mb-3 gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><Clock className="text-emerald-500" size={18}/> Timing</h2>
+          {showClock && (
+            <div className="bg-slate-900 border border-slate-700 px-3 py-1 rounded-lg flex items-center gap-2 shadow-sm animate-fade-in">
+              <Timer className="text-emerald-500 animate-pulse" size={14} />
+              <LiveClock />
+            </div>
+          )}
+        </div>
+        {canManage && !isCreating && <Button icon={Plus} onClick={() => setIsCreating(true)} className="py-1.5 px-3 text-xs md:text-sm">Nuevo Hito</Button>}
+      </div>
+
+      {isCreating && (
+        <Card className="p-4 md:p-6 border-emerald-500 mb-4">
+          <h2 className="text-base font-bold text-white mb-3">Agendar Hito</h2>
+          <form onSubmit={handleCreateHito} className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] md:text-xs text-slate-400 block mb-1 uppercase font-bold">Título del Hito</label>
+                <input list="hitos-list" required className="w-full bg-slate-900 border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500" placeholder="Ej: Soundcheck..." value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                <datalist id="hitos-list"><option value="Load In (Montaje)" /><option value="Soundcheck (Prueba de Sonido)" /><option value="Puertas (Apertura al público)" /><option value="Show Telonero" /><option value="Show Principal" /><option value="Load Out (Desmontaje)" /></datalist>
+              </div>
+              <div>
+                <label className="text-[10px] md:text-xs text-slate-400 block mb-1 uppercase font-bold">Ubicación</label>
+                <div className="flex items-center gap-2">
+                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500" placeholder="Ej: Escenario Principal" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
+                  <Button type="button" variant="secondary" icon={MapPin} onClick={captureGPS} title="Usar GPS" className="px-3" />
+                </div>
+              </div>
+              <div><label className="text-[10px] md:text-xs text-slate-400 block mb-1 uppercase font-bold">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, date: e.target.value})} /></div>
+              <div><label className="text-[10px] md:text-xs text-slate-400 block mb-1 uppercase font-bold">Hora</label><input required type="time" className="w-full bg-slate-900 border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, time: e.target.value})} /></div>
+            </div>
+            <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1 py-2 md:py-2.5" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1 py-2 md:py-2.5">Guardar Hito</Button></div>
+          </form>
+        </Card>
+      )}
+
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl text-red-400 flex items-center gap-2 text-sm"><AlertCircle size={18} /> {fetchError}</div>
+      ) : loading && hitos.length === 0 ? (
+        <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div>
+      ) : hitos.length === 0 ? (
+        <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
+          <CalendarPlus className="mx-auto text-slate-600 mb-3" size={40} />
+          <p className="text-slate-400 text-xs md:text-sm">Aún no hay hitos agendados en este proyecto.</p>
+        </div>
+      ) : (
+        <div className="space-y-3 md:space-y-4">
+          {hitos.map((event) => (
+            <EventCard 
+               key={event.id} 
+               event={event} 
+               canManage={canManage} 
+               handleDeleteHito={handleDeleteHito} 
+               setAssigningHito={setAssigningHito} 
+               currentUser={currentUser} 
+               requestConfirm={requestConfirm} 
+            />
+          ))}
+        </div>
+      )}
+
+      {assigningHito && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <Card className="w-full max-w-md p-4 md:p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
+            <div className="flex justify-between items-center mb-3 border-b border-slate-800 pb-3">
+              <h2 className="text-base md:text-lg font-bold text-white">Asignar Crew</h2>
+              <button onClick={() => setAssigningHito(null)} className="text-slate-400 hover:text-white"><X size={20}/></button>
+            </div>
+            <p className="text-xs md:text-sm text-emerald-400 font-bold mb-3">{assigningHito.title}</p>
+            
+            <div className="flex-1 overflow-y-auto space-y-1.5 mb-3 pr-2 custom-scrollbar">
+              {directory.length === 0 ? <p className="text-slate-500 text-xs text-center">Cargando directorio...</p> : directory.map(u => {
+                const isChecked = assigningHito.asignados.includes(u.email);
+                return (
+                  <button key={u.email} onClick={() => toggleAssign(u.email)} className={`w-full flex items-center justify-between p-2.5 rounded-lg border transition-colors ${isChecked ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                    <div className="flex items-center gap-2.5">
+                      {isChecked ? <CheckSquare className="text-emerald-500" size={18}/> : <Square size={18}/>}
+                      <div className="text-left"><p className="font-bold text-xs md:text-sm">{u.name}</p><p className="text-[9px] uppercase tracking-wider">{u.role}</p></div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <Button onClick={saveAsignaciones} className="w-full py-2.5 md:py-3 text-xs md:text-sm">Guardar Asignaciones</Button>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentView, setCurrentView] = useState('DASHBOARD');
@@ -1368,6 +2226,9 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null);
   const [directory, setDirectory] = useState([]); 
   
+  // Nuevo Estado Global para el Rider Activo
+  const [activeRider, setActiveRider] = useState(null);
+
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', onConfirm: null });
 
   const showToast = (message) => {
@@ -1413,6 +2274,11 @@ export default function App() {
       fetchDirectoryGlobal();
     }
   }, [currentUser]);
+
+  // Si el usuario navega a otra sección que no sea RIDERS, limpiaremos el activeRider para que no se quede pegado
+  useEffect(() => {
+    if (currentView !== 'RIDERS') setActiveRider(null);
+  }, [currentView]);
 
   // --- MODAL DE CONFIRMACIÓN GLOBAL ---
   const ConfirmModal = () => {
@@ -1475,7 +2341,7 @@ export default function App() {
       <main className="flex-1 relative overflow-y-auto h-screen bg-slate-950 print:bg-white custom-scrollbar print:overflow-visible print:h-auto pb-[70px] md:pb-0">
         <div className="p-3 md:p-6 print:p-0">
           {currentView === 'DASHBOARD' && <Dashboard currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} directory={directory} />}
-          {currentView === 'PROJECT_DETAILS' && <ProjectDetailsView currentUser={currentUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} directory={directory} requestConfirm={requestConfirm} />}
+          {currentView === 'PROJECT_DETAILS' && <ProjectDetailsView currentUser={currentUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} directory={directory} requestConfirm={requestConfirm} setActiveRider={setActiveRider} />}
           {currentView === 'ADMIN_PANEL' && <AdminPanel currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} />}
           {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} />}
           {currentView === 'STAFF' && <StaffDirectory currentUser={currentUser} />}
@@ -1483,7 +2349,7 @@ export default function App() {
           {currentView === 'TIMING' && <TimingGlobalView currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} />}
           {currentView === 'TRANSPORT' && <TransportView currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} />}
           {currentView === 'TRANSPORT_DETAILS' && <TransportDetailsView currentUser={currentUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} />}
-          {currentView === 'RIDERS' && <RidersView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} />}
+          {currentView === 'RIDERS' && <RidersView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} activeRider={activeRider} setActiveRider={setActiveRider} />}
         </div>
       </main>
       
