@@ -24,7 +24,7 @@ const Card = ({ children, className = '', onClick }) => (
   </div>
 );
 
-const Button = ({ children, onClick, variant = 'primary', className = '', icon: Icon, type = 'button', disabled = false }) => {
+const Button = ({ children, onClick, variant = 'primary', className = '', icon: Icon, type = 'button', disabled = false, title = '' }) => {
   const base = "flex flex-row items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold transition-all duration-200 active:scale-95 text-center leading-tight disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed text-sm";
   const variants = {
     primary: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20 shadow-lg border border-emerald-500/50",
@@ -34,7 +34,7 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
     blue: "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20 shadow-lg border border-blue-500/50"
   };
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={`${base} ${variants[variant]} ${className}`}>
+    <button type={type} onClick={onClick} disabled={disabled} className={`${base} ${variants[variant]} ${className}`} title={title}>
       {Icon && <Icon size={16} className="shrink-0" />}
       <span className="truncate">{children}</span>
     </button>
@@ -48,12 +48,29 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentView, setCurrentView] = useState('DASHBOARD');
   const [selectedProject, setSelectedProject] = useState(null);
-  const [toastMessage, setToastMessage] = useState(null);
-  const [globalUsers, setGlobalUsers] = useState([]); 
   
+  // Estados Globales UI
+  const [toastMessage, setToastMessage] = useState(null);
+  const [confirmState, setConfirmState] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
+  const [globalUsers, setGlobalUsers] = useState([]);
+
   const showToast = (message) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const showConfirm = (title, message, onConfirm, isDanger = false) => {
+    setConfirmState({ isOpen: true, title, message, onConfirm, isDanger });
+  };
+  const closeConfirm = () => setConfirmState({ ...confirmState, isOpen: false });
+
+  const handleGPS = (setterFn) => {
+    if (!navigator.geolocation) return showToast("Tu navegador no soporta GPS.");
+    showToast("Obteniendo ubicación GPS...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setterFn(`${pos.coords.latitude}, ${pos.coords.longitude}`),
+      (err) => showToast("Error al obtener ubicación. Revisa permisos del navegador.")
+    );
   };
 
   useEffect(() => {
@@ -82,10 +99,10 @@ export default function App() {
     if (r === ROLES.MANAGER) return [ proy, time, riders, transport, chat, dir, profile ];
     if (r === ROLES.TOUR_MANAGER) return [ proy, time, riders, transport, chat, dir, profile ];
     if (r === ROLES.TECH) return [ proy, time, riders, transport, chat, dir, profile ];
-    if (r === ROLES.TRASLADO) return [ proy, time, transport, chat, dir, profile ]; 
-    if (r === ROLES.APV) return [ proy, time, transport, chat, dir, profile ]; 
+    if (r === ROLES.TRASLADO) return [ proy, time, transport, chat, dir, profile ];
+    if (r === ROLES.APV) return [ proy, time, transport, chat, dir, profile ];
     
-    return [ proy, time, transport, chat, dir, profile ]; 
+    return [ proy, time, transport, chat, dir, profile ];
   };
 
   const AuthRouter = () => {
@@ -107,7 +124,7 @@ export default function App() {
         const data = await response.json();
         if (data.status === 'success') setCurrentUser(data.user); 
         else setError(data.message);
-      } catch (err) { setError("Error de red conectando al servidor."); }
+      } catch (err) { setError("Error de red conectando al servidor proxy."); }
       setLoading(false);
     };
 
@@ -244,7 +261,7 @@ export default function App() {
     const [proyectos, setProyectos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
-    const [editingProject, setEditingProject] = useState(null); 
+    const [editingProject, setEditingProject] = useState(null);
     const [form, setForm] = useState({ name: '', type: 'Gira Musical' });
 
     const fetchProyectos = async () => {
@@ -268,7 +285,7 @@ export default function App() {
         } else {
            const payload = { ...form, manager: currentUser.name };
            await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createProyecto', payload }) });
-           showToast("Proyecto guardado en BD. Haz clic en la tarjeta para agregar hitos.");
+           showToast("Proyecto guardado en BD. Ahora puedes entrar para agregar hitos.");
         }
         setIsCreating(false); setEditingProject(null); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
       } catch(e) { showToast("Error al guardar proyecto."); setLoading(false); }
@@ -335,7 +352,7 @@ export default function App() {
               {proyectos.map(proyecto => (
                 <Card 
                   key={proyecto.id} 
-                  className={`group cursor-pointer ${proyecto.status === 'ACTIVO' ? 'hover:border-emerald-500' : 'opacity-70 grayscale hover:grayscale-0'}`}
+                  className={`group ${proyecto.status === 'ACTIVO' ? 'hover:border-emerald-500 cursor-pointer' : 'opacity-70 grayscale hover:grayscale-0 cursor-pointer'}`}
                   onClick={() => { setSelectedProject(proyecto); setCurrentView('PROJECT_DETAILS'); }}
                 >
                   <div className="p-5 flex flex-col h-full">
@@ -348,26 +365,14 @@ export default function App() {
                     <p className="text-[11px] font-bold uppercase text-emerald-400 mb-3">{proyecto.type}</p>
                     <p className="text-sm text-slate-400 mb-4 flex items-center gap-2"><User size={14}/> Manager: {proyecto.manager}</p>
                     
-                    {/* Botones de acción. El stopPropagation evita que se entre al proyecto si solo se quiere editar/finalizar */}
-                    {canCreate && (
-                      <div className="flex gap-2 border-t border-slate-700 pt-4 mt-auto">
-                        <Button 
-                          variant="ghost" 
-                          className="flex-1 bg-slate-900 border border-slate-700 text-xs z-10 hover:text-emerald-400" 
-                          icon={Edit3} 
-                          onClick={(e) => { e.stopPropagation(); openEdit(proyecto); }}
-                        >
-                          Editar
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          className="flex-1 bg-slate-900 border border-slate-700 text-xs z-10 hover:text-white" 
-                          onClick={(e) => { e.stopPropagation(); handleUpdateStatus(proyecto.id, proyecto.status); }}
-                        >
-                          {proyecto.status === 'ACTIVO' ? 'Finalizar' : 'Reactivar'}
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex flex-col gap-2 border-t border-slate-700 pt-4 mt-auto">
+                      {canCreate && (
+                        <div className="flex gap-2">
+                          <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 text-xs hover:text-white" icon={Edit3} onClick={(e) => { e.stopPropagation(); openEdit(proyecto); }}>Editar</Button>
+                          <Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 text-xs hover:text-white" onClick={(e) => { e.stopPropagation(); handleUpdateStatus(proyecto.id, proyecto.status); }}>{proyecto.status === 'ACTIVO' ? 'Finalizar' : 'Reactivar'}</Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </Card>
               ))}
@@ -401,7 +406,7 @@ export default function App() {
         const json = await res.json();
         if (json.status === 'success') {
           const parsedEvents = json.data
-            .filter(ev => ev.proyectoId == p.id) 
+            .filter(ev => ev.proyectoId === p.id) 
             .map(ev => {
               const dateObj = new Date(`${ev.date}T${ev.time}:00`);
               return { ...ev, fullDate: isNaN(dateObj.getTime()) ? null : dateObj };
@@ -414,25 +419,15 @@ export default function App() {
 
     useEffect(() => { fetchEvents(); }, [p.id]);
 
-    const handleGetLocation = () => {
-      if ("geolocation" in navigator) {
-        showToast("Obteniendo ubicación GPS...");
-        navigator.geolocation.getCurrentPosition((position) => {
-          setForm(prev => ({ ...prev, location: `${position.coords.latitude}, ${position.coords.longitude}` }));
-          showToast("Ubicación capturada.");
-        }, () => showToast("Error al obtener GPS."));
-      }
-    };
-
     const handleCreateEvent = async (e) => {
       e.preventDefault(); setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'createEvento', payload: { ...form, proyectoId: p.id } }) });
-        showToast("Hito agendado en el Proyecto."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchEvents();
+        showToast("Hito agregado al Proyecto."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchEvents();
       } catch(e) { showToast("Error al crear hito."); setLoading(false); }
     };
 
-    const handleDeleteEvent = async (id) => {
+    const executeDeleteEvent = async (id) => {
       setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'deleteEvento', payload: { id } }) });
@@ -470,7 +465,7 @@ export default function App() {
     return (
       <div className="space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto">
         <header className="border-b border-slate-800 pb-4">
-          <Button variant="ghost" className="mb-4 pl-0 hover:bg-transparent" icon={ArrowLeft} onClick={() => { setSelectedProject(null); setCurrentView('DASHBOARD'); }}>Volver a Proyectos</Button>
+          <Button variant="ghost" className="mb-4 pl-0" icon={ArrowLeft} onClick={() => { setSelectedProject(null); setCurrentView('DASHBOARD'); }}>Volver a Proyectos</Button>
           <div className="flex flex-col md:flex-row justify-between items-start gap-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded block mb-2 w-fit">{p.type}</span>
@@ -490,30 +485,30 @@ export default function App() {
         </div>
 
         {isCreating && (
-          <Card className="p-6 border-emerald-500 mb-6">
-            <h2 className="text-lg font-bold text-white mb-4">Agregar Nuevo Hito en {p.name}</h2>
+          <Card className="p-6 border-emerald-500 mb-6 animate-slide-up">
+            <h2 className="text-lg font-bold text-white mb-4">Agregar Hito en {p.name}</h2>
             <form onSubmit={handleCreateEvent} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">Título del Hito</label>
-                  <input required list="hitos-list" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" placeholder="Ej: Load In, Soundcheck..." value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                  <input required list="hitos-list" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" placeholder="Ej: Soundcheck" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
                   <datalist id="hitos-list">
                     <option value="Load In (Montaje)" />
+                    <option value="Llegada Crew Técnico" />
                     <option value="Soundcheck" />
-                    <option value="Cena / Catering" />
-                    <option value="Apertura de Puertas" />
+                    <option value="Llegada Artista" />
+                    <option value="Apertura de Puertas (Doors)" />
                     <option value="Show Telonero" />
                     <option value="Show Principal" />
-                    <option value="Meet & Greet" />
                     <option value="Load Out (Desmontaje)" />
                   </datalist>
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 flex justify-between items-center mb-1">
-                    <span>Ubicación / Locación</span>
-                    <button type="button" onClick={handleGetLocation} className="text-emerald-500 hover:text-emerald-400 font-bold flex items-center gap-1 text-[10px]"><MapPin size={10}/> GPS</button>
-                  </label>
-                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" placeholder="Ej: Escenario Principal" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
+                  <label className="text-xs text-slate-400 block mb-1">Ubicación</label>
+                  <div className="flex gap-2">
+                    <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" placeholder="Ej: Escenario Principal" value={form.location || ''} onChange={e=>setForm({...form, location: e.target.value})} />
+                    <Button variant="secondary" className="px-3" icon={MapPin} onClick={() => handleGPS((val) => setForm({...form, location: val}))} title="Usar GPS"></Button>
+                  </div>
                 </div>
                 <div><label className="text-xs text-slate-400 block mb-1">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" onChange={e=>setForm({...form, date: e.target.value})} /></div>
                 <div><label className="text-xs text-slate-400 block mb-1">Hora</label><input required type="time" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" onChange={e=>setForm({...form, time: e.target.value})} /></div>
@@ -537,7 +532,7 @@ export default function App() {
               return (
                 <div key={event.id} className={`p-5 rounded-xl border transition-all duration-500 relative group ${status.bg} ${status.border}`}>
                   {canCreate && (
-                    <button onClick={() => handleDeleteEvent(event.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors p-1 bg-slate-900 rounded border border-slate-700 shadow z-10" title="Eliminar Hito">
+                    <button onClick={() => showConfirm("Eliminar Hito", "¿Seguro que deseas eliminar este hito del Timing?", () => executeDeleteEvent(event.id), true)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors p-1 bg-slate-900 rounded border border-slate-700 shadow z-10">
                       <Trash2 size={16} />
                     </button>
                   )}
@@ -555,12 +550,12 @@ export default function App() {
                         <span className="flex items-center gap-1"><MapPin size={14}/> {event.location}</span>
                       </div>
 
-                      {/* --- ASIGNACIÓN DE CREW AL HITO --- */}
+                      {/* Sección de Asignaciones */}
                       <div className="border-t border-slate-700/50 pt-3">
-                        <p className="text-xs text-slate-500 mb-2 font-bold">CREW ASIGNADO AL HITO</p>
+                        <p className="text-xs text-slate-500 mb-2 font-bold">CREW ASIGNADO</p>
                         {assigningEvent === event.id ? (
                            <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 mt-2 animate-fade-in">
-                             <p className="text-xs text-slate-400 mb-3">Selecciona al personal de la BD:</p>
+                             <p className="text-xs text-slate-400 mb-3">Selecciona al personal para este evento:</p>
                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto mb-4 custom-scrollbar">
                                {globalUsers.map(u => (
                                  <label key={u.email} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer p-1 hover:bg-slate-800 rounded">
@@ -588,11 +583,11 @@ export default function App() {
                                   return usr ? <div key={idx} className="inline-block h-8 w-8 rounded-full ring-2 ring-slate-800 bg-slate-700 text-white flex items-center justify-center text-xs font-bold" title={usr.name}>{usr.name.charAt(0)}</div> : null;
                                 })
                               ) : (
-                                <span className="text-xs text-slate-500 italic">Nadie asignado aún</span>
+                                <span className="text-xs text-slate-500 italic">Sin asignaciones</span>
                               )}
                               {asignadosList.length > 5 && <div className="inline-block h-8 w-8 rounded-full ring-2 ring-slate-800 bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">+{asignadosList.length - 5}</div>}
                             </div>
-                            {canCreate && <Button variant="ghost" className="text-xs px-2 py-1 h-8 bg-slate-900 border border-slate-700 hover:text-emerald-400" icon={UserPlus2} onClick={() => setAssigningEvent(event.id)}>Modificar Crew</Button>}
+                            {canCreate && <Button variant="ghost" className="text-xs px-2 py-1 h-8" icon={UserPlus2} onClick={() => setAssigningEvent(event.id)}>Asignar Crew</Button>}
                           </div>
                         )}
                       </div>
@@ -614,10 +609,10 @@ export default function App() {
 
   const TimingGlobalView = () => {
     return (
-      <div className="text-center p-12 max-w-2xl mx-auto mt-10 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
+      <div className="text-center p-12 max-w-2xl mx-auto mt-10 border border-slate-800 border-dashed rounded-xl bg-slate-900/50 animate-fade-in">
         <Clock className="mx-auto text-emerald-500 mb-4" size={48} />
         <h3 className="text-xl font-bold text-white mb-2">Timing Organizado por Proyectos</h3>
-        <p className="text-slate-400 text-sm mb-6">El Run of Show ahora se organiza de manera limpia dentro de cada proyecto o gira. Ingresa a un proyecto para ver sus horarios.</p>
+        <p className="text-slate-400 text-sm mb-6">El Run of Show se organiza de manera limpia dentro de cada proyecto o gira. Selecciona un proyecto para ver y editar su Timing.</p>
         <Button onClick={() => setCurrentView('DASHBOARD')} icon={Navigation} className="mx-auto">Ir a Mis Proyectos</Button>
       </div>
     );
@@ -626,12 +621,12 @@ export default function App() {
   const RidersView = () => {
     const [riders, setRiders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [fetchError, setFetchError] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editTab, setEditTab] = useState('GENERAL');
     
     const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TECH].includes(currentUser.role);
 
+    // Evitamos el símbolo "=" que rompe Google Sheets, usando "-"
     const defaultContent = {
       importante: '',
       contacto: { mgmtCel: '', mgmtCorreo: '', prodCel: '', prodCorreo: '' },
@@ -647,23 +642,19 @@ export default function App() {
 
     const fetchRiders = async () => {
       setLoading(true);
-      setFetchError(false);
       try {
         const res = await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'getRiders' }) });
         const json = await res.json();
         if (json.status === 'success') {
-          // Parsear el contenido estructurado
           const parsedRiders = json.data.map(r => {
             let parsedContent;
             try { parsedContent = JSON.parse(r.content); } 
-            catch(e) { parsedContent = { ...defaultContent, importante: r.content }; } // Fallback para riders antiguos
+            catch(e) { parsedContent = { ...defaultContent, importante: r.content }; }
             return { ...r, content: parsedContent };
           });
           setRiders(parsedRiders);
         }
-      } catch(e) {
-        setFetchError(true);
-      }
+      } catch(e) {}
       setLoading(false);
     };
     useEffect(() => { fetchRiders(); }, []);
@@ -672,19 +663,17 @@ export default function App() {
       e.preventDefault(); setLoading(true);
       try {
         const action = form.id ? 'updateRider' : 'createRider';
-        // Comprimir el objeto content a String para la BD
         const payloadToSave = { ...form, content: JSON.stringify(form.content) };
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action, payload: payloadToSave }) });
         showToast("Rider guardado correctamente."); setIsEditing(false); fetchRiders();
       } catch(e) { showToast("Error al guardar rider."); setLoading(false); }
     };
 
-    const handleDelete = async (id) => {
-      if(!window.confirm("¿Estás seguro de eliminar este Rider de forma permanente?")) return;
+    const executeDeleteRider = async (id) => {
       setLoading(true);
       try {
         await fetch('/.netlify/functions/api', { method: 'POST', body: JSON.stringify({ action: 'deleteRider', payload: { id } }) });
-        showToast("Rider eliminado permanentemente."); fetchRiders();
+        showToast("Rider eliminado."); fetchRiders();
       } catch(e) { showToast("Error al eliminar."); setLoading(false); }
     };
 
@@ -695,13 +684,11 @@ export default function App() {
       setIsEditing(true);
     };
 
-    const restoreDefaults = () => {
-      if(window.confirm("¿Restaurar textos por defecto? Esto borrará lo que no hayas guardado.")) {
-        setForm(prev => ({ ...prev, content: JSON.parse(JSON.stringify(defaultContent)) }));
-      }
+    const executeRestore = () => {
+      setForm(prev => ({ ...prev, content: JSON.parse(JSON.stringify(defaultContent)) }));
+      showToast("Plantilla restaurada.");
     };
 
-    // Funciones Helper para las Tablas
     const updateTable = (tableName, index, field, value) => {
       setForm(prev => {
         const newTable = [...prev.content[tableName]];
@@ -724,7 +711,7 @@ export default function App() {
     return (
       <div className="space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto">
         <header className="border-b border-slate-800 pb-4 flex justify-between items-end">
-          <div><h1 className="text-2xl font-black text-white flex items-center gap-3"><FileText className="text-emerald-500" size={28}/> Riders Técnicos</h1><p className="text-sm text-slate-400 mt-1">Especificaciones Técnicas Oficiales.</p></div>
+          <div><h1 className="text-2xl font-black text-white flex items-center gap-3"><FileText className="text-emerald-500" size={28}/> Riders Técnicos</h1><p className="text-sm text-slate-400 mt-1">Especificaciones Técnicas Oficiales estructuradas.</p></div>
           {canManageRiders && !isEditing && <Button icon={Plus} onClick={() => openEditor(null)}>Crear Rider</Button>}
         </header>
 
@@ -733,7 +720,7 @@ export default function App() {
             <div className="p-4 border-b border-slate-700 bg-slate-900 shrink-0">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-bold text-white">{form.id ? 'Editar Rider' : 'Generar Nuevo Rider'}</h2>
-                <Button variant="ghost" className="text-[10px] py-1 px-2 border border-slate-700" icon={RefreshCw} onClick={restoreDefaults}>Restaurar Plantilla Original</Button>
+                <Button variant="ghost" className="text-[10px] py-1 px-2 border border-slate-700" icon={RefreshCw} onClick={() => showConfirm("Restaurar Plantilla", "¿Restaurar textos por defecto? Esto borrará lo que no hayas guardado en las tablas.", executeRestore, true)}>Restaurar Plantilla Original</Button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><label className="text-xs text-slate-400 block mb-1">Título del Documento</label><input required className="w-full bg-slate-800 border-slate-700 rounded p-2 text-white" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} /></div>
@@ -749,7 +736,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* PESTAÑAS DE EDICIÓN */}
             <div className="flex overflow-x-auto bg-slate-900 border-b border-slate-700 shrink-0 hide-scrollbar">
               {['GENERAL', 'AUDIO', 'BACKLINE', 'VISUALES'].map(tab => (
                 <button key={tab} type="button" onClick={() => setEditTab(tab)} className={`px-6 py-3 text-xs font-bold whitespace-nowrap transition-colors border-b-2 ${editTab === tab ? 'border-emerald-500 text-emerald-400 bg-slate-800' : 'border-transparent text-slate-400 hover:text-white'}`}>
@@ -758,7 +744,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* ÁREA DE SCROLL PARA EL FORMULARIO */}
             <div className="flex-1 overflow-y-auto p-6 bg-slate-950 custom-scrollbar">
               {editTab === 'GENERAL' && (
                 <div className="space-y-6">
@@ -782,7 +767,6 @@ export default function App() {
 
               {editTab === 'AUDIO' && (
                 <div className="space-y-8">
-                  {/* TABLA OUTPUTS */}
                   <div>
                     <div className="flex justify-between items-end mb-2">
                       <h3 className="text-sm font-bold text-emerald-500">TABLA OUTPUT / MONITOR ({form.content.outputs.length}/100)</h3>
@@ -806,7 +790,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* TABLA INPUTS */}
                   <div>
                     <div className="flex justify-between items-end mb-2">
                       <h3 className="text-sm font-bold text-emerald-500">TABLA INPUT LIST ({form.content.inputs.length}/100)</h3>
@@ -891,10 +874,6 @@ export default function App() {
               <Button variant="primary" className="flex-1 py-3" onClick={handleSave} icon={Save}>Guardar Documento</Button>
             </div>
           </Card>
-        ) : fetchError ? (
-          <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3">
-            <AlertCircle size={20} /> Error al cargar Riders. Revisa tu conexión.
-          </div>
         ) : loading ? <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div> : (
           <div className="grid grid-cols-1 gap-6">
             {riders.map((r, idx) => {
@@ -907,14 +886,13 @@ export default function App() {
                     </div>
                     {canManageRiders && (
                       <div className="flex gap-2">
-                        <Button variant="danger" className="px-3 bg-slate-800" icon={Trash2} onClick={() => handleDelete(r.id)}></Button>
+                        <Button variant="danger" className="px-3 bg-slate-800" icon={Trash2} onClick={() => showConfirm("Eliminar Rider", "¿Estás seguro de eliminar este Rider de forma permanente?", () => executeDeleteRider(r.id), true)}></Button>
                         <Button variant="secondary" icon={Edit3} onClick={() => openEditor(r)}>Editar Rider</Button>
                       </div>
                     )}
                   </div>
                   
                   <div className="p-5 space-y-6">
-                    {/* Render de vista de lectura */}
                     {r.content.importante && (
                       <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg">
                         <h4 className="text-emerald-400 text-xs font-black mb-2 uppercase">Importante</h4>
@@ -954,7 +932,6 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* Tablas Renderizadas */}
                     {r.content.inputs && r.content.inputs.length > 0 && r.content.inputs[0].name !== '' && (
                       <div className="mt-4">
                         <h4 className="text-slate-400 text-xs font-black mb-2 uppercase">INPUT LIST</h4>
@@ -1039,16 +1016,6 @@ export default function App() {
       } catch(e) { showToast("Error al crear ruta."); setLoading(false); }
     };
 
-    const handleGetLocation = (field) => {
-      if ("geolocation" in navigator) {
-        showToast("Obteniendo ubicación GPS...");
-        navigator.geolocation.getCurrentPosition((position) => {
-          setForm(prev => ({ ...prev, [field]: `${position.coords.latitude}, ${position.coords.longitude}` }));
-          showToast("Ubicación capturada.");
-        }, () => showToast("Error al obtener GPS."));
-      }
-    };
-
     return (
       <div className="space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto">
         <header className="border-b border-slate-800 pb-4 flex justify-between items-end">
@@ -1067,18 +1034,18 @@ export default function App() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-slate-400 flex justify-between items-center mb-1">
-                    <span>Origen (Hotel)</span>
-                    <button type="button" onClick={() => handleGetLocation('origin')} className="text-blue-500 hover:text-blue-400 font-bold flex items-center gap-1 text-[10px]"><MapPin size={10}/> GPS</button>
-                  </label>
-                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" value={form.origin} onChange={e=>setForm({...form, origin: e.target.value})} />
+                  <label className="text-xs text-slate-400 block mb-1">Origen (Hotel/Aeropuerto)</label>
+                  <div className="flex gap-2">
+                    <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" value={form.origin} onChange={e=>setForm({...form, origin: e.target.value})} />
+                    <Button variant="secondary" icon={MapPin} className="px-3" onClick={() => handleGPS((val) => setForm({...form, origin: val}))} title="Usar GPS"></Button>
+                  </div>
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 flex justify-between items-center mb-1">
-                    <span>Destino (Venue)</span>
-                    <button type="button" onClick={() => handleGetLocation('dest')} className="text-emerald-500 hover:text-emerald-400 font-bold flex items-center gap-1 text-[10px]"><MapPin size={10}/> GPS</button>
-                  </label>
-                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" value={form.dest} onChange={e=>setForm({...form, dest: e.target.value})} />
+                  <label className="text-xs text-slate-400 block mb-1">Destino (Venue)</label>
+                  <div className="flex gap-2">
+                    <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-white" value={form.dest} onChange={e=>setForm({...form, dest: e.target.value})} />
+                    <Button variant="secondary" icon={MapPin} className="px-3" onClick={() => handleGPS((val) => setForm({...form, dest: val}))} title="Usar GPS"></Button>
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1">Guardar Ruta</Button></div>
@@ -1186,7 +1153,7 @@ export default function App() {
     return (
       <div className="flex flex-col h-[calc(100vh-2rem)] md:h-[calc(100vh-4rem)] max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
         <header className="p-4 bg-slate-800 border-b border-slate-700 flex items-center gap-3"><MessageSquare className="text-emerald-500" size={24} /><div><h2 className="font-black text-white text-lg leading-tight">Anuncios de Gira</h2><p className="text-xs text-slate-400">Canal oficial de producción</p></div></header>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
           {messages.map(msg => {
             const isMe = msg.sender === currentUser.name;
             const hasRead = msg.readBy.includes(currentUser.name);
@@ -1403,10 +1370,31 @@ export default function App() {
   const menuOptions = getMenuOptions();
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row font-sans">
-      {toastMessage && <div className="fixed top-4 right-4 z-[100] bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 animate-fade-in"><CheckCircle2 size={20} /><span className="font-bold text-sm">{toastMessage}</span></div>}
+    <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row font-sans relative">
+      {/* Toast Notifications */}
+      {toastMessage && (
+        <div className="fixed top-4 right-4 z-[100] bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 animate-fade-in">
+          <CheckCircle2 size={20} /><span className="font-bold text-sm">{toastMessage}</span>
+        </div>
+      )}
 
-      <aside className="bg-slate-900 border-r border-slate-800 w-64 shrink-0 hidden md:flex flex-col h-screen sticky top-0">
+      {/* Confirm Modal Exclusivo de ESQUEMAPPS */}
+      {confirmState.isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 px-4 animate-fade-in backdrop-blur-sm">
+          <Card className="max-w-md w-full p-6 border-slate-700 animate-slide-up shadow-2xl bg-slate-900">
+            <h3 className="text-xl font-bold text-white mb-2">{confirmState.title}</h3>
+            <p className="text-slate-400 text-sm mb-6 leading-relaxed">{confirmState.message}</p>
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1 py-3" onClick={closeConfirm}>Cancelar</Button>
+              <Button variant={confirmState.isDanger ? "danger" : "primary"} className={`flex-1 py-3 ${confirmState.isDanger ? 'bg-red-600 text-white border-red-500' : ''}`} onClick={() => { confirmState.onConfirm(); closeConfirm(); }}>
+                Confirmar
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      <aside className="bg-slate-900 border-r border-slate-800 w-64 shrink-0 hidden md:flex flex-col h-screen sticky top-0 z-40">
         <div className="p-5 flex items-center gap-3 border-b border-slate-800"><Music className="text-emerald-500" size={24} /><h1 className="text-xl font-black text-white tracking-widest">ESQUEMAPPS</h1></div>
         <div className="p-4 flex-1 space-y-2 overflow-y-auto custom-scrollbar">
           {menuOptions.map(opt => (
