@@ -519,7 +519,8 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   const handleLogin = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
     try {
-      const data = await apiFetch('login', { email, password: pass });
+      // Usamos .trim() para limpiar espacios ocultos al copiar/pegar
+      const data = await apiFetch('login', { email: email.trim(), password: pass.trim() });
       if (data.status === 'success') setCurrentUser(data.user); 
       else setError(data.message);
     } catch (err) { setError("Error de red conectando al servidor."); }
@@ -539,7 +540,7 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   const handleRegister = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
     try {
-      const result = await apiFetch('solicitarAcceso', { name: regName, email, phone: regPhone, role: regRole });
+      const result = await apiFetch('solicitarAcceso', { name: regName.trim(), email: email.trim(), phone: regPhone.trim(), role: regRole });
       if (result.status === 'success') { setMode('LOGIN'); showToast("Solicitud enviada exitosamente."); } 
       else setError(result.message);
     } catch (err) { setError('Error de red al enviar la solicitud.'); }
@@ -2406,6 +2407,15 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
   const [invRole, setInvRole] = useState(ROLES.TECH);
   const [editingUser, setEditingUser] = useState(null);
 
+  const MODULOS = [
+    { id: 'DASHBOARD', label: 'Proyectos' },
+    { id: 'RIDERS', label: 'Riders' },
+    { id: 'TRANSPORT', label: 'Transportes' },
+    { id: 'CHAT', label: 'Anuncios' },
+    { id: 'STAFF', label: 'Directorio' },
+    { id: 'ADMIN_PANEL', label: 'Admin Panel' }
+  ];
+
   const fetchUsers = async (force = false) => {
     setLoading(true); setFetchError(false);
     if (!force && CACHE.usuarios) {
@@ -2471,9 +2481,21 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
 
   const handleEditSave = async (e) => {
     e.preventDefault();
-    showToast("Edición simulada. Requiere endpoint de admin."); 
-    setDbUsers(prev => prev.map(u => u.email === editingUser.email ? editingUser : u));
-    setEditingUser(null);
+    setProcessingId('editing');
+    try {
+      const res = await apiFetch('updateUserAdmin', editingUser);
+      if (res.status === 'success') {
+        showToast("Perfil de usuario actualizado."); 
+        clearCache('usuarios');
+        setDbUsers(prev => prev.map(u => u.email === editingUser.email ? editingUser : u));
+        setEditingUser(null);
+      } else {
+        showToast("Error al guardar: " + res.message);
+      }
+    } catch(err) {
+      showToast("Error de conexión al guardar cambios.");
+    }
+    setProcessingId(null);
   };
 
   const pendingUsers = dbUsers.filter(u => u.status === 'PENDING');
@@ -2523,10 +2545,45 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
                       <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name: e.target.value})} />
                       <div className="grid grid-cols-2 gap-2"><input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" value={editingUser.phone} onChange={e=>setEditingUser({...editingUser, phone: e.target.value})} /><select className="w-full max-w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500 break-words" value={editingUser.role} onChange={e=>setEditingUser({...editingUser, role: e.target.value})}>{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
                       <select className="w-full max-w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white font-bold outline-none focus:border-emerald-500 break-words" value={editingUser.status} onChange={e=>setEditingUser({...editingUser, status: e.target.value})}><option value="ACTIVO">ACTIVO</option><option value="INACTIVO">BLOQUEADO</option></select>
-                      <div className="flex flex-row gap-2 mt-2"><Button variant="ghost" className="flex-1 bg-slate-800 py-1.5" onClick={() => setEditingUser(null)}>Cancelar</Button><Button type="submit" variant="primary" className="flex-1 py-1.5">Guardar</Button></div>
+                      
+                      <div className="pt-2 mt-2 border-t border-slate-700">
+                         <h4 className="text-[10px] uppercase text-slate-400 font-bold mb-2">Accesos Permitidos</h4>
+                         <div className="grid grid-cols-2 gap-2">
+                           {MODULOS.map(mod => (
+                             <label key={mod.id} className="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer">
+                               <input type="checkbox" checked={editingUser.permisos?.includes(mod.id)} 
+                                      onChange={(e) => {
+                                        const newPerms = e.target.checked 
+                                          ? [...(editingUser.permisos || []), mod.id] 
+                                          : (editingUser.permisos || []).filter(p => p !== mod.id);
+                                        setEditingUser({...editingUser, permisos: newPerms});
+                                      }}
+                                      className="accent-emerald-500 rounded bg-slate-800 border-slate-600" />
+                               {mod.label}
+                             </label>
+                           ))}
+                         </div>
+                      </div>
+
+                      <div className="flex flex-row gap-2 mt-2"><Button variant="ghost" className="flex-1 bg-slate-800 py-1.5" onClick={() => setEditingUser(null)}>Cancelar</Button><Button type="submit" variant="primary" className="flex-1 py-1.5" disabled={processingId === 'editing'}>{processingId === 'editing' ? '...' : 'Guardar'}</Button></div>
                     </form>
                   ) : (
-                    <><div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-base shrink-0">{u.name?.charAt(0) || '?'}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-white text-base truncate">{u.name}</h3><span className="text-[9px] bg-slate-900 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold inline-block mt-0.5">{u.role}</span></div>{u.status === 'INACTIVO' && <span className="text-[9px] text-red-500 font-bold border border-red-500/50 px-1.5 py-0.5 rounded">BLOCK</span>}</div><div className="mt-auto pt-3 border-t border-slate-700/50 flex flex-row gap-2"><Button variant="secondary" className="flex-1 py-1.5" icon={Edit3} onClick={() => setEditingUser(u)}>Editar Perfil</Button></div></>
+                    <>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-base shrink-0">{u.name?.charAt(0) || '?'}</div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-white text-base truncate">{u.name}</h3>
+                          <span className="text-[9px] bg-slate-900 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold inline-block mt-0.5">{u.role}</span>
+                        </div>
+                        {u.status === 'INACTIVO' && <span className="text-[9px] text-red-500 font-bold border border-red-500/50 px-1.5 py-0.5 rounded">BLOCK</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {(u.permisos || []).map(p => <span key={p} className="text-[8px] bg-slate-900 text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded uppercase">{p}</span>)}
+                      </div>
+                      <div className="mt-auto pt-3 border-t border-slate-700/50 flex flex-row gap-2">
+                        <Button variant="secondary" className="flex-1 py-1.5" icon={Edit3} onClick={() => setEditingUser(u)}>Editar Perfil y Accesos</Button>
+                      </div>
+                    </>
                   )}
                 </Card>
               ))}
@@ -2566,11 +2623,11 @@ const ProfileView = ({ currentUser, setCurrentUser, showToast }) => {
 
     setSaving(true);
     try {
-      const payload = { email: currentUser.email, phone: pPhone, talla: pTalla, dieta: pDieta };
-      if (newPass && oldPass) { payload.oldPassword = oldPass; payload.newPassword = newPass; }
+      const payload = { email: currentUser.email.trim(), phone: pPhone.trim(), talla: pTalla, dieta: pDieta };
+      if (newPass && oldPass) { payload.oldPassword = oldPass.trim(); payload.newPassword = newPass.trim(); }
       const res = await apiFetch('updateProfile', payload);
       if (res.status === 'success') {
-        setCurrentUser({ ...currentUser, phone: pPhone, talla: pTalla, dieta: pDieta });
+        setCurrentUser({ ...currentUser, phone: pPhone.trim(), talla: pTalla, dieta: pDieta });
         setOldPass(''); setNewPass(''); setConfirmPass('');
         showToast(newPass ? "¡Perfil y Contraseña actualizados!" : "¡Perfil actualizado!");
         clearCache('usuarios');
@@ -2644,19 +2701,27 @@ export default function App() {
     if (!currentUser) return [];
     if (currentUser.role === 'CONDUCTOR') return [{ id: 'CONDUCTOR_VIEW', label: 'Mi Ruta', icon: Truck }, { id: 'LOGOUT', label: 'Salir', icon: LogOut }];
 
-    const r = currentUser.role;
-    const chat = { id: 'CHAT', label: 'Anuncios', icon: MessageSquare };
-    const dir = { id: 'STAFF', label: 'Directorio', icon: Users };
-    const transport = { id: 'TRANSPORT', label: 'Transportes', icon: Truck };
-    const riders = { id: 'RIDERS', label: 'Riders Téc.', icon: FileText };
-    const admin = { id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck };
-    const profile = { id: 'PROFILE', label: 'Mi Perfil', icon: User };
+    const allOptions = [
+      { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation },
+      { id: 'RIDERS', label: 'Riders Téc.', icon: FileText },
+      { id: 'TRANSPORT', label: 'Transportes', icon: Truck },
+      { id: 'CHAT', label: 'Anuncios', icon: MessageSquare },
+      { id: 'STAFF', label: 'Directorio', icon: Users },
+      { id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck }
+    ];
     
-    if (r === ROLES.ADMIN) return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, riders, transport, chat, dir, admin, profile ];
-    if (r === ROLES.MANAGER || r === ROLES.TOUR_MANAGER) return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, riders, transport, chat, dir, profile ];
-    if (r === ROLES.APV) return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, riders, transport, chat, dir, profile ];
+    // Filtrar basado en permisos del usuario. Fallback por si es cuenta antigua.
+    const perms = currentUser.permisos || [];
     
-    return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, riders, transport, chat, dir, profile ];
+    // Si no tiene permisos asignados (migración), damos acceso base.
+    if (perms.length === 0) {
+       const r = currentUser.role;
+       if (r === ROLES.ADMIN) return [ ...allOptions, { id: 'PROFILE', label: 'Mi Perfil', icon: User } ];
+       return [ allOptions[0], allOptions[1], allOptions[2], allOptions[3], allOptions[4], { id: 'PROFILE', label: 'Mi Perfil', icon: User } ];
+    }
+
+    const userOptions = allOptions.filter(opt => perms.includes(opt.id));
+    return [ ...userOptions, { id: 'PROFILE', label: 'Mi Perfil', icon: User } ];
   };
 
   const fetchDirectoryGlobal = async (force = false) => {
