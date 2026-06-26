@@ -824,6 +824,7 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 border-b border-slate-800 pb-4">
         <div><h1 className="text-2xl md:text-3xl font-black text-white leading-tight">Hola, {currentUser.name.split(' ')[0]}</h1><p className="text-emerald-400 text-xs md:text-sm font-black uppercase tracking-wider">{currentUser.role}</p></div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Button variant="ghost" icon={RefreshCw} onClick={() => fetchProyectos(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar Proyectos" />
           {canCreate && !isCreating && <Button icon={FolderPlus} variant="primary" className="flex-1 sm:flex-none" onClick={() => setIsCreating(true)}>Nuevo Proyecto</Button>}
         </div>
       </header>
@@ -1379,6 +1380,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
       showToast("Documento guardado correctamente."); 
       setViewMode('LIST');
       setActiveRider(null);
+      setIsPreview(false);
       clearCache('riders');
       fetchData(true);
     } catch(e) { showToast("Error al guardar."); setLoading(false); }
@@ -1401,6 +1403,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
     else setForm({ id: null, title: 'Nuevo Documento', type: 'COMPLETO', content: JSON.parse(JSON.stringify(defaultContent)) });
     setEditTab('GENERAL'); 
     setViewMode('EDIT');
+    setIsPreview(false);
   };
 
   const restoreDefaults = () => {
@@ -1558,6 +1561,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
       })
       .sort((a,b) => a.fullDate - b.fullDate);
   };
+  
   const riderHitos = getRiderHitos();
   const displayRider = (viewMode === 'EDIT' && isPreview) ? form : activeRider;
 
@@ -1577,6 +1581,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
            <p className="text-xs md:text-sm text-slate-400 mt-1">Especificaciones Oficiales de Producción.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {viewMode === 'LIST' && <Button variant="ghost" icon={RefreshCw} onClick={() => fetchData(true)} className="px-2 border border-slate-700 hover:text-emerald-400 mr-1" title="Actualizar Documentos" />}
           {(viewMode === 'DETAIL' || isPreview) && riderHitos.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer print:hidden mr-2">
               <input type="checkbox" checked={includeTiming} onChange={e => setIncludeTiming(e.target.checked)} className="accent-emerald-500 rounded bg-slate-900 border-slate-700"/>
@@ -1763,7 +1768,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
 
                 <div className="space-y-2 mt-4">
                   <label className="text-[10px] md:text-xs font-bold text-slate-400 block uppercase">Añadir Tablas de Requerimientos y Extras</label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 items-center">
                     {CATERING_SECTIONS.map(sec => (
                       <Button key={sec} type="button" variant="secondary" onClick={() => addCateringTable(sec)} className="py-1 px-2 text-[10px]" icon={Plus}>{sec}</Button>
                     ))}
@@ -1879,7 +1884,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
           </div>
 
           <div className="p-3 md:p-4 border-t border-slate-700 bg-slate-900 shrink-0 flex gap-2">
-            <Button variant="secondary" className="flex-1 py-2" onClick={() => { if(!form.id) setViewMode('LIST'); else setViewMode('DETAIL'); }}>Cancelar</Button>
+            <Button variant="secondary" className="flex-1 py-2" onClick={() => { setIsPreview(false); if(!form.id) setViewMode('LIST'); else setViewMode('DETAIL'); }}>Cancelar</Button>
             <Button variant="blue" className="flex-1 py-2" onClick={() => setIsPreview(true)} icon={Maximize}>Vista Previa</Button>
             <Button variant="primary" className="flex-1 py-2" onClick={handleSave} icon={Save}>Guardar Documento</Button>
           </div>
@@ -2425,12 +2430,26 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
     try {
       const res = await apiFetch('aprobarUsuario', { email });
       if (res.status === 'success') { 
-        showToast("Usuario aprobado. Clave enviada por correo."); 
+        showToast("Usuario aprobado. Correo enviado al usuario."); 
         clearCache('usuarios');
-        fetchUsers(true); 
+        setDbUsers(prev => prev.map(u => u.email === email ? { ...u, status: 'ACTIVO' } : u));
       } 
       else { showToast("Error: " + res.message); }
     } catch(e) { showToast("Error de conexión al aprobar."); }
+    setProcessingId(null);
+  };
+
+  const handleReject = async (email) => {
+    setProcessingId(email);
+    try {
+      const res = await apiFetch('rechazarUsuario', { email });
+      if (res.status === 'success') { 
+        showToast("Solicitud rechazada. Correo enviado."); 
+        clearCache('usuarios');
+        setDbUsers(prev => prev.filter(u => u.email !== email));
+      } 
+      else { showToast("Error: " + res.message); }
+    } catch(e) { showToast("Error de conexión al rechazar."); }
     setProcessingId(null);
   };
 
@@ -2462,9 +2481,12 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 pb-24 animate-fade-in">
-      <header className="border-b border-slate-800 pb-3 md:pb-4">
-        <h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3"><ShieldCheck className="text-emerald-500" size={24} /> Admin Panel</h1>
-        <p className="text-xs md:text-sm text-slate-400 mt-1">Gestión global de accesos, roles y perfiles.</p>
+      <header className="border-b border-slate-800 pb-3 md:pb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3"><ShieldCheck className="text-emerald-500" size={24} /> Admin Panel</h1>
+          <p className="text-xs md:text-sm text-slate-400 mt-1">Gestión global de accesos, roles y perfiles.</p>
+        </div>
+        <Button variant="ghost" icon={RefreshCw} onClick={() => fetchUsers(true)} className="px-2 py-1.5 border border-slate-700 hover:text-emerald-400" title="Actualizar Solicitudes" />
       </header>
 
       <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
@@ -2485,7 +2507,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
                 <Card key={u.email} className="p-4 border-l-4 border-l-amber-500">
                   <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
                     <div><h3 className="text-base font-bold text-white flex items-center gap-2">{u.name} <span className="bg-amber-500/20 text-amber-400 text-[9px] px-1.5 py-0.5 rounded uppercase font-black tracking-wider">PENDIENTE</span></h3><p className="text-xs text-slate-400 mt-0.5">{u.email} • {u.phone}</p><p className="text-[10px] text-emerald-400 font-bold mt-1 uppercase">Rol: {u.role}</p></div>
-                    <div className="flex flex-row gap-2 shrink-0 mt-2 md:mt-0"><Button variant="danger" icon={X} className="flex-1 py-1.5" onClick={() => requestConfirm("¿Rechazar esta solicitud?", () => showToast("Solicitud rechazada."))}>Rechazar</Button><Button variant="primary" icon={Key} className="flex-1 py-1.5" disabled={processingId === u.email} onClick={() => handleApprove(u.email)}>{processingId === u.email ? '...' : 'Aprobar'}</Button></div>
+                    <div className="flex flex-row gap-2 shrink-0 mt-2 md:mt-0"><Button variant="danger" icon={X} className="flex-1 py-1.5" disabled={processingId === u.email} onClick={() => requestConfirm("¿Rechazar esta solicitud?", () => handleReject(u.email))}>{processingId === u.email ? '...' : 'Rechazar'}</Button><Button variant="primary" icon={Key} className="flex-1 py-1.5" disabled={processingId === u.email} onClick={() => handleApprove(u.email)}>{processingId === u.email ? '...' : 'Aprobar'}</Button></div>
                   </div>
                 </Card>
               ))}
