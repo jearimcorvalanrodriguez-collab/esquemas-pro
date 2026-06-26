@@ -7,7 +7,7 @@ import {
   Phone, Mail, CheckCheck, Send, Timer, Hourglass,
   Shield, CalendarPlus, FileText, Mic2, Lightbulb, Map as MapIcon, Save,
   Trash2, FolderPlus, RefreshCw, ChevronLeft, CheckSquare, Square, Printer, Utensils, CalendarDays,
-  RotateCw, Maximize, Minimize, Link
+  RotateCw, Maximize, Minimize, Link, Eye, EyeOff
 } from 'lucide-react';
 
 const ROLES = {
@@ -509,6 +509,7 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   const [mode, setMode] = useState('LOGIN'); 
   const [email, setEmail] = useState(''); 
   const [pass, setPass] = useState('');
+  const [showPass, setShowPass] = useState(false);
   const [driverToken, setDriverToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -520,7 +521,6 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   const handleLogin = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
     try {
-      // Usamos .trim() para limpiar espacios ocultos al copiar/pegar
       const data = await apiFetch('login', { email: email.trim(), password: pass.trim() });
       if (data.status === 'success') setCurrentUser(data.user); 
       else setError(data.message);
@@ -542,7 +542,9 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
     e.preventDefault(); setError(''); setLoading(true);
     try {
       const result = await apiFetch('solicitarAcceso', { name: regName.trim(), email: email.trim(), phone: regPhone.trim(), role: regRole });
-      if (result.status === 'success') { setMode('LOGIN'); showToast("Solicitud enviada exitosamente."); } 
+      if (result.status === 'success') { 
+        setMode('REGISTER_SUCCESS'); 
+      } 
       else setError(result.message);
     } catch (err) { setError('Error de red al enviar la solicitud.'); }
     setLoading(false);
@@ -556,15 +558,25 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
         <p className="text-slate-400 mt-1 tracking-widest text-xs uppercase font-bold">Production Management</p>
       </div>
       <Card className="w-full max-w-md p-6 animate-slide-up border-slate-700/50">
-        <div className="mb-4 text-center border-b border-slate-800 pb-3">
-          <h2 className="text-xl font-bold text-white">{mode === 'LOGIN' ? 'Iniciar Sesión' : mode === 'CONDUCTOR' ? 'Acceso Conductor' : 'Solicitar Acceso'}</h2>
-        </div>
+        {mode !== 'REGISTER_SUCCESS' && (
+          <div className="mb-4 text-center border-b border-slate-800 pb-3">
+            <h2 className="text-xl font-bold text-white">{mode === 'LOGIN' ? 'Iniciar Sesión' : mode === 'CONDUCTOR' ? 'Acceso Conductor' : 'Solicitar Acceso'}</h2>
+          </div>
+        )}
         
         {mode === 'LOGIN' && (
           <form onSubmit={handleLogin} className="space-y-4">
              {error && <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-xs p-2.5 rounded-lg flex items-center gap-2"><AlertCircle size={14} /><span>{error}</span></div>}
             <div><label className="block text-xs font-bold text-slate-400 mb-1">Correo Electrónico</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none transition-colors" required /></div>
-            <div><label className="block text-xs font-bold text-slate-400 mb-1">Contraseña</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none transition-colors" required /></div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1">Contraseña</label>
+              <div className="relative">
+                <input type={showPass ? "text" : "password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 pr-10 text-white text-sm focus:border-emerald-500 outline-none transition-colors" required />
+                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
             <Button type="submit" className="w-full py-2.5" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Ingresar a Plataforma'}</Button>
             <div className="border-t border-slate-800 pt-3 space-y-2 mt-3">
               <Button type="button" variant="secondary" className="w-full bg-slate-800 text-blue-400 border-blue-900/50 hover:bg-slate-700 hover:text-blue-300 py-2.5" onClick={()=>setMode('CONDUCTOR')} icon={Truck}>Acceso Conductor Logística</Button>
@@ -593,12 +605,24 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
             <p className="text-center text-xs text-slate-400 mt-3"><button type="button" onClick={()=>setMode('LOGIN')} className="text-emerald-500 font-bold hover:underline">Volver al Login</button></p>
           </form>
         )}
+
+        {mode === 'REGISTER_SUCCESS' && (
+          <div className="text-center space-y-4 py-4 animate-fade-in">
+            <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4 border border-emerald-500/20">
+              <CheckCircle2 size={32} />
+            </div>
+            <h2 className="text-xl font-black text-white">¡Solicitud Enviada!</h2>
+            <p className="text-sm text-emerald-400 font-bold">¡Muchas gracias por querer ser parte del Crew!</p>
+            <p className="text-xs md:text-sm text-slate-300 px-2">Cuando tu acceso sea aprobado, llegará un correo con una clave provisoria que debes actualizar en tu sección <b>Mi Perfil</b>.</p>
+            <Button onClick={() => setMode('LOGIN')} className="w-full mt-6 py-2.5" variant="secondary">Volver al Inicio</Button>
+          </div>
+        )}
       </Card>
     </div>
   );
 };
 
-// --- COMPONENTES DE TRANSPORTE (NUEVOS) ---
+// --- COMPONENTES DE TRANSPORTE ---
 const TransportView = ({ currentUser, setCurrentView, showToast }) => {
   const [transports, setTransports] = useState([]);
   const [proyectos, setProyectos] = useState([]);
@@ -606,17 +630,17 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: '' });
   const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role);
+  const canManageAll = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
 
-  const fetchTransportsAndProjects = async (force = false) => {
-    setLoading(true);
+  const fetchTransportsAndProjects = async (force = false, isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       let transData = CACHE.transportes;
       if (force || !transData) {
         const res = await apiFetch('getTransportes');
         if (res.status === 'success') { transData = res.data; CACHE.transportes = res.data; }
       }
-      if (transData) setTransports(transData);
-
+      
       let projData = CACHE.proyectos;
       if (force || !projData) {
         const resP = await apiFetch('getProyectos');
@@ -625,14 +649,33 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
           CACHE.proyectos = projData; 
         }
       }
+      
       if (projData) setProyectos(projData.filter(p => p.status === 'ACTIVO'));
+
+      if (transData) {
+        // Notificación de nueva asignación en background
+        if (isBackground) {
+          const visibleOld = transports;
+          const visibleNew = canManageAll ? transData : transData.filter(t => {
+            if (!t.proyectoId) return true;
+            const p = projData?.find(proj => String(proj.id) === String(t.proyectoId));
+            return p && p.asignados.includes(currentUser.email);
+          });
+          if (visibleNew.length > visibleOld.length) showToast("🚐 ¡Tienes una nueva asignación de Transporte!");
+        }
+        setTransports(transData);
+      }
     } catch(e) {
-      showToast("Error al cargar transportes.");
+      if (!isBackground) showToast("Error al cargar transportes.");
     }
-    setLoading(false);
+    if (!isBackground) setLoading(false);
   };
 
-  useEffect(() => { fetchTransportsAndProjects(); }, []);
+  useEffect(() => { 
+    fetchTransportsAndProjects(); 
+    const interval = setInterval(() => fetchTransportsAndProjects(true, true), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -650,12 +693,29 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
     }
   };
 
-  const canManageAll = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
   const visibleTransports = canManageAll ? transports : transports.filter(t => {
-    if (!t.proyectoId) return true; // Rutas generales sin asignar
+    if (!t.proyectoId) return true; 
     const p = proyectos.find(proj => String(proj.id) === String(t.proyectoId));
     return p && p.asignados.includes(currentUser.email);
   });
+
+  if (!canManageAll && visibleTransports.length === 0 && !loading) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 pb-24 animate-fade-in">
+        <header className="border-b border-slate-800 pb-4 flex justify-between items-end">
+          <div>
+            <h1 className="text-2xl font-black text-white flex items-center gap-2"><Truck className="text-emerald-500" size={24}/> Transportes</h1>
+            <p className="text-sm text-slate-400">Gestión de rutas y traslados.</p>
+          </div>
+          <Button variant="ghost" icon={RefreshCw} onClick={() => fetchTransportsAndProjects(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar Transportes" />
+        </header>
+        <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
+           <Truck className="mx-auto text-slate-600 mb-4" size={48} />
+           <p className="text-slate-400 text-sm max-w-md mx-auto">No tienes rutas de traslado asignadas para visualizar.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 pb-24 animate-fade-in">
@@ -664,7 +724,10 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
           <h1 className="text-2xl font-black text-white flex items-center gap-2"><Truck className="text-emerald-500" size={24}/> Transportes</h1>
           <p className="text-sm text-slate-400">Gestión de rutas y traslados.</p>
         </div>
-        {canCreate && !isCreating && <Button icon={Plus} onClick={() => setIsCreating(true)}>Nueva Ruta</Button>}
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Button variant="ghost" icon={RefreshCw} onClick={() => fetchTransportsAndProjects(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar Transportes" />
+          {canCreate && !isCreating && <Button icon={Plus} onClick={() => setIsCreating(true)}>Nueva Ruta</Button>}
+        </div>
       </header>
 
       {isCreating && (
@@ -694,7 +757,7 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
         </Card>
       )}
 
-      {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> : visibleTransports.length === 0 ? <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl text-slate-500">No tienes transportes asignados en este momento.</div> : (
+      {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {visibleTransports.map(t => (
             <Card key={t.id} className="p-4">
@@ -783,26 +846,40 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
   const [form, setForm] = useState({ name: '', type: 'Gira Musical' });
   const [assigningProject, setAssigningProject] = useState(null);
 
-  const fetchProyectos = async (force = false) => {
+  const fetchProyectos = async (force = false, isBackground = false) => {
+    if (!isBackground) setLoading(true);
     setFetchError(false);
+    
     if (!force && CACHE.proyectos) {
        setProyectos(CACHE.proyectos);
-       setLoading(false);
+       if (!isBackground) setLoading(false);
        return;
     }
     try {
       const res = await apiFetch('getProyectos');
       if (res.status === 'success') {
         const parsed = res.data.map(p => ({ ...p, asignados: Array.isArray(p.asignados) ? p.asignados : [] }));
+        
+        // Notificación de nueva asignación en background
+        if (isBackground) {
+           const myOldCount = CACHE.proyectos ? CACHE.proyectos.filter(p => p.asignados.includes(currentUser.email)).length : 0;
+           const myNewCount = parsed.filter(p => p.asignados.includes(currentUser.email)).length;
+           if (myNewCount > myOldCount) showToast("🎫 ¡Tienes una nueva asignación de Proyecto!");
+        }
+
         CACHE.proyectos = parsed;
         setProyectos(parsed);
       }
-      else setFetchError(res.message || "Error al obtener proyectos");
-    } catch (e) { setFetchError("No se pudo conectar al servidor."); }
-    setLoading(false);
+      else if(!isBackground) setFetchError(res.message || "Error al obtener proyectos");
+    } catch (e) { if(!isBackground) setFetchError("No se pudo conectar al servidor."); }
+    if (!isBackground) setLoading(false);
   };
 
-  useEffect(() => { fetchProyectos(); }, []);
+  useEffect(() => { 
+    fetchProyectos(); 
+    const interval = setInterval(() => fetchProyectos(true, true), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleCreateProyecto = async (e) => {
     e.preventDefault(); 
@@ -969,6 +1046,8 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
   const p = selectedProject;
   const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
   const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE].includes(currentUser.role);
+  const canDeleteRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+  
   const [hitos, setHitos] = useState([]);
   const [projectRiders, setProjectRiders] = useState([]);
   const [allRiders, setAllRiders] = useState([]);
@@ -1016,15 +1095,25 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
     setProjectRiders(parsedRiders.filter(r => String(r.content.proyectoId) === String(p.id)));
   };
 
-  const fetchHitos = async (force = false) => {
+  const fetchHitos = async (force = false, isBackground = false) => {
+    if (!isBackground) setLoading(true);
     setFetchError(false);
-    if (!force && CACHE.hitos) { processHitos(CACHE.hitos); setLoading(false); return; }
+    
+    if (!force && CACHE.hitos) { processHitos(CACHE.hitos); if (!isBackground) setLoading(false); return; }
     try {
       const res = await apiFetch('getHitos');
-      if (res.status === 'success') { CACHE.hitos = res.data; processHitos(res.data); } 
-      else setFetchError(res.message || "Error al obtener hitos");
-    } catch(e) { setFetchError("Fallo de red al obtener hitos."); }
-    setLoading(false);
+      if (res.status === 'success') { 
+        if (isBackground) {
+           const myOldHitos = CACHE.hitos ? CACHE.hitos.filter(h => String(h.proyectoId) === String(p.id) && h.asignados?.includes(currentUser.email)).length : 0;
+           const myNewHitos = res.data.filter(h => String(h.proyectoId) === String(p.id) && h.asignados?.includes(currentUser.email)).length;
+           if (myNewHitos > myOldHitos) showToast("⏱️ ¡Tienes un nuevo Hito asignado!");
+        }
+        CACHE.hitos = res.data; 
+        processHitos(res.data); 
+      } 
+      else if(!isBackground) setFetchError(res.message || "Error al obtener hitos");
+    } catch(e) { if(!isBackground) setFetchError("Fallo de red al obtener hitos."); }
+    if (!isBackground) setLoading(false);
   };
 
   const fetchProjectRiders = async (force = false) => {
@@ -1035,7 +1124,12 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
     } catch(e) {}
   };
 
-  useEffect(() => { fetchHitos(); fetchProjectRiders(); }, []);
+  useEffect(() => { 
+    fetchHitos(); 
+    fetchProjectRiders(); 
+    const interval = setInterval(() => { fetchHitos(true, true); fetchProjectRiders(true); }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const firstHito = hitos.length > 0 ? hitos[0] : null;
   let projectDateStr = "Sin hitos programados";
@@ -1173,7 +1267,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
                   <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center group-hover:bg-emerald-500/20"><FileText className="text-emerald-500" size={16} /></div>
                   <span className="text-[9px] md:text-[10px] bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold uppercase">{r.type}</span>
                 </div>
-                {canManageRiders && (
+                {canDeleteRiders && (
                   <button onClick={(e) => { e.stopPropagation(); requestConfirm("¿Desvincular este documento del proyecto?", () => handleUnlinkRider(r)); }} className="text-slate-500 hover:text-red-500 transition-colors p-1" title="Desvincular">
                     <XCircle size={16} />
                   </button>
@@ -1323,6 +1417,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   const [isPreview, setIsPreview] = useState(false);
   
   const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE].includes(currentUser.role);
+  const canDeleteRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
   const canManageProjects = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
 
   const defaultContent = {
@@ -1358,8 +1453,9 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
 
   const [form, setForm] = useState({ id: null, title: '', type: 'COMPLETO', content: defaultContent });
 
-  const fetchData = async (force = false) => {
-    setLoading(true); setFetchError(false);
+  const fetchData = async (force = false, isBackground = false) => {
+    if (!isBackground) setLoading(true);
+    setFetchError(false);
     try {
       let rd = CACHE.riders, pd = CACHE.proyectos, hd = CACHE.hitos;
       
@@ -1392,11 +1488,15 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
            if (updatedActive) setActiveRider(updatedActive);
         }
       }
-    } catch(e) { setFetchError(true); }
-    setLoading(false);
+    } catch(e) { if(!isBackground) setFetchError(true); }
+    if (!isBackground) setLoading(false);
   };
   
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+    const interval = setInterval(() => fetchData(true, true), 30000);
+    return () => clearInterval(interval);
+  }, []);
   
   useEffect(() => {
     if (activeRider) setViewMode('DETAIL');
@@ -1951,7 +2051,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
              ) : (
                canManageRiders && (
                  <div className="flex gap-2 print:hidden">
-                   <Button variant="danger" className="px-2.5 py-1.5 bg-slate-800" icon={Trash2} onClick={() => requestConfirm("¿Eliminar este Rider permanentemente?", () => handleDelete(displayRider.id))}></Button>
+                   {canDeleteRiders && <Button variant="danger" className="px-2.5 py-1.5 bg-slate-800" icon={Trash2} onClick={() => requestConfirm("¿Eliminar este Rider permanentemente?", () => handleDelete(displayRider.id))}></Button>}
                    <Button variant="secondary" className="py-1.5" icon={Edit3} onClick={() => openEditor(displayRider)}>Editar</Button>
                  </div>
                )
@@ -2339,34 +2439,38 @@ const ChatView = ({ currentUser, showToast }) => {
   const [newMsg, setNewMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
-  const canSendMessages = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.APV].includes(currentUser.role);
+  const canSendMessages = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.APV].includes(currentUser.role);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const fetchMessages = async (force = false) => {
+  const fetchMessages = async (force = false, isBackground = false) => {
+    if (!isBackground) setLoading(true);
     if (!force && CACHE.mensajes) {
        setMessages(CACHE.mensajes);
-       scrollToBottom();
-       setLoading(false);
+       if (!isBackground) scrollToBottom();
+       if (!isBackground) setLoading(false);
        return;
     }
     try {
       const res = await apiFetch('getMensajes');
       if (res.status === 'success') {
+        const isNew = CACHE.mensajes && CACHE.mensajes.length < res.data.length;
         CACHE.mensajes = res.data;
         setMessages(res.data);
-        scrollToBottom();
+        if (!isBackground || isNew) scrollToBottom();
       }
     } catch (e) {
-      showToast("Error conectando al chat.");
+      if (!isBackground) showToast("Error conectando al chat.");
     }
-    setLoading(false);
+    if (!isBackground) setLoading(false);
   };
 
   useEffect(() => {
     fetchMessages();
+    const interval = setInterval(() => fetchMessages(true, true), 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSend = async (e) => {
@@ -2424,7 +2528,13 @@ const ChatView = ({ currentUser, showToast }) => {
           const hasRead = msg.readBy.includes(currentUser.name);
           return (
             <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-slide-up`}>
-              <div className="flex items-baseline gap-1.5 mb-1"><span className="text-[10px] md:text-xs font-bold text-slate-300">{isMe ? 'Tú' : msg.sender}</span><span className="text-[9px] text-emerald-500 uppercase font-black">{msg.role}</span><span className="text-[9px] text-slate-500">{msg.time}</span></div>
+              <div className={`flex flex-col mb-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[10px] md:text-xs font-bold text-slate-300">{isMe ? 'Tú' : msg.sender}</span>
+                  <span className="text-[9px] text-slate-500">{msg.time}</span>
+                </div>
+                <span className="text-[9px] text-emerald-500 uppercase font-black leading-none mt-0.5">{msg.role}</span>
+              </div>
               <div className={`p-2.5 md:p-3 rounded-xl max-w-[85%] text-xs md:text-sm shadow-sm ${isMe ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-none'}`}>{msg.text}</div>
               {!isMe && ( <button onClick={() => toggleReadReceipt(msg.id)} disabled={hasRead} className={`mt-1 flex items-center gap-1 text-[9px] md:text-[10px] font-bold px-1.5 py-1 rounded transition-colors ${hasRead ? 'bg-blue-500/20 text-blue-400 cursor-default' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}><CheckCheck size={10} /> {hasRead ? 'Leído' : 'Marcar Leído'}</button> )}
               {isMe && msg.readBy.length > 0 && ( <span className="text-[9px] md:text-[10px] text-blue-400 mt-1 font-bold flex items-center gap-1"><CheckCheck size={10} /> Visto por {msg.readBy.length} {msg.readBy.length === 1 ? 'persona' : 'personas'}</span> )}
@@ -2690,7 +2800,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
 };
 
 // --- MI PERFIL ---
-const ProfileView = ({ currentUser, setCurrentUser, showToast }) => {
+const ProfileView = ({ currentUser, setCurrentUser, showToast, theme, setTheme }) => {
   const [pPhone, setPPhone] = useState(currentUser.phone || '');
   const [pTalla, setPTalla] = useState(currentUser.talla || 'M');
   const [pDieta, setPDieta] = useState(currentUser.dieta || 'OMNÍVORA');
@@ -2698,11 +2808,19 @@ const ProfileView = ({ currentUser, setCurrentUser, showToast }) => {
   const [oldPass, setOldPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
+  
+  const [showOldPass, setShowOldPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+
   const [saving, setSaving] = useState(false);
 
   const handleUpdate = async (e) => {
     e.preventDefault();
-    if (newPass && newPass !== confirmPass) return showToast("Las contraseñas no coinciden.");
+    if ((newPass || confirmPass || oldPass) && !(newPass && confirmPass && oldPass)) {
+      return showToast("Para cambiar la contraseña, debes llenar los 3 campos de clave.");
+    }
+    if (newPass && newPass !== confirmPass) return showToast("Las nuevas contraseñas no coinciden.");
 
     setSaving(true);
     try {
@@ -2740,15 +2858,37 @@ const ProfileView = ({ currentUser, setCurrentUser, showToast }) => {
               <option value="OMNÍVORA">Omnívora (Estándar)</option><option value="VEGETARIANA">Vegetariana</option><option value="VEGANA">Vegana</option><option value="CRUDÍVORA">Crudívora</option><option value="FLEXITARIANA">Flexitariana</option><option value="SIN GLUTEN">Sin Gluten</option><option value="BAJA EN FODMAP">Baja en FODMAP</option><option value="HIPOSÓDICA">Hiposódica</option><option value="DIABÉTICA">Diabética</option><option value="KETO">Keto</option><option value="MEDITERRÁNEA">Mediterránea</option>
             </select>
           </div>
+          
+          <div className="pt-2">
+            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Aspecto Visual</label>
+            <div className="flex gap-2">
+              <Button type="button" variant={theme === 'dark' ? 'primary' : 'secondary'} className="flex-1 py-2" onClick={() => setTheme('dark')}>🌙 Oscuro</Button>
+              <Button type="button" variant={theme === 'light' ? 'primary' : 'secondary'} className={`flex-1 py-2 ${theme === 'light' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-300 border-slate-700'}`} onClick={() => setTheme('light')}>☀️ Claro</Button>
+            </div>
+          </div>
+
           <div className="bg-slate-800/80 border border-slate-700 rounded-lg p-2.5 flex gap-2.5 items-start mt-1">
             <Shield size={14} className="text-emerald-500 shrink-0 mt-0.5" />
             <p className="text-[10px] md:text-xs text-slate-400 leading-relaxed font-bold">Datos usados solo para logística de producción.</p>
           </div>
           <div className="pt-3 border-t border-slate-700 mt-3 space-y-2.5">
             <h3 className="text-xs md:text-sm font-bold text-emerald-400 flex items-center gap-1.5"><Key size={14}/> Cambiar Contraseña (Opcional)</h3>
-            <input type="password" placeholder="Contraseña Actual" value={oldPass} onChange={e=>setOldPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" />
-            <input type="password" placeholder="Nueva Contraseña" value={newPass} onChange={e=>setNewPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" />
-            <input type="password" placeholder="Confirmar Contraseña" value={confirmPass} onChange={e=>setConfirmPass(e.target.value)} className={`w-full bg-slate-900 border rounded-lg p-2.5 text-white text-sm outline-none ${confirmPass && newPass !== confirmPass ? 'border-red-500' : 'border-slate-700 focus:border-emerald-500'}`} />
+            
+            <div className="relative">
+              <input type={showOldPass ? "text" : "password"} placeholder="Contraseña Actual" value={oldPass} onChange={e=>setOldPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 pr-10 text-white text-sm outline-none focus:border-emerald-500" />
+              <button type="button" onClick={() => setShowOldPass(!showOldPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">{showOldPass ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+            </div>
+            
+            <div className="relative">
+              <input type={showNewPass ? "text" : "password"} placeholder="Nueva Contraseña" value={newPass} onChange={e=>setNewPass(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 pr-10 text-white text-sm outline-none focus:border-emerald-500" />
+              <button type="button" onClick={() => setShowNewPass(!showNewPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">{showNewPass ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+            </div>
+            
+            <div className="relative">
+              <input type={showConfirmPass ? "text" : "password"} placeholder="Confirmar Nueva Contraseña" value={confirmPass} onChange={e=>setConfirmPass(e.target.value)} className={`w-full bg-slate-900 border rounded-lg p-2.5 pr-10 text-white text-sm outline-none ${confirmPass && newPass !== confirmPass ? 'border-red-500' : 'border-slate-700 focus:border-emerald-500'}`} />
+              <button type="button" onClick={() => setShowConfirmPass(!showConfirmPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">{showConfirmPass ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+            </div>
+
             {confirmPass && newPass !== confirmPass && <p className="text-[10px] text-red-500 font-bold">Las contraseñas no coinciden</p>}
           </div>
           <Button type="submit" variant="primary" className="w-full py-3 mt-4" disabled={saving || (confirmPass && newPass !== confirmPass)}>{saving ? <Loader2 className="animate-spin"/> : 'Guardar Cambios'}</Button>
@@ -2766,6 +2906,7 @@ export default function App() {
   const [directory, setDirectory] = useState([]); 
   const [activeRider, setActiveRider] = useState(null);
   const [showPasswordAlert, setShowPasswordAlert] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('esquemapps_theme') || 'dark');
 
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', onConfirm: null });
 
@@ -2836,6 +2977,11 @@ export default function App() {
     if (currentView !== 'RIDERS') setActiveRider(null);
   }, [currentView]);
 
+  useEffect(() => {
+    localStorage.setItem('esquemapps_theme', theme);
+    document.documentElement.style.backgroundColor = theme === 'light' ? '#f8fafc' : '#020617';
+  }, [theme]);
+
   const ConfirmModal = () => {
     if (!confirmDialog.isOpen) return null;
     return (
@@ -2872,7 +3018,54 @@ export default function App() {
   const menuOptions = getMenuOptions();
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row font-sans print:bg-white print:text-black">
+    <div className={`min-h-screen ${theme === 'light' ? 'light-mode bg-slate-50' : 'bg-slate-950'} flex flex-col md:flex-row font-sans print:bg-white print:text-black`}>
+      {theme === 'light' && (
+        <style>{`
+          .light-mode { background-color: #f8fafc !important; color: #0f172a !important; }
+          .light-mode .bg-slate-950 { background-color: #f8fafc !important; }
+          .light-mode .bg-slate-900 { background-color: #ffffff !important; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+          .light-mode .bg-slate-800 { background-color: #f1f5f9 !important; border-color: #e2e8f0 !important; }
+          .light-mode .bg-slate-700 { background-color: #e2e8f0 !important; color: #334155 !important; }
+          
+          .light-mode .border-slate-800 { border-color: #e2e8f0 !important; }
+          .light-mode .border-slate-700 { border-color: #cbd5e1 !important; }
+          
+          .light-mode .text-white { color: #0f172a !important; }
+          .light-mode .text-slate-200 { color: #1e293b !important; }
+          .light-mode .text-slate-300 { color: #334155 !important; }
+          .light-mode .text-slate-400 { color: #475569 !important; }
+          .light-mode .text-slate-500 { color: #64748b !important; }
+
+          .light-mode input:not([type="checkbox"]), .light-mode select, .light-mode textarea {
+              background-color: #ffffff !important;
+              color: #0f172a !important;
+              border-color: #cbd5e1 !important;
+          }
+          .light-mode input:focus, .light-mode select:focus, .light-mode textarea:focus {
+              border-color: #10b981 !important;
+          }
+
+          .light-mode .text-emerald-500 { color: #059669 !important; }
+          .light-mode .text-emerald-400 { color: #10b981 !important; }
+          .light-mode .text-blue-500 { color: #2563eb !important; }
+          .light-mode .text-blue-400 { color: #3b82f6 !important; }
+          .light-mode .text-amber-500 { color: #d97706 !important; }
+          .light-mode .text-amber-400 { color: #f59e0b !important; }
+          .light-mode .text-red-500 { color: #dc2626 !important; }
+          .light-mode .text-red-400 { color: #ef4444 !important; }
+          
+          .light-mode .bg-emerald-600 { background-color: #059669 !important; color: #ffffff !important; }
+          .light-mode .bg-red-600 { background-color: #dc2626 !important; color: #ffffff !important; }
+
+          .light-mode .bg-slate-950\\/80 { background-color: rgba(248, 250, 252, 0.85) !important; }
+          
+          .light-mode .bg-emerald-500\\/10 { background-color: rgba(16, 185, 129, 0.1) !important; border-color: rgba(16, 185, 129, 0.3) !important; }
+          
+          .light-mode thead.bg-slate-800 { background-color: #e2e8f0 !important; }
+          .light-mode thead th { color: #475569 !important; }
+          .light-mode tr { border-color: #cbd5e1 !important; }
+        `}</style>
+      )}
       <ConfirmModal />
       {showPasswordAlert && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-fade-in print:hidden">
@@ -2908,7 +3101,7 @@ export default function App() {
           {currentView === 'DASHBOARD' && <Dashboard currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} directory={directory} />}
           {currentView === 'PROJECT_DETAILS' && <ProjectDetailsView currentUser={currentUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} directory={directory} requestConfirm={requestConfirm} setActiveRider={setActiveRider} />}
           {currentView === 'ADMIN_PANEL' && <AdminPanel currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} />}
-          {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} />}
+          {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} theme={theme} setTheme={setTheme} />}
           {currentView === 'STAFF' && <StaffDirectory currentUser={currentUser} />}
           {currentView === 'CHAT' && <ChatView currentUser={currentUser} showToast={showToast} />}
           {currentView === 'TRANSPORT' && <TransportView currentUser={currentUser} setCurrentView={setCurrentView} showToast={showToast} />}
