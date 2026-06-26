@@ -1289,6 +1289,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   const [editTab, setEditTab] = useState('GENERAL');
   const [allHitos, setAllHitos] = useState([]);
   const [includeTiming, setIncludeTiming] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
   
   const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TECH, ROLES.APV].includes(currentUser.role);
 
@@ -1538,9 +1539,10 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   };
 
   const getRiderHitos = () => {
-    if (!activeRider || !activeRider.content.proyectoId) return [];
+    const targetRider = (viewMode === 'EDIT' && isPreview) ? form : activeRider;
+    if (!targetRider || !targetRider.content.proyectoId) return [];
     return allHitos
-      .filter(h => String(h.proyectoId) === String(activeRider.content.proyectoId))
+      .filter(h => String(h.proyectoId) === String(targetRider.content.proyectoId))
       .map(ev => {
         let fullDate = new Date(0); 
         let timeFmt = '--:--';
@@ -1557,6 +1559,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
       .sort((a,b) => a.fullDate - b.fullDate);
   };
   const riderHitos = getRiderHitos();
+  const displayRider = (viewMode === 'EDIT' && isPreview) ? form : activeRider;
 
   return (
     <div className="space-y-4 animate-fade-in pb-24 max-w-5xl mx-auto print:m-0 print:p-0 print:w-full print:max-w-none">
@@ -1564,30 +1567,30 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
       {/* HEADER PRINCIPAL */}
       <header className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 print:hidden">
         <div>
-           {viewMode !== 'LIST' && (
+           {viewMode !== 'LIST' && !isPreview && (
              <button onClick={() => { setViewMode('LIST'); setActiveRider(null); }} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a Documentos</button>
            )}
            <h1 className="text-2xl font-black text-white flex items-center gap-2">
              <FileText className="text-emerald-500" size={24}/> 
-             {viewMode === 'EDIT' ? 'Editor de Documento' : 'Documentos Técnicos'}
+             {viewMode === 'EDIT' && !isPreview ? 'Editor de Documento' : viewMode === 'EDIT' && isPreview ? 'Vista Previa de Documento' : 'Documentos Técnicos'}
            </h1>
            <p className="text-xs md:text-sm text-slate-400 mt-1">Especificaciones Oficiales de Producción.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {viewMode === 'DETAIL' && riderHitos.length > 0 && (
+          {(viewMode === 'DETAIL' || isPreview) && riderHitos.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer print:hidden mr-2">
               <input type="checkbox" checked={includeTiming} onChange={e => setIncludeTiming(e.target.checked)} className="accent-emerald-500 rounded bg-slate-900 border-slate-700"/>
               <span>Incluir Timing en PDF</span>
             </label>
           )}
-          {viewMode === 'DETAIL' && <Button icon={Printer} variant="secondary" onClick={handlePrint} className="flex-1 sm:flex-none" title="Imprimir o Descargar en PDF">Imprimir PDF</Button>}
+          {(viewMode === 'DETAIL' || isPreview) && <Button icon={Printer} variant="secondary" onClick={handlePrint} className="flex-1 sm:flex-none" title="Imprimir o Descargar en PDF">Imprimir PDF</Button>}
           {viewMode === 'DETAIL' && canManageRiders && <Button icon={Edit3} onClick={() => openEditor(activeRider)} className="flex-1 sm:flex-none">Editar</Button>}
           {viewMode === 'LIST' && canManageRiders && <Button icon={Plus} onClick={() => openEditor(null)} className="flex-1 sm:flex-none">Nuevo Documento</Button>}
         </div>
       </header>
 
       {/* --- VISTA: EDITOR --- */}
-      {viewMode === 'EDIT' && (
+      {viewMode === 'EDIT' && !isPreview && (
         <Card className="p-0 border-emerald-500 flex flex-col">
           <div className="p-3 md:p-4 border-b border-slate-700 bg-slate-900 shrink-0">
             <div className="flex justify-between items-center mb-3">
@@ -1764,9 +1767,12 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                     {CATERING_SECTIONS.map(sec => (
                       <Button key={sec} type="button" variant="secondary" onClick={() => addCateringTable(sec)} className="py-1 px-2 text-[10px]" icon={Plus}>{sec}</Button>
                     ))}
-                    <Button type="button" variant={form.content.catering.showCatEquipo ? 'primary' : 'blue'} onClick={() => setForm({...form, content: {...form.content, catering: {...form.content.catering, showCatEquipo: !form.content.catering.showCatEquipo}}})} className="py-1 px-2 text-[10px]" icon={Users}>
-                      {form.content.catering.showCatEquipo ? 'OCULTAR CAT EQUIPO' : 'CAT EQUIPO (DIETAS)'}
-                    </Button>
+                    <div className="flex flex-col gap-1 items-start ml-2">
+                      <Button type="button" variant={form.content.catering.showCatEquipo ? 'primary' : 'secondary'} onClick={() => setForm({...form, content: {...form.content, catering: {...form.content.catering, showCatEquipo: !form.content.catering.showCatEquipo}}})} className="py-1.5 px-3 text-[10px]" icon={form.content.catering.showCatEquipo ? X : Plus}>
+                        {form.content.catering.showCatEquipo ? 'QUITAR CAT EQUIPO ASIGNADO' : 'AÑADIR CAT EQUIPO ASIGNADO'}
+                      </Button>
+                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider pl-1">Información de la sección Mi Perfil</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1874,76 +1880,84 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
 
           <div className="p-3 md:p-4 border-t border-slate-700 bg-slate-900 shrink-0 flex gap-2">
             <Button variant="secondary" className="flex-1 py-2" onClick={() => { if(!form.id) setViewMode('LIST'); else setViewMode('DETAIL'); }}>Cancelar</Button>
+            <Button variant="blue" className="flex-1 py-2" onClick={() => setIsPreview(true)} icon={Maximize}>Vista Previa</Button>
             <Button variant="primary" className="flex-1 py-2" onClick={handleSave} icon={Save}>Guardar Documento</Button>
           </div>
         </Card>
       )}
 
-      {/* --- VISTA: DETALLE DE RIDER (PRINT READY) --- */}
-      {viewMode === 'DETAIL' && activeRider && (
+      {/* --- VISTA: DETALLE DE RIDER Y VISTA PREVIA (PRINT READY) --- */}
+      {(viewMode === 'DETAIL' || (viewMode === 'EDIT' && isPreview)) && displayRider && (
          <div className="border-t-4 border-t-emerald-500 bg-slate-900 print:bg-white print:border-t-black print:border print:text-black rounded-xl overflow-hidden page-break-inside-avoid shadow-sm print:shadow-none">
            <div className="p-4 md:p-5 border-b border-slate-800 print:border-black flex justify-between items-center">
              <div className="flex items-center gap-3">
                <div className="w-8 h-8 md:w-10 md:h-10 bg-slate-800 print:bg-transparent print:border print:border-black rounded-lg flex justify-center items-center">
-                 {React.createElement(icons[activeRider.type] || FileText, { className: "text-emerald-500 print:text-black", size: 18 })}
+                 {React.createElement(icons[displayRider.type] || FileText, { className: "text-emerald-500 print:text-black", size: 18 })}
                </div>
                <div>
-                 <h3 className="font-black text-white print:text-black text-lg md:text-xl leading-none">{activeRider.title}</h3>
-                 <span className="text-[10px] bg-slate-800 text-emerald-400 print:bg-transparent print:text-black px-2 py-0.5 rounded border border-slate-700 print:border-black font-bold uppercase mt-1.5 inline-block">{activeRider.type}</span>
+                 <h3 className="font-black text-white print:text-black text-lg md:text-xl leading-none">{displayRider.title}</h3>
+                 <span className="text-[10px] bg-slate-800 text-emerald-400 print:bg-transparent print:text-black px-2 py-0.5 rounded border border-slate-700 print:border-black font-bold uppercase mt-1.5 inline-block">{displayRider.type}</span>
                </div>
              </div>
-             {canManageRiders && (
+             {viewMode === 'EDIT' && isPreview ? (
                <div className="flex gap-2 print:hidden">
-                 <Button variant="danger" className="px-2.5 py-1.5 bg-slate-800" icon={Trash2} onClick={() => requestConfirm("¿Eliminar este Rider permanentemente?", () => handleDelete(activeRider.id))}></Button>
-                 <Button variant="secondary" className="py-1.5" icon={Edit3} onClick={() => openEditor(activeRider)}>Editar</Button>
+                 <Button variant="secondary" className="py-1.5" icon={Edit3} onClick={() => setIsPreview(false)}>Seguir Editando</Button>
+                 <Button variant="primary" className="py-1.5" icon={Save} onClick={handleSave}>Guardar</Button>
                </div>
+             ) : (
+               canManageRiders && (
+                 <div className="flex gap-2 print:hidden">
+                   <Button variant="danger" className="px-2.5 py-1.5 bg-slate-800" icon={Trash2} onClick={() => requestConfirm("¿Eliminar este Rider permanentemente?", () => handleDelete(displayRider.id))}></Button>
+                   <Button variant="secondary" className="py-1.5" icon={Edit3} onClick={() => openEditor(displayRider)}>Editar</Button>
+                 </div>
+               )
              )}
            </div>
            
            <div className="p-4 md:p-5 space-y-4 md:space-y-6">
-             {activeRider.content.importante && (
+             {displayRider.content.importante && (
                <div className="bg-emerald-500/10 border border-emerald-500/20 print:bg-transparent print:border-black p-3 md:p-4 rounded-lg">
                  <h4 className="text-emerald-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">Importante</h4>
-                 <p className="text-xs md:text-sm text-emerald-100 print:text-black whitespace-pre-wrap">{activeRider.content.importante}</p>
+                 <p className="text-xs md:text-sm text-emerald-100 print:text-black whitespace-pre-wrap">{displayRider.content.importante}</p>
                </div>
              )}
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-               {activeRider.content.contacto && (activeRider.content.contacto.mgmtNombre || activeRider.content.contacto.mgmtCel || activeRider.content.contacto.mgmtCorreo) && (
+               {displayRider.content.contacto && (displayRider.content.contacto.mgmtNombre || displayRider.content.contacto.mgmtCel || displayRider.content.contacto.mgmtCorreo) && (
                  <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black">
                    <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-2 uppercase">Contacto Management</h4>
-                   {activeRider.content.contacto.mgmtNombre && <p className="text-xs md:text-sm text-white print:text-black font-bold mb-1">👤 {activeRider.content.contacto.mgmtNombre}</p>}
-                   {activeRider.content.contacto.mgmtCel && <p className="text-xs md:text-sm text-white print:text-black">📱 {activeRider.content.contacto.mgmtCel}</p>}
-                   {activeRider.content.contacto.mgmtCorreo && <p className="text-xs md:text-sm text-white print:text-black">✉️ {activeRider.content.contacto.mgmtCorreo}</p>}
+                   {displayRider.content.contacto.mgmtNombre && <p className="text-xs md:text-sm text-white print:text-black font-bold mb-1">👤 {displayRider.content.contacto.mgmtNombre}</p>}
+                   {displayRider.content.contacto.mgmtCel && <p className="text-xs md:text-sm text-white print:text-black">📱 {displayRider.content.contacto.mgmtCel}</p>}
+                   {displayRider.content.contacto.mgmtCorreo && <p className="text-xs md:text-sm text-white print:text-black">✉️ {displayRider.content.contacto.mgmtCorreo}</p>}
                  </div>
                )}
-               {activeRider.content.contacto && (activeRider.content.contacto.prodNombre || activeRider.content.contacto.prodCel || activeRider.content.contacto.prodCorreo) && (
+               {displayRider.content.contacto && (displayRider.content.contacto.prodNombre || displayRider.content.contacto.prodCel || displayRider.content.contacto.prodCorreo) && (
                  <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black">
                    <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-2 uppercase">Contacto Producción</h4>
-                   {activeRider.content.contacto.prodNombre && <p className="text-xs md:text-sm text-white print:text-black font-bold mb-1">👤 {activeRider.content.contacto.prodNombre}</p>}
-                   {activeRider.content.contacto.prodCel && <p className="text-xs md:text-sm text-white print:text-black">📱 {activeRider.content.contacto.prodCel}</p>}
-                   {activeRider.content.contacto.prodCorreo && <p className="text-xs md:text-sm text-white print:text-black">✉️ {activeRider.content.contacto.prodCorreo}</p>}
+                   {displayRider.content.contacto.prodNombre && <p className="text-xs md:text-sm text-white print:text-black font-bold mb-1">👤 {displayRider.content.contacto.prodNombre}</p>}
+                   {displayRider.content.contacto.prodCel && <p className="text-xs md:text-sm text-white print:text-black">📱 {displayRider.content.contacto.prodCel}</p>}
+                   {displayRider.content.contacto.prodCorreo && <p className="text-xs md:text-sm text-white print:text-black">✉️ {displayRider.content.contacto.prodCorreo}</p>}
                  </div>
                )}
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-               {activeRider.content.soundcheck && (
+               {displayRider.content.soundcheck && (
                   <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black">
                     <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">Requisitos SoundCheck</h4>
-                    <p className="text-xs md:text-sm text-slate-300 print:text-black whitespace-pre-wrap">{activeRider.content.soundcheck}</p>
+                    <p className="text-xs md:text-sm text-slate-300 print:text-black whitespace-pre-wrap">{displayRider.content.soundcheck}</p>
                   </div>
                )}
-               {activeRider.content.recordatorio && (
+               {displayRider.content.recordatorio && (
                   <div className="bg-red-500/10 print:bg-transparent p-3 md:p-4 rounded-lg border border-red-500/20 print:border-black">
                     <h4 className="text-red-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">Recordatorio</h4>
-                    <p className="text-xs md:text-sm text-red-100 print:text-black whitespace-pre-wrap">{activeRider.content.recordatorio}</p>
+                    <p className="text-xs md:text-sm text-red-100 print:text-black whitespace-pre-wrap">{displayRider.content.recordatorio}</p>
                   </div>
                )}
              </div>
 
              {/* Tablas (Renderizadas compactas) */}
-             {activeRider.content.inputs && activeRider.content.inputs.length > 0 && activeRider.content.inputs[0].name !== '' && (
+             {displayRider.content.inputs && displayRider.content.inputs.length > 0 && displayRider.content.inputs[0].name !== '' && (
                <div className="mt-3 md:mt-4 break-inside-avoid">
                  <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">INPUT LIST</h4>
                  <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
@@ -1952,13 +1966,13 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                        <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-8">CH</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">NAME</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">MIC/DI</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-10">48v</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">STAND</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">POSITION</th><th className="p-1.5 md:p-2">OBS</th></tr>
                      </thead>
                      <tbody>
-                       {activeRider.content.inputs.map((row, i) => row.name && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.ch}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.name}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.mic}</td><td className="p-1.5 md:p-2 text-center border-r border-slate-800 print:border-black">{row.v48}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.stand}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.position}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.obs}</td></tr>)}
+                       {displayRider.content.inputs.map((row, i) => row.name && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.ch}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.name}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.mic}</td><td className="p-1.5 md:p-2 text-center border-r border-slate-800 print:border-black">{row.v48}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.stand}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.position}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.obs}</td></tr>)}
                      </tbody>
                    </table>
                  </div>
                </div>
              )}
-             {activeRider.content.outputs && activeRider.content.outputs.length > 0 && activeRider.content.outputs[0].mix !== '' && (
+             {displayRider.content.outputs && displayRider.content.outputs.length > 0 && displayRider.content.outputs[0].mix !== '' && (
                <div className="mt-3 md:mt-4 break-inside-avoid">
                  <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">OUTPUT / MONITOR LIST</h4>
                  <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
@@ -1967,13 +1981,13 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                        <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-12">MIX</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">PLAYER</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">MONITOR</th><th className="p-1.5 md:p-2">OBS</th></tr>
                      </thead>
                      <tbody>
-                       {activeRider.content.outputs.map((row, i) => row.mix && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.mix}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.player}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.monitor}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.obs}</td></tr>)}
+                       {displayRider.content.outputs.map((row, i) => row.mix && <tr key={i} className="border-b border-slate-800 print:border-black last:border-0"><td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.mix}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.player}</td><td className="p-1.5 md:p-2 border-r border-slate-800 print:border-black">{row.monitor}</td><td className="p-1.5 md:p-2 text-[10px] md:text-xs whitespace-pre-wrap">{row.obs}</td></tr>)}
                      </tbody>
                    </table>
                  </div>
                </div>
              )}
-             {activeRider.content.backline && activeRider.content.backline.length > 0 && activeRider.content.backline[0].col1 !== '' && (
+             {displayRider.content.backline && displayRider.content.backline.length > 0 && displayRider.content.backline[0].col1 !== '' && (
                <div className="mt-3 md:mt-4 break-inside-avoid">
                  <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">BACKLINE</h4>
                  <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
@@ -1982,7 +1996,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                        <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-12">CANT</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">ITEM</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">ESPECIFICACIONES</th><th className="p-1.5 md:p-2">OBS</th></tr>
                      </thead>
                      <tbody>
-                       {activeRider.content.backline.map((row, i) => row.col1 && (
+                       {displayRider.content.backline.map((row, i) => row.col1 && (
                          <tr key={i} className="border-b border-slate-800 print:border-black last:border-0">
                            <td className="p-1.5 md:p-2 text-center font-bold border-r border-slate-800 print:border-black">{row.col2}</td>
                            <td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.col1}</td>
@@ -1995,7 +2009,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                  </div>
                </div>
              )}
-             {activeRider.content.visuals && activeRider.content.visuals.length > 0 && activeRider.content.visuals[0].col1 !== '' && (
+             {displayRider.content.visuals && displayRider.content.visuals.length > 0 && displayRider.content.visuals[0].col1 !== '' && (
                <div className="mt-3 md:mt-4 break-inside-avoid">
                  <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">VISUAL / LIGHTS</h4>
                  <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
@@ -2004,7 +2018,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                        <tr><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0 w-12">CANT</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">SISTEMA/EQUIPO</th><th className="p-1.5 md:p-2 border-r border-slate-700 print:border-black last:border-0">UBICACIÓN</th><th className="p-1.5 md:p-2">OBS</th></tr>
                      </thead>
                      <tbody>
-                       {activeRider.content.visuals.map((row, i) => row.col1 && (
+                       {displayRider.content.visuals.map((row, i) => row.col1 && (
                          <tr key={i} className="border-b border-slate-800 print:border-black last:border-0">
                            <td className="p-1.5 md:p-2 text-center font-bold border-r border-slate-800 print:border-black">{row.col2}</td>
                            <td className="p-1.5 md:p-2 font-bold border-r border-slate-800 print:border-black">{row.col1}</td>
@@ -2019,36 +2033,36 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
              )}
 
              {/* Render Stageplot in View Mode */}
-             {activeRider.content.stageplot && activeRider.content.stageplot.length > 0 && (
+             {displayRider.content.stageplot && displayRider.content.stageplot.length > 0 && (
                 <div className="mt-3 md:mt-4 break-inside-avoid">
                    <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">
-                      STAGEPLOT: {activeRider.title} ({activeRider.content.stageplotConfig?.width || 10}m x {activeRider.content.stageplotConfig?.depth || 8}m)
+                      STAGEPLOT: {displayRider.title} ({displayRider.content.stageplotConfig?.width || 10}m x {displayRider.content.stageplotConfig?.depth || 8}m)
                    </h4>
                    <div className="w-full rounded border-2 border-slate-700 print:border-black overflow-hidden bg-white">
                       <StageplotBuilder 
-                         items={activeRider.content.stageplot} 
-                         config={activeRider.content.stageplotConfig || {width: 10, depth: 8}} 
+                         items={displayRider.content.stageplot} 
+                         config={displayRider.content.stageplotConfig || {width: 10, depth: 8}} 
                          onChange={()=>{}} 
                          onConfigChange={()=>{}} 
                          readOnly={true} 
-                         projectName={activeRider.title}
+                         projectName={displayRider.title}
                       />
                    </div>
                 </div>
              )}
 
              {/* Render Catering View Mode */}
-             {(activeRider.type === 'COMPLETO' || activeRider.type === 'HOSPITALITY') && activeRider.content.catering && (
+             {(displayRider.type === 'COMPLETO' || displayRider.type === 'HOSPITALITY') && displayRider.content.catering && (
                 <div className="mt-3 md:mt-4 break-inside-avoid">
                    <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">HOSPITALITY & CATERING</h4>
-                   {activeRider.content.catering.notes && (
+                   {displayRider.content.catering.notes && (
                       <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black mb-3">
-                         <p className="text-xs md:text-sm text-white print:text-black whitespace-pre-wrap">{activeRider.content.catering.notes}</p>
+                         <p className="text-xs md:text-sm text-white print:text-black whitespace-pre-wrap">{displayRider.content.catering.notes}</p>
                        </div>
                    )}
 
                    {/* Render Dynamic Catering Tables */}
-                   {(activeRider.content.catering.tables || []).map((table, tIndex) => (
+                   {(displayRider.content.catering.tables || []).map((table, tIndex) => (
                       <div key={tIndex} className="mt-4 break-inside-avoid">
                          <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">{table.title}</h4>
                          <div className="overflow-x-auto rounded border border-slate-700 print:border-black">
@@ -2074,9 +2088,9 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                       </div>
                    ))}
                    
-                   {activeRider.content.catering.showCatEquipo && (() => {
-                      if(!activeRider.content.proyectoId) return null;
-                      const selectedProj = proyectos.find(proj => String(proj.id) === String(activeRider.content.proyectoId));
+                   {displayRider.content.catering.showCatEquipo && (() => {
+                      if(!displayRider.content.proyectoId) return null;
+                      const selectedProj = proyectos.find(proj => String(proj.id) === String(displayRider.content.proyectoId));
                       if(!selectedProj) return null;
                       const fullDir = [currentUser, ...directory];
                       const assignedCrew = fullDir.filter(u => selectedProj.asignados.includes(u.email));
@@ -2108,7 +2122,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                                       <th className="p-2 pl-3 border-r border-slate-700 print:border-black last:border-0">Nombre</th>
                                       <th className="p-2 border-r border-slate-700 print:border-black last:border-0">Rol</th>
                                       <th className="p-2 border-r border-slate-700 print:border-black last:border-0">Dieta</th>
-                                      {activeRider.content.catering.showSizes && <th className="p-2">Talla</th>}
+                                      {displayRider.content.catering.showSizes && <th className="p-2">Talla</th>}
                                    </tr>
                                 </thead>
                                 <tbody>
@@ -2117,7 +2131,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                                          <td className="p-2 pl-3 font-bold text-white print:text-black border-r border-slate-800 print:border-black">{u.name}</td>
                                          <td className="p-2 text-[10px] border-r border-slate-800 print:border-black">{u.role}</td>
                                          <td className="p-2 border-r border-slate-800 print:border-black"><span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/30 print:border-none print:text-black px-1.5 py-0.5 rounded font-black uppercase tracking-wider">{u.dieta || 'OMNÍVORA'}</span></td>
-                                         {activeRider.content.catering.showSizes && <td className="p-2 text-[10px] font-bold">{u.talla || 'M'}</td>}
+                                         {displayRider.content.catering.showSizes && <td className="p-2 text-[10px] font-bold">{u.talla || 'M'}</td>}
                                       </tr>
                                    ))}
                                 </tbody>
