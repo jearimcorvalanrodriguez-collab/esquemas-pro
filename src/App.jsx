@@ -21,6 +21,17 @@ const ROLES = {
 
 const ESQUEMAS_MASTER_SECRET = 'Tk9fTWVfSGFja2VlczIwMjYhQCM='; 
 
+// --- SISTEMA DE CACHÉ GLOBAL EN MEMORIA ---
+const CACHE = {
+  proyectos: null,
+  hitos: null,
+  riders: null,
+  usuarios: null,
+  transportes: null,
+  mensajes: null
+};
+const clearCache = (key) => { CACHE[key] = null; };
+
 const apiFetch = async (action, payload = {}) => {
   const response = await fetch('/.netlify/functions/api', {
     method: 'POST',
@@ -593,11 +604,19 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
   const [form, setForm] = useState({ title: '', date: '', time: '', origin: '', dest: '' });
   const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role);
 
-  const fetchTransports = async () => {
+  const fetchTransports = async (force = false) => {
     setLoading(true);
+    if (!force && CACHE.transportes) {
+       setTransports(CACHE.transportes);
+       setLoading(false);
+       return;
+    }
     try {
       const res = await apiFetch('getTransportes');
-      if (res.status === 'success') setTransports(res.data);
+      if (res.status === 'success') {
+         CACHE.transportes = res.data;
+         setTransports(res.data);
+      }
     } catch(e) {
       showToast("Error al cargar transportes.");
     }
@@ -614,7 +633,8 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
         showToast("Ruta creada con éxito.");
         setIsCreating(false);
         setForm({ title: '', date: '', time: '', origin: '', dest: '' });
-        fetchTransports();
+        clearCache('transportes');
+        fetchTransports(true);
       }
     } catch(e) {
       showToast("Error al crear ruta.");
@@ -695,6 +715,7 @@ const ConductorView = ({ currentUser, showToast }) => {
       if (res.status === 'success') {
         setRouteInfo({...routeInfo, status: newStatus});
         showToast(`Estado actualizado a ${newStatus}`);
+        clearCache('transportes');
       }
     } catch(e) { showToast("Error al actualizar estado."); }
     setLoading(false);
@@ -737,12 +758,18 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
   const [form, setForm] = useState({ name: '', type: 'Gira Musical' });
   const [assigningProject, setAssigningProject] = useState(null);
 
-  const fetchProyectos = async () => {
+  const fetchProyectos = async (force = false) => {
     setFetchError(false);
+    if (!force && CACHE.proyectos) {
+       setProyectos(CACHE.proyectos);
+       setLoading(false);
+       return;
+    }
     try {
       const res = await apiFetch('getProyectos');
       if (res.status === 'success') {
         const parsed = res.data.map(p => ({ ...p, asignados: Array.isArray(p.asignados) ? p.asignados : [] }));
+        CACHE.proyectos = parsed;
         setProyectos(parsed);
       }
       else setFetchError(res.message || "Error al obtener proyectos");
@@ -758,7 +785,8 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
       const payload = { ...form, manager: currentUser.name };
       const res = await apiFetch('createProyecto', payload);
       if (res.status === 'success') {
-        showToast("Proyecto creado exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); fetchProyectos();
+        showToast("Proyecto creado exitosamente."); setIsCreating(false); setForm({ name: '', type: 'Gira Musical' }); 
+        clearCache('proyectos'); fetchProyectos(true);
       } else {
         showToast(res.message);
       }
@@ -770,7 +798,8 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
     const newStatus = currentStatus === 'ACTIVO' ? 'FINALIZADO' : 'ACTIVO';
     try {
       await apiFetch('updateProyectoStatus', { id, status: newStatus });
-      showToast("Estado actualizado."); fetchProyectos();
+      showToast("Estado actualizado."); 
+      clearCache('proyectos'); fetchProyectos(true);
     } catch(e) { showToast("Error al actualizar."); }
   };
 
@@ -785,7 +814,8 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
   const saveProjectAsignaciones = async () => {
     try {
       await apiFetch('updateProyectoAsignaciones', { id: assigningProject.id, asignados: assigningProject.asignados });
-      showToast("Asignaciones de proyecto guardadas."); setAssigningProject(null); fetchProyectos();
+      showToast("Asignaciones de proyecto guardadas."); setAssigningProject(null); 
+      clearCache('proyectos'); fetchProyectos(true);
     } catch(e) { showToast("Error al guardar."); }
   };
 
@@ -918,52 +948,59 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
   const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
   const [assigningHito, setAssigningHito] = useState(null);
 
-  const fetchHitos = async () => {
+  const processHitos = (data) => {
+    const projectHitos = data.filter(ev => String(ev.proyectoId) === String(p.id));
+    const parsedEvents = projectHitos.map(ev => {
+      let fullDate = new Date(0); 
+      try {
+          let dStr = '';
+          let dRaw = String(ev.date);
+          if (dRaw.includes('T')) dRaw = dRaw.split('T')[0];
+          const matchISO = dRaw.match(/(\d{4})-(\d{2})-(\d{2})/);
+          if (matchISO) dStr = matchISO[0];
+          else {
+              const matchLoc = dRaw.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+              if(matchLoc) dStr = `${matchLoc[3]}-${matchLoc[2]}-${matchLoc[1]}`;
+          }
+          
+          let tStr = '00:00';
+          const timeMatch = String(ev.time).match(/\d{2}:\d{2}/);
+          if(timeMatch) tStr = timeMatch[0];
+
+          const dateObj = new Date(`${dStr}T${tStr}:00`);
+          if(!isNaN(dateObj.getTime())) fullDate = dateObj;
+      } catch(e) {}
+      return { ...ev, fullDate, asignados: Array.isArray(ev.asignados) ? ev.asignados : [] };
+    });
+    setHitos(parsedEvents.sort((a,b) => a.fullDate - b.fullDate));
+  };
+
+  const processRiders = (data) => {
+    const parsedRiders = data.map(r => {
+      let content = {};
+      try { content = JSON.parse(r.content); } catch(e){}
+      return { ...r, content };
+    });
+    setAllRiders(parsedRiders);
+    setProjectRiders(parsedRiders.filter(r => String(r.content.proyectoId) === String(p.id)));
+  };
+
+  const fetchHitos = async (force = false) => {
     setFetchError(false);
+    if (!force && CACHE.hitos) { processHitos(CACHE.hitos); setLoading(false); return; }
     try {
       const res = await apiFetch('getHitos');
-      if (res.status === 'success') {
-        const projectHitos = res.data.filter(ev => String(ev.proyectoId) === String(p.id));
-        const parsedEvents = projectHitos.map(ev => {
-          let fullDate = new Date(0); 
-          try {
-              let dStr = '';
-              let dRaw = String(ev.date);
-              if (dRaw.includes('T')) dRaw = dRaw.split('T')[0];
-              const matchISO = dRaw.match(/(\d{4})-(\d{2})-(\d{2})/);
-              if (matchISO) dStr = matchISO[0];
-              else {
-                  const matchLoc = dRaw.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-                  if(matchLoc) dStr = `${matchLoc[3]}-${matchLoc[2]}-${matchLoc[1]}`;
-              }
-              
-              let tStr = '00:00';
-              const timeMatch = String(ev.time).match(/\d{2}:\d{2}/);
-              if(timeMatch) tStr = timeMatch[0];
-
-              const dateObj = new Date(`${dStr}T${tStr}:00`);
-              if(!isNaN(dateObj.getTime())) fullDate = dateObj;
-          } catch(e) { console.error("Error parseando fecha", e); }
-          return { ...ev, fullDate, asignados: Array.isArray(ev.asignados) ? ev.asignados : [] };
-        });
-        setHitos(parsedEvents.sort((a,b) => a.fullDate - b.fullDate));
-      } else setFetchError(res.message || "Error al obtener hitos");
+      if (res.status === 'success') { CACHE.hitos = res.data; processHitos(res.data); } 
+      else setFetchError(res.message || "Error al obtener hitos");
     } catch(e) { setFetchError("Fallo de red al obtener hitos."); }
     setLoading(false);
   };
 
-  const fetchProjectRiders = async () => {
+  const fetchProjectRiders = async (force = false) => {
+    if (!force && CACHE.riders) { processRiders(CACHE.riders); return; }
     try {
       const res = await apiFetch('getRiders');
-      if (res.status === 'success') {
-        const parsedRiders = res.data.map(r => {
-          let content = {};
-          try { content = JSON.parse(r.content); } catch(e){}
-          return { ...r, content };
-        });
-        setAllRiders(parsedRiders);
-        setProjectRiders(parsedRiders.filter(r => String(r.content.proyectoId) === String(p.id)));
-      }
+      if (res.status === 'success') { CACHE.riders = res.data; processRiders(res.data); }
     } catch(e) {}
   };
 
@@ -990,7 +1027,8 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
       const payload = { ...form, proyectoId: p.id };
       const res = await apiFetch('createHito', payload);
       if (res.status === 'success') {
-        showToast("Hito agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchHitos();
+        showToast("Hito agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); 
+        clearCache('hitos'); fetchHitos(true);
       } else {
         showToast("Error: " + res.message); 
       }
@@ -1000,7 +1038,8 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
   const handleDeleteHito = async (id) => {
     try {
       await apiFetch('deleteHito', { id });
-      showToast("Hito eliminado."); fetchHitos();
+      showToast("Hito eliminado."); 
+      clearCache('hitos'); fetchHitos(true);
     } catch(e) { showToast("Error al eliminar."); }
   };
 
@@ -1024,7 +1063,8 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
   const saveAsignaciones = async () => {
     try {
       await apiFetch('updateHitoAsignaciones', { id: assigningHito.id, asignados: assigningHito.asignados });
-      showToast("Asignaciones guardadas."); setAssigningHito(null); fetchHitos();
+      showToast("Asignaciones guardadas."); setAssigningHito(null); 
+      clearCache('hitos'); fetchHitos(true);
     } catch(e) { showToast("Error al guardar."); }
   };
 
@@ -1042,7 +1082,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
       });
       showToast("Rider vinculado al proyecto.");
       setLinkingRider(false);
-      fetchProjectRiders(); 
+      clearCache('riders'); fetchProjectRiders(true); 
     } catch(e) { 
       showToast("Error al vincular."); 
       setLoading(false); 
@@ -1060,7 +1100,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
         content: JSON.stringify(newContent) 
       });
       showToast("Documento desvinculado de la gira.");
-      fetchProjectRiders();
+      clearCache('riders'); fetchProjectRiders(true);
     } catch(err) { 
       showToast("Error al desvincular."); 
       setLoading(false); 
@@ -1264,7 +1304,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
     visuals: [{ col1: '', col2: '', col3: '', col4: '' }],
     stageplot: [],
     stageplotConfig: { width: 10, depth: 8 },
-    catering: { showSizes: false, notes: '', tables: [] }
+    catering: { showSizes: false, showCatEquipo: false, notes: '', tables: [] }
   };
 
   const templatesTexto = {
@@ -1285,33 +1325,29 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
 
   const [form, setForm] = useState({ id: null, title: '', type: 'COMPLETO', content: defaultContent });
 
-  const fetchData = async () => {
+  const fetchData = async (force = false) => {
     setLoading(true); setFetchError(false);
     try {
-      const [resRiders, resProyectos, resHitos] = await Promise.all([
-        apiFetch('getRiders'),
-        apiFetch('getProyectos'),
-        apiFetch('getHitos')
-      ]);
-
-      if (resProyectos.status === 'success') {
-         setProyectos(resProyectos.data.filter(p => p.status === 'ACTIVO'));
-      }
+      let rd = CACHE.riders, pd = CACHE.proyectos, hd = CACHE.hitos;
       
-      if (resHitos.status === 'success') {
-         setAllHitos(resHitos.data);
-      }
-
-      if (resRiders.status === 'success') {
-        const parsedRiders = resRiders.data.map(r => {
+      if (force || !rd) { const res = await apiFetch('getRiders'); if(res.status==='success') { rd = res.data; CACHE.riders = rd; } }
+      if (force || !pd) { const res = await apiFetch('getProyectos'); if(res.status==='success') { pd = res.data; CACHE.proyectos = pd; } }
+      if (force || !hd) { const res = await apiFetch('getHitos'); if(res.status==='success') { hd = res.data; CACHE.hitos = hd; } }
+      
+      if (pd) setProyectos(pd.filter(p => p.status === 'ACTIVO'));
+      if (hd) setAllHitos(hd);
+      
+      if (rd) {
+        const parsedRiders = rd.map(r => {
           let parsedContent;
           try { 
             parsedContent = JSON.parse(r.content); 
             if(!parsedContent.stageplot) parsedContent.stageplot = [];
             if(!parsedContent.stageplotConfig) parsedContent.stageplotConfig = { width: 10, depth: 8 };
             if(!parsedContent.proyectoId) parsedContent.proyectoId = '';
-            if(!parsedContent.catering) parsedContent.catering = { showSizes: false, notes: '', tables: [] };
+            if(!parsedContent.catering) parsedContent.catering = { showSizes: false, showCatEquipo: false, notes: '', tables: [] };
             if(!parsedContent.catering.tables) parsedContent.catering.tables = [];
+            if(parsedContent.catering.showCatEquipo === undefined) parsedContent.catering.showCatEquipo = false;
           } 
           catch(e) { parsedContent = { ...defaultContent, importante: r.content }; }
           return { ...r, content: parsedContent };
@@ -1342,7 +1378,8 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
       showToast("Documento guardado correctamente."); 
       setViewMode('LIST');
       setActiveRider(null);
-      fetchData();
+      clearCache('riders');
+      fetchData(true);
     } catch(e) { showToast("Error al guardar."); setLoading(false); }
   };
 
@@ -1353,7 +1390,8 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
       showToast("Documento eliminado permanentemente."); 
       setViewMode('LIST');
       setActiveRider(null);
-      fetchData();
+      clearCache('riders');
+      fetchData(true);
     } catch(e) { showToast("Error al eliminar."); setLoading(false); }
   };
 
@@ -1572,7 +1610,6 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                 <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Vincular a Gira / Proyecto</label>
                 <select className="w-full bg-slate-800 border-slate-700 rounded p-2 text-xs md:text-sm text-white font-bold outline-none focus:border-emerald-500 max-w-full break-words" value={form.content.proyectoId || ''} onChange={e=>setForm({...form, content: {...form.content, proyectoId: e.target.value}})}>
                   <option value="">Documento General (Sin Asignar)</option>
-                  <option value="">Documento General (Sin Asignar)</option>
                   {proyectos.map(p => <option key={p.id} value={p.id}>🎤 {p.name}</option>)}
                 </select>
               </div>
@@ -1722,11 +1759,14 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                 </div>
 
                 <div className="space-y-2 mt-4">
-                  <label className="text-[10px] md:text-xs font-bold text-slate-400 block uppercase">Añadir Tablas de Requerimientos</label>
+                  <label className="text-[10px] md:text-xs font-bold text-slate-400 block uppercase">Añadir Tablas de Requerimientos y Extras</label>
                   <div className="flex flex-wrap gap-2">
                     {CATERING_SECTIONS.map(sec => (
                       <Button key={sec} type="button" variant="secondary" onClick={() => addCateringTable(sec)} className="py-1 px-2 text-[10px]" icon={Plus}>{sec}</Button>
                     ))}
+                    <Button type="button" variant={form.content.catering.showCatEquipo ? 'primary' : 'blue'} onClick={() => setForm({...form, content: {...form.content, catering: {...form.content.catering, showCatEquipo: !form.content.catering.showCatEquipo}}})} className="py-1 px-2 text-[10px]" icon={Users}>
+                      {form.content.catering.showCatEquipo ? 'OCULTAR CAT EQUIPO' : 'CAT EQUIPO (DIETAS)'}
+                    </Button>
                   </div>
                 </div>
 
@@ -1772,8 +1812,8 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                   </div>
                 ))}
 
-                {/* Tabla de Crew y Dietas Automática */}
-                {(() => {
+                {/* Tabla de Crew y Dietas Automática con botón Toggle */}
+                {form.content.catering.showCatEquipo && (() => {
                   if(!form.content.proyectoId) return <div className="p-4 border border-slate-800 border-dashed rounded-xl text-center text-xs text-slate-500 mt-6">⚠️ Vincula este Rider a una Gira/Proyecto en la pestaña GENERAL para cargar automáticamente la lista del Crew y sus dietas.</div>;
                   
                   const selectedProj = proyectos.find(proj => String(proj.id) === String(form.content.proyectoId));
@@ -1791,7 +1831,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                   }, {});
 
                   return (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6 animate-fade-in">
                       <div className="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-xl p-3">
                         <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Resumen Dietas</h4>
                         <div className="space-y-1.5">
@@ -2034,7 +2074,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                       </div>
                    ))}
                    
-                   {(() => {
+                   {activeRider.content.catering.showCatEquipo && (() => {
                       if(!activeRider.content.proyectoId) return null;
                       const selectedProj = proyectos.find(proj => String(proj.id) === String(activeRider.content.proyectoId));
                       if(!selectedProj) return null;
@@ -2163,14 +2203,21 @@ const StaffDirectory = ({ currentUser }) => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [localDirectory, setLocalDirectory] = useState([]);
-  const [showCatering, setShowCatering] = useState(false);
 
   useEffect(() => {
-    const fetchDirectory = async () => {
+    const fetchDirectory = async (force = false) => {
       setLoading(true);
+      if (!force && CACHE.usuarios) {
+         const activeUsers = CACHE.usuarios.filter(u => u.status === 'ACTIVO' && u.email !== currentUser.email);
+         const canSeeEveryone = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.APV].includes(currentUser.role);
+         setLocalDirectory(canSeeEveryone ? activeUsers : activeUsers.filter(u => u.role === ROLES.TOUR_MANAGER));
+         setLoading(false);
+         return;
+      }
       try {
         const res = await apiFetch('getUsuarios');
         if (res.status === 'success') {
+          CACHE.usuarios = res.data;
           const activeUsers = res.data.filter(u => u.status === 'ACTIVO' && u.email !== currentUser.email);
           const canSeeEveryone = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.APV].includes(currentUser.role);
           if (canSeeEveryone) setLocalDirectory(activeUsers);
@@ -2182,12 +2229,6 @@ const StaffDirectory = ({ currentUser }) => {
     fetchDirectory();
   }, [currentUser]);
 
-  const cateringCount = localDirectory.concat([currentUser]).reduce((acc, user) => {
-    const dieta = user.dieta || 'OMNÍVORA';
-    acc[dieta] = (acc[dieta] || 0) + 1;
-    return acc;
-  }, {});
-
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto print:m-0 print:p-0 print:w-full">
       <header className="border-b border-slate-800 pb-3 md:pb-4 flex justify-between items-end print:hidden">
@@ -2195,59 +2236,7 @@ const StaffDirectory = ({ currentUser }) => {
           <h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3"><Users className="text-emerald-500" size={24} /> Directorio</h1>
           <p className="text-xs md:text-sm text-slate-400 mt-1">{[ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) ? 'Lista del personal activo.' : 'Contactos asignados.'}</p>
         </div>
-        {[ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.APV].includes(currentUser.role) && (
-          <Button variant="secondary" icon={Utensils} onClick={() => setShowCatering(!showCatering)}>{showCatering ? 'Ocultar Catering' : 'Catering'}</Button>
-        )}
       </header>
-
-      {showCatering && (
-        <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 md:p-6 mb-6 print:border-black print:bg-white print:text-black">
-          <div className="flex justify-between items-center mb-4 md:mb-6 border-b border-slate-800 print:border-black pb-3 md:pb-4">
-            <h2 className="text-lg md:text-xl font-bold flex items-center gap-2"><Utensils className="text-amber-500 print:text-black"/> Reporte Catering (APV)</h2>
-            <Button variant="secondary" icon={Printer} className="print:hidden py-1.5 px-3 text-xs" onClick={handlePrint}>Imprimir PDF</Button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-[10px] md:text-xs font-bold text-slate-400 print:text-black mb-2 uppercase tracking-wider">Resumen por Dieta</h3>
-              <div className="space-y-1.5">
-                {Object.entries(cateringCount).sort((a,b) => b[1] - a[1]).map(([dieta, count]) => (
-                  <div key={dieta} className="flex justify-between items-center bg-slate-800 print:bg-transparent border border-slate-700 print:border-black p-2 md:p-3 rounded-lg text-xs md:text-sm">
-                    <span className="font-bold print:text-black">{dieta}</span>
-                    <span className="bg-emerald-500/20 text-emerald-400 print:bg-transparent print:text-black print:border print:border-black px-2 py-0.5 rounded-full font-black">{count}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between items-center p-2 md:p-3 font-black border-t border-slate-700 print:border-black mt-3 text-xs md:text-sm">
-                  <span>Total Staff</span>
-                  <span>{localDirectory.length + 1}</span>
-                </div>
-              </div>
-            </div>
-            <div>
-               <h3 className="text-[10px] md:text-xs font-bold text-slate-400 print:text-black mb-2 uppercase tracking-wider">Detalle de Asignación</h3>
-               <div className="overflow-y-auto max-h-[300px] print:max-h-none border border-slate-700 print:border-black rounded-lg custom-scrollbar bg-slate-800 print:bg-transparent">
-                 <table className="w-full text-left text-xs md:text-sm print:text-black">
-                   <thead className="bg-slate-900 print:bg-gray-200 sticky top-0 border-b border-slate-700 print:border-black">
-                     <tr><th className="p-2 pl-3">Nombre</th><th className="p-2">Dieta</th></tr>
-                   </thead>
-                   <tbody>
-                      <tr className="border-b border-slate-700/50 print:border-black/50">
-                        <td className="p-2 pl-3 font-bold">{currentUser.name} (Tú)</td>
-                        <td className="p-2"><span className="text-[9px] md:text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/30 print:border-black print:text-black px-1.5 py-0.5 rounded font-black uppercase tracking-wider truncate block max-w-[100px] md:max-w-none">{currentUser.dieta || 'OMNÍVORA'}</span></td>
-                      </tr>
-                     {localDirectory.map(u => (
-                       <tr key={u.email} className="border-b border-slate-700/50 print:border-black/50 last:border-0">
-                         <td className="p-2 pl-3">{u.name}</td>
-                         <td className="p-2"><span className="text-[9px] md:text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/30 print:border-black print:text-black px-1.5 py-0.5 rounded font-black uppercase tracking-wider truncate block max-w-[100px] md:max-w-none">{u.dieta || 'OMNÍVORA'}</span></td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-               </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {fetchError ? (
         <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl text-red-400 flex items-center gap-2 text-sm print:hidden">
@@ -2283,10 +2272,17 @@ const ChatView = ({ currentUser, showToast }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (force = false) => {
+    if (!force && CACHE.mensajes) {
+       setMessages(CACHE.mensajes);
+       scrollToBottom();
+       setLoading(false);
+       return;
+    }
     try {
       const res = await apiFetch('getMensajes');
       if (res.status === 'success') {
+        CACHE.mensajes = res.data;
         setMessages(res.data);
         scrollToBottom();
       }
@@ -2314,7 +2310,8 @@ const ChatView = ({ currentUser, showToast }) => {
 
     try {
       await apiFetch('sendMensaje', { sender: currentUser.name, role: currentUser.role, text: newMsgObj.text, time: timeStr });
-      fetchMessages();
+      clearCache('mensajes');
+      fetchMessages(true);
     } catch (e) {
       showToast("No se pudo enviar el mensaje.");
     }
@@ -2330,6 +2327,7 @@ const ChatView = ({ currentUser, showToast }) => {
     }));
     try {
       await apiFetch('marcarLeido', { id: msgId, userName: currentUser.name });
+      clearCache('mensajes');
     } catch (e) {
       showToast("Error al marcar como leído.");
     }
@@ -2342,7 +2340,7 @@ const ChatView = ({ currentUser, showToast }) => {
           <MessageSquare className="text-emerald-500" size={20} />
           <div><h2 className="font-black text-white text-base md:text-lg leading-tight">Anuncios de Gira</h2><p className="text-[10px] md:text-xs text-slate-400">Canal oficial</p></div>
         </div>
-        <Button variant="ghost" className="text-slate-400 hover:text-emerald-400 p-1.5 md:p-2 border border-slate-700 rounded" onClick={() => { setLoading(true); fetchMessages(); }} title="Actualizar Chat"><RefreshCw size={14} className={loading ? "animate-spin text-emerald-500" : ""}/></Button>
+        <Button variant="ghost" className="text-slate-400 hover:text-emerald-400 p-1.5 md:p-2 border border-slate-700 rounded" onClick={() => { setLoading(true); fetchMessages(true); }} title="Actualizar Chat"><RefreshCw size={14} className={loading ? "animate-spin text-emerald-500" : ""}/></Button>
       </header>
 
       <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 custom-scrollbar">
@@ -2389,11 +2387,19 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
   const [invRole, setInvRole] = useState(ROLES.TECH);
   const [editingUser, setEditingUser] = useState(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (force = false) => {
     setLoading(true); setFetchError(false);
+    if (!force && CACHE.usuarios) {
+      setDbUsers(CACHE.usuarios.filter(u => u.name));
+      setLoading(false);
+      return;
+    }
     try {
       const res = await apiFetch('getUsuarios');
-      if (res.status === 'success') setDbUsers(res.data.filter(u => u.name));
+      if (res.status === 'success') {
+         CACHE.usuarios = res.data;
+         setDbUsers(res.data.filter(u => u.name));
+      }
     } catch(e) { setFetchError(true); }
     setLoading(false);
   };
@@ -2404,7 +2410,11 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
     setProcessingId(email);
     try {
       const res = await apiFetch('aprobarUsuario', { email });
-      if (res.status === 'success') { showToast("Usuario aprobado. Clave enviada por correo."); fetchUsers(); } 
+      if (res.status === 'success') { 
+        showToast("Usuario aprobado. Clave enviada por correo."); 
+        clearCache('usuarios');
+        fetchUsers(true); 
+      } 
       else { showToast("Error: " + res.message); }
     } catch(e) { showToast("Error de conexión al aprobar."); }
     setProcessingId(null);
@@ -2417,7 +2427,9 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
       if(resSolicitud.status === 'success') {
         const resAprob = await apiFetch('aprobarUsuario', { email: invEmail });
         if(resAprob.status === 'success') {
-          showToast(`Acceso creado. Credenciales enviadas a ${invEmail}`); setInvName(''); setInvEmail(''); setActiveTab('DIRECTORIO'); fetchUsers();
+          showToast(`Acceso creado. Credenciales enviadas a ${invEmail}`); setInvName(''); setInvEmail(''); setActiveTab('DIRECTORIO'); 
+          clearCache('usuarios');
+          fetchUsers(true);
         }
       }
     } catch(e) { showToast("Error al invitar integrante."); }
@@ -2525,6 +2537,7 @@ const ProfileView = ({ currentUser, setCurrentUser, showToast }) => {
         setCurrentUser({ ...currentUser, phone: pPhone, talla: pTalla, dieta: pDieta });
         setOldPass(''); setNewPass(''); setConfirmPass('');
         showToast(newPass ? "¡Perfil y Contraseña actualizados!" : "¡Perfil actualizado!");
+        clearCache('usuarios');
       } else { showToast(res.message); }
     } catch (err) { showToast("Error al guardar."); }
     setSaving(false);
@@ -2610,10 +2623,17 @@ export default function App() {
     return [ { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }, riders, transport, chat, dir, profile ];
   };
 
-  const fetchDirectoryGlobal = async () => {
+  const fetchDirectoryGlobal = async (force = false) => {
+    if (!force && CACHE.usuarios) {
+       setDirectory(CACHE.usuarios.filter(u => u.status === 'ACTIVO'));
+       return;
+    }
     try {
       const res = await apiFetch('getUsuarios');
-      if (res.status === 'success') setDirectory(res.data.filter(u => u.status === 'ACTIVO'));
+      if (res.status === 'success') {
+         CACHE.usuarios = res.data;
+         setDirectory(res.data.filter(u => u.status === 'ACTIVO'));
+      }
     } catch(e) { console.error("Error fetching global directory", e); }
   };
 
