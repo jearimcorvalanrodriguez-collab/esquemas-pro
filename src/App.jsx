@@ -1696,6 +1696,16 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   const riderHitos = getRiderHitos();
   const displayRider = (viewMode === 'EDIT' && isPreview) ? form : activeRider;
 
+  const handlePrintRider = () => {
+    const originalTitle = document.title;
+    const projectName = getProjectName(displayRider.content.proyectoId);
+    const safeProjectName = projectName === 'Documento General' ? 'General' : projectName.replace(/[^a-z0-9]/gi, '_');
+    const safeRiderTitle = displayRider.title.replace(/[^a-z0-9]/gi, '_');
+    document.title = `RIDER_${safeProjectName}_${safeRiderTitle}`;
+    window.print();
+    setTimeout(() => { document.title = originalTitle; }, 1000);
+  };
+
   const visibleRiders = canManageProjects 
     ? riders 
     : riders.filter(r => {
@@ -1727,7 +1737,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
               <span>Incluir Timing en PDF</span>
             </label>
           )}
-          {(viewMode === 'DETAIL' || isPreview) && <Button icon={Printer} variant="secondary" onClick={handlePrint} className="flex-1 sm:flex-none" title="Imprimir o Descargar en PDF">Imprimir PDF</Button>}
+          {(viewMode === 'DETAIL' || isPreview) && <Button icon={Printer} variant="secondary" onClick={handlePrintRider} className="flex-1 sm:flex-none" title="Imprimir o Descargar en PDF">Imprimir PDF</Button>}
           {viewMode === 'DETAIL' && canManageRiders && <Button icon={Edit3} onClick={() => openEditor(activeRider)} className="flex-1 sm:flex-none">Editar</Button>}
           {viewMode === 'LIST' && canManageRiders && <Button icon={Plus} onClick={() => openEditor(null)} className="flex-1 sm:flex-none">Nuevo Documento</Button>}
         </div>
@@ -1792,7 +1802,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                 </div>
                 <div>
                   <div className="flex justify-between items-end mb-1.5"><label className="text-xs md:text-sm font-bold text-white block">Requerimientos de SoundCheck</label><Button variant="ghost" className="py-0.5 px-2 text-[10px]" icon={FileText} onClick={() => setForm(prev => ({...prev, content: {...prev.content, soundcheck: templatesTexto.soundcheck}}))}>Usar Plantilla</Button></div>
-                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] outline-none focus:border-emerald-500" value={form.content.soundcheck} onChange={e=>setForm({...form, content: {...form.content, soundcheck: e.target.value}})} />
+                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] focus:border-emerald-500 outline-none" value={form.content.soundcheck} onChange={e=>setForm({...form, content: {...form.content, soundcheck: e.target.value}})} />
                 </div>
                 <div>
                   <div className="flex justify-between items-end mb-1.5"><label className="text-xs md:text-sm font-bold text-white block">Recordatorio Oficial</label><Button variant="ghost" className="py-0.5 px-2 text-[10px]" icon={FileText} onClick={() => setForm(prev => ({...prev, content: {...prev.content, recordatorio: templatesTexto.recordatorio}}))}>Usar Plantilla</Button></div>
@@ -1997,8 +2007,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                          <table className="w-full text-left text-xs md:text-sm text-slate-300">
                             <thead className="bg-slate-800 text-[10px] uppercase text-slate-500 border-b border-slate-700">
                                <tr>
-                                  <th className="p-2 pl-3">Nombre</th>
-                                  <th className="p-2">Rol</th>
+                                  <th className="p-2 pl-3">Nombre / Rol</th>
                                   <th className="p-2">Dieta</th>
                                   {form.content.catering.showSizes && <th className="p-2">Talla</th>}
                                </tr>
@@ -2006,8 +2015,10 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                             <tbody>
                                {assignedCrew.map(u => (
                                   <tr key={u.email} className="border-b border-slate-800 last:border-0">
-                                     <td className="p-2 pl-3 font-bold text-white">{u.name}</td>
-                                     <td className="p-2 text-[10px]">{u.role}</td>
+                                     <td className="p-2 pl-3">
+                                        <div className="font-bold text-white">{u.name}</div>
+                                        <div className="text-[9px] text-slate-400 uppercase mt-0.5">{u.role}</div>
+                                     </td>
                                      <td className="p-2"><span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded font-black uppercase tracking-wider">{u.dieta || 'OMNÍVORA'}</span></td>
                                      {form.content.catering.showSizes && <td className="p-2 text-[10px] font-bold">{u.talla || 'M'}</td>}
                                   </tr>
@@ -2263,8 +2274,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                              <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black">
                                 <thead className="bg-slate-800 print:bg-gray-200 text-[10px] uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
                                    <tr>
-                                      <th className="p-2 pl-3 border-r border-slate-700 print:border-black last:border-0">Nombre</th>
-                                      <th className="p-2 border-r border-slate-700 print:border-black last:border-0">Rol</th>
+                                      <th className="p-2 pl-3 border-r border-slate-700 print:border-black last:border-0">Nombre / Rol</th>
                                       <th className="p-2 border-r border-slate-700 print:border-black last:border-0">Dieta</th>
                                       {displayRider.content.catering.showSizes && <th className="p-2">Talla</th>}
                                    </tr>
@@ -2272,8 +2282,10 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                                 <tbody>
                                    {assignedCrew.map(u => (
                                       <tr key={u.email} className="border-b border-slate-800 print:border-black last:border-0">
-                                         <td className="p-2 pl-3 font-bold text-white print:text-black border-r border-slate-800 print:border-black">{u.name}</td>
-                                         <td className="p-2 text-[10px] border-r border-slate-800 print:border-black">{u.role}</td>
+                                         <td className="p-2 pl-3 border-r border-slate-800 print:border-black">
+                                            <div className="font-bold text-white print:text-black">{u.name}</div>
+                                            <div className="text-[9px] text-slate-400 print:text-slate-600 uppercase mt-0.5">{u.role}</div>
+                                         </td>
                                          <td className="p-2 border-r border-slate-800 print:border-black"><span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/30 print:border-none print:text-black px-1.5 py-0.5 rounded font-black uppercase tracking-wider">{u.dieta || 'OMNÍVORA'}</span></td>
                                          {displayRider.content.catering.showSizes && <td className="p-2 text-[10px] font-bold">{u.talla || 'M'}</td>}
                                       </tr>
@@ -2411,6 +2423,49 @@ const StaffDirectory = ({ currentUser }) => {
         </div>
       </header>
 
+      <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 md:p-6 mb-6 print:border-black print:bg-white print:text-black hidden print:block">
+          <div className="flex justify-between items-center mb-4 md:mb-6 border-b border-slate-800 print:border-black pb-3 md:pb-4">
+            <h2 className="text-lg md:text-xl font-bold flex items-center gap-2"><Utensils className="text-amber-500 print:text-black"/> Reporte Catering (APV)</h2>
+            <Button variant="secondary" icon={Printer} className="print:hidden py-1.5 px-3 text-xs" onClick={() => {
+              const originalTitle = document.title;
+              document.title = `Reporte_Catering_${new Date().toLocaleDateString().replace(/\//g, '-')}`;
+              window.print();
+              setTimeout(() => { document.title = originalTitle; }, 1000);
+            }}>Imprimir PDF</Button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+               <h3 className="text-[10px] md:text-xs font-bold text-slate-400 print:text-black mb-2 uppercase tracking-wider">Detalle de Asignación</h3>
+               <div className="overflow-y-auto max-h-[300px] print:max-h-none border border-slate-700 print:border-black rounded-lg custom-scrollbar bg-slate-800 print:bg-transparent">
+                 <table className="w-full text-left text-xs md:text-sm print:text-black">
+                   <thead className="bg-slate-900 print:bg-gray-200 sticky top-0 border-b border-slate-700 print:border-black">
+                     <tr><th className="p-2 pl-3">Nombre / Rol</th><th className="p-2">Dieta</th></tr>
+                   </thead>
+                   <tbody>
+                      <tr className="border-b border-slate-700/50 print:border-black/50">
+                        <td className="p-2 pl-3">
+                          <div className="font-bold text-white print:text-black">{currentUser.name} (Tú)</div>
+                          <div className="text-[9px] text-slate-400 print:text-slate-600 uppercase mt-0.5">{currentUser.role}</div>
+                        </td>
+                        <td className="p-2"><span className="text-[9px] md:text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/30 print:border-black print:text-black px-1.5 py-0.5 rounded font-black uppercase tracking-wider truncate block max-w-[100px] md:max-w-none">{currentUser.dieta || 'OMNÍVORA'}</span></td>
+                      </tr>
+                     {localDirectory.map(u => (
+                       <tr key={u.email} className="border-b border-slate-700/50 print:border-black/50 last:border-0">
+                         <td className="p-2 pl-3">
+                           <div className="font-bold text-white print:text-black">{u.name}</div>
+                           <div className="text-[9px] text-slate-400 print:text-slate-600 uppercase mt-0.5">{u.role}</div>
+                         </td>
+                         <td className="p-2"><span className="text-[9px] md:text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/30 print:border-black print:text-black px-1.5 py-0.5 rounded font-black uppercase tracking-wider truncate block max-w-[100px] md:max-w-none">{u.dieta || 'OMNÍVORA'}</span></td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+            </div>
+          </div>
+        </div>
+
       {fetchError ? (
         <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl text-red-400 flex items-center gap-2 text-sm print:hidden">
           <AlertCircle size={18} /> Error al cargar el directorio.
@@ -2421,7 +2476,7 @@ const StaffDirectory = ({ currentUser }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 print:hidden">
           {localDirectory.map((user, idx) => (
             <Card key={idx} className="p-3 md:p-4 flex flex-col justify-between">
-              <div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-lg shrink-0">{user.name.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-white text-base md:text-lg truncate">{user.name}</h3><span className="text-[9px] md:text-[10px] bg-slate-900 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold inline-block">{user.role}</span></div></div>
+              <div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-lg shrink-0">{user.name.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-white text-base md:text-lg truncate">{user.name}</h3><span className="text-[9px] md:text-[10px] bg-slate-900 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold inline-block mt-0.5">{user.role}</span></div></div>
               <div className="space-y-1.5 mb-3 text-xs md:text-sm text-slate-300"><p className="flex items-center gap-2"><Phone size={12} className="text-slate-500 shrink-0"/> <span className="truncate">{user.phone}</span></p><p className="flex items-center gap-2"><Mail size={12} className="text-slate-500 shrink-0"/> <span className="truncate">{user.email}</span></p></div>
               <div className="flex flex-row gap-2 mt-auto border-t border-slate-700 pt-3"><Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 py-1.5 text-xs" icon={Mail} onClick={() => openEmail(user.email)}>Correo</Button><Button variant="primary" className="flex-1 py-1.5 text-xs" icon={MessageSquare} onClick={() => openWhatsApp(user.phone)}>WhatsApp</Button></div>
             </Card>
@@ -2839,12 +2894,22 @@ const ProfileView = ({ currentUser, setCurrentUser, showToast, theme, setTheme }
 
   return (
     <div className="max-w-xl mx-auto animate-fade-in pb-24">
-      <header className="mb-4 md:mb-6"><h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3"><User className="text-emerald-500" size={24}/> Mi Perfil</h1></header>
+      <header className="mb-4 md:mb-6">
+        <h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3">
+          <User className="text-emerald-500" size={24}/> Mi Perfil
+        </h1>
+      </header>
       <Card className="p-4 md:p-6">
         <form onSubmit={handleUpdate} className="space-y-4">
-          <div className="pb-3 border-b border-slate-700"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Nombre</label><input type="text" value={currentUser.name} disabled className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-slate-500 text-sm cursor-not-allowed" /></div>
+          <div className="pb-3 border-b border-slate-700">
+            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Nombre</label>
+            <input type="text" value={currentUser.name} disabled className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-slate-500 text-sm cursor-not-allowed" />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Teléfono</label><input type="text" value={pPhone} onChange={e=>setPPhone(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" required /></div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Teléfono</label>
+              <input type="text" value={pPhone} onChange={e=>setPPhone(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" required />
+            </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Talla (Merch)</label>
               <select value={pTalla} onChange={e=>setPTalla(e.target.value)} className="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 break-words whitespace-normal">
@@ -2899,16 +2964,47 @@ const ProfileView = ({ currentUser, setCurrentUser, showToast, theme, setTheme }
 };
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [currentView, setCurrentView] = useState('DASHBOARD');
+  // Inicializamos leyendo localStorage para mantener la sesión viva tras un Refresh
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = window.localStorage.getItem('esquemapps_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (error) {
+      return null;
+    }
+  });
+
+  // Mantenemos al usuario en la misma pestaña tras recargar
+  const [currentView, setCurrentView] = useState(() => {
+    return window.localStorage.getItem('esquemapps_view') || 'DASHBOARD';
+  });
+
   const [selectedProject, setSelectedProject] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [directory, setDirectory] = useState([]); 
   const [activeRider, setActiveRider] = useState(null);
   const [showPasswordAlert, setShowPasswordAlert] = useState(false);
-  const [theme, setTheme] = useState(localStorage.getItem('esquemapps_theme') || 'dark');
+  const [theme, setTheme] = useState(window.localStorage.getItem('esquemapps_theme') || 'dark');
 
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', onConfirm: null });
+
+  // Efecto automático: Si el currentUser cambia (login o perfil actualizado), lo guardamos. Si es null (logout), lo borramos.
+  useEffect(() => {
+    if (currentUser) {
+      window.localStorage.setItem('esquemapps_user', JSON.stringify(currentUser));
+    } else {
+      window.localStorage.removeItem('esquemapps_user');
+      window.localStorage.removeItem('esquemapps_view'); // Reseteamos la vista al desloguearse
+      setCurrentView('DASHBOARD');
+    }
+  }, [currentUser]);
+
+  // Efecto automático: Guardamos la vista actual en memoria cada vez que el usuario navega
+  useEffect(() => {
+    if (currentUser) {
+      window.localStorage.setItem('esquemapps_view', currentView);
+    }
+  }, [currentView, currentUser]);
 
   const showToast = (message) => {
     setToastMessage(message);
@@ -2966,9 +3062,9 @@ export default function App() {
   useEffect(() => {
     if (currentUser && currentUser.role !== 'CONDUCTOR') {
       fetchDirectoryGlobal();
-      if (!localStorage.getItem(`pwd_alert_${currentUser.email}`)) {
+      if (!window.localStorage.getItem(`pwd_alert_${currentUser.email}`)) {
         setShowPasswordAlert(true);
-        localStorage.setItem(`pwd_alert_${currentUser.email}`, 'true');
+        window.localStorage.setItem(`pwd_alert_${currentUser.email}`, 'true');
       }
     }
   }, [currentUser]);
@@ -2978,7 +3074,7 @@ export default function App() {
   }, [currentView]);
 
   useEffect(() => {
-    localStorage.setItem('esquemapps_theme', theme);
+    window.localStorage.setItem('esquemapps_theme', theme);
     document.documentElement.style.backgroundColor = theme === 'light' ? '#f8fafc' : '#020617';
   }, [theme]);
 
