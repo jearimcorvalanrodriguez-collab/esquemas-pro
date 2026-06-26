@@ -623,12 +623,12 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
 };
 
 // --- COMPONENTES DE TRANSPORTE ---
-const TransportView = ({ currentUser, setCurrentView, showToast }) => {
+const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject }) => {
   const [transports, setTransports] = useState([]);
   const [proyectos, setProyectos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [form, setForm] = useState({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: '' });
+  const [form, setForm] = useState({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: selectedProject?.id || '' });
   const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role);
   const canManageAll = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
 
@@ -653,17 +653,12 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
       if (projData) setProyectos(projData.filter(p => p.status === 'ACTIVO'));
 
       if (transData) {
-        // Notificación de nueva asignación en background
         if (isBackground) {
-          const visibleOld = transports;
-          const visibleNew = canManageAll ? transData : transData.filter(t => {
-            if (!t.proyectoId) return true;
-            const p = projData?.find(proj => String(proj.id) === String(t.proyectoId));
-            return p && p.asignados.includes(currentUser.email);
-          });
-          if (visibleNew.length > visibleOld.length) showToast("🚐 ¡Tienes una nueva asignación de Transporte!");
+          const oldLen = transports.length;
+          const newLen = transData.filter(t => String(t.proyectoId) === String(selectedProject?.id)).length;
+          if (newLen > oldLen) showToast("🚐 ¡Hay un nuevo Transporte en este proyecto!");
         }
-        setTransports(transData);
+        setTransports(transData.filter(t => String(t.proyectoId) === String(selectedProject?.id)));
       }
     } catch(e) {
       if (!isBackground) showToast("Error al cargar transportes.");
@@ -672,19 +667,22 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
   };
 
   useEffect(() => { 
-    fetchTransportsAndProjects(); 
+    if(selectedProject) fetchTransportsAndProjects(); 
     const interval = setInterval(() => fetchTransportsAndProjects(true, true), 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedProject]);
+
+  if (!selectedProject) return <div className="text-center p-8"><Button onClick={() => setCurrentView('DASHBOARD')}>Volver a Proyectos</Button></div>;
 
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const res = await apiFetch('createTransporte', form);
+      const payload = { ...form, proyectoId: selectedProject.id };
+      const res = await apiFetch('createTransporte', payload);
       if (res.status === 'success') {
         showToast("Ruta creada con éxito.");
         setIsCreating(false);
-        setForm({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: '' });
+        setForm({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: selectedProject.id });
         clearCache('transportes');
         fetchTransportsAndProjects(true);
       }
@@ -693,36 +691,14 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
     }
   };
 
-  const visibleTransports = canManageAll ? transports : transports.filter(t => {
-    if (!t.proyectoId) return true; 
-    const p = proyectos.find(proj => String(proj.id) === String(t.proyectoId));
-    return p && p.asignados.includes(currentUser.email);
-  });
-
-  if (!canManageAll && visibleTransports.length === 0 && !loading) {
-    return (
-      <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 pb-24 animate-fade-in">
-        <header className="border-b border-slate-800 pb-4 flex justify-between items-end">
-          <div>
-            <h1 className="text-2xl font-black text-white flex items-center gap-2"><Truck className="text-emerald-500" size={24}/> Transportes</h1>
-            <p className="text-sm text-slate-400">Gestión de rutas y traslados.</p>
-          </div>
-          <Button variant="ghost" icon={RefreshCw} onClick={() => fetchTransportsAndProjects(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar Transportes" />
-        </header>
-        <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
-           <Truck className="mx-auto text-slate-600 mb-4" size={48} />
-           <p className="text-slate-400 text-sm max-w-md mx-auto">No tienes rutas de traslado asignadas para visualizar.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 pb-24 animate-fade-in">
+      <button onClick={() => setCurrentView('PROJECT_DETAILS')} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a {selectedProject.name}</button>
+      
       <header className="border-b border-slate-800 pb-4 flex justify-between items-end">
         <div>
           <h1 className="text-2xl font-black text-white flex items-center gap-2"><Truck className="text-emerald-500" size={24}/> Transportes</h1>
-          <p className="text-sm text-slate-400">Gestión de rutas y traslados.</p>
+          <p className="text-sm text-slate-400">Rutas del proyecto: {selectedProject.name}</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Button variant="ghost" icon={RefreshCw} onClick={() => fetchTransportsAndProjects(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar Transportes" />
@@ -734,15 +710,8 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
         <Card className="p-4 md:p-6 border-emerald-500 mb-6">
           <h2 className="text-lg font-bold text-white mb-4">Crear Nueva Ruta</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
               <div><label className="text-xs text-slate-400 block mb-1">Título de la Ruta</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} placeholder="Ej. Traslado Hotel - Recinto" /></div>
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Vincular a Gira / Proyecto</label>
-                <select className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500" value={form.proyectoId} onChange={e=>setForm({...form, proyectoId: e.target.value})}>
-                  <option value="">Ruta General (Sin asignar)</option>
-                  {(canManageAll ? proyectos : proyectos.filter(p => p.asignados.includes(currentUser.email))).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><label className="text-xs text-slate-400 block mb-1">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} /></div>
@@ -757,9 +726,9 @@ const TransportView = ({ currentUser, setCurrentView, showToast }) => {
         </Card>
       )}
 
-      {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> : (
+      {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> : transports.length === 0 ? <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl text-slate-500">No hay transportes programados en este proyecto.</div> : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {visibleTransports.map(t => (
+          {transports.map(t => (
             <Card key={t.id} className="p-4">
               <div className="flex justify-between items-start mb-3">
                 <h3 className="font-bold text-lg text-white">{t.title}</h3>
@@ -860,7 +829,6 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
       if (res.status === 'success') {
         const parsed = res.data.map(p => ({ ...p, asignados: Array.isArray(p.asignados) ? p.asignados : [] }));
         
-        // Notificación de nueva asignación en background
         if (isBackground) {
            const myOldCount = CACHE.proyectos ? CACHE.proyectos.filter(p => p.asignados.includes(currentUser.email)).length : 0;
            const myNewCount = parsed.filter(p => p.asignados.includes(currentUser.email)).length;
@@ -1042,21 +1010,17 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
   );
 };
 
-const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, showToast, directory, requestConfirm, setActiveRider }) => {
+const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, showToast, requestConfirm }) => {
   const p = selectedProject;
   const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
-  const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE].includes(currentUser.role);
-  const canDeleteRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
   
   const [hitos, setHitos] = useState([]);
-  const [projectRiders, setProjectRiders] = useState([]);
-  const [allRiders, setAllRiders] = useState([]);
-  const [linkingRider, setLinkingRider] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
   const [assigningHito, setAssigningHito] = useState(null);
+  const [directory, setDirectory] = useState([]);
 
   const processHitos = (data) => {
     const projectHitos = data.filter(ev => String(ev.proyectoId) === String(p.id));
@@ -1085,16 +1049,6 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
     setHitos(parsedEvents.sort((a,b) => a.fullDate - b.fullDate));
   };
 
-  const processRiders = (data) => {
-    const parsedRiders = data.map(r => {
-      let content = {};
-      try { content = JSON.parse(r.content); } catch(e){}
-      return { ...r, content };
-    });
-    setAllRiders(parsedRiders);
-    setProjectRiders(parsedRiders.filter(r => String(r.content.proyectoId) === String(p.id)));
-  };
-
   const fetchHitos = async (force = false, isBackground = false) => {
     if (!isBackground) setLoading(true);
     setFetchError(false);
@@ -1116,20 +1070,14 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
     if (!isBackground) setLoading(false);
   };
 
-  const fetchProjectRiders = async (force = false) => {
-    if (!force && CACHE.riders) { processRiders(CACHE.riders); return; }
-    try {
-      const res = await apiFetch('getRiders');
-      if (res.status === 'success') { CACHE.riders = res.data; processRiders(res.data); }
-    } catch(e) {}
-  };
-
   useEffect(() => { 
     fetchHitos(); 
-    fetchProjectRiders(); 
-    const interval = setInterval(() => { fetchHitos(true, true); fetchProjectRiders(true); }, 30000);
+    if (CACHE.usuarios) setDirectory(CACHE.usuarios);
+    const interval = setInterval(() => { fetchHitos(true, true); }, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [p]);
+
+  if (!p) return <div className="text-center p-8"><Button onClick={() => setCurrentView('DASHBOARD')}>Volver a Proyectos</Button></div>;
 
   const firstHito = hitos.length > 0 ? hitos[0] : null;
   let projectDateStr = "Sin hitos programados";
@@ -1193,47 +1141,8 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
     } catch(e) { showToast("Error al guardar."); }
   };
 
-  const handleLinkRider = async (riderId) => {
-    const riderToLink = allRiders.find(r => r.id === riderId);
-    if(!riderToLink) return;
-    const newContent = { ...riderToLink.content, proyectoId: p.id };
-    setLoading(true);
-    try {
-      await apiFetch('updateRider', { 
-        id: riderToLink.id, 
-        title: riderToLink.title, 
-        type: riderToLink.type, 
-        content: JSON.stringify(newContent) 
-      });
-      showToast("Rider vinculado al proyecto.");
-      setLinkingRider(false);
-      clearCache('riders'); fetchProjectRiders(true); 
-    } catch(e) { 
-      showToast("Error al vincular."); 
-      setLoading(false); 
-    }
-  };
-
-  const handleUnlinkRider = async (rider) => {
-    const newContent = { ...rider.content, proyectoId: '' };
-    setLoading(true);
-    try {
-      await apiFetch('updateRider', { 
-        id: rider.id, 
-        title: rider.title, 
-        type: rider.type, 
-        content: JSON.stringify(newContent) 
-      });
-      showToast("Documento desvinculado de la gira.");
-      clearCache('riders'); fetchProjectRiders(true);
-    } catch(err) { 
-      showToast("Error al desvincular."); 
-      setLoading(false); 
-    }
-  };
-
   return (
-    <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-4xl mx-auto">
+    <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto">
       <button onClick={() => setCurrentView('DASHBOARD')} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a Proyectos</button>
       
       <header className="border-b border-slate-800 pb-4 flex flex-col items-start gap-2">
@@ -1247,44 +1156,35 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
         </div>
       </header>
 
-      {/* --- SECCIÓN RIDERS DEL PROYECTO --- */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-6 mb-3 gap-3">
-        <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><FileText className="text-emerald-500" size={18}/> Documentos Técnicos (Riders)</h2>
-        {canManageRiders && (
-          <div className="flex gap-2">
-            <Button icon={Link} onClick={() => setLinkingRider(true)} variant="secondary" className="py-1.5 px-3 text-xs md:text-sm">Vincular</Button>
-            <Button icon={Plus} onClick={() => setCurrentView('RIDERS')} variant="primary" className="py-1.5 px-3 text-xs md:text-sm">Ir a Riders</Button>
-          </div>
-        )}
-      </div>
-      
-      {projectRiders.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-8 border-b border-slate-800 pb-8">
-          {projectRiders.map(r => (
-            <Card key={r.id} onClick={() => { setActiveRider(r); setCurrentView('RIDERS'); }} className="p-3 md:p-4 group cursor-pointer hover:border-emerald-500 transition-colors">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center group-hover:bg-emerald-500/20"><FileText className="text-emerald-500" size={16} /></div>
-                  <span className="text-[9px] md:text-[10px] bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold uppercase">{r.type}</span>
-                </div>
-                {canDeleteRiders && (
-                  <button onClick={(e) => { e.stopPropagation(); requestConfirm("¿Desvincular este documento del proyecto?", () => handleUnlinkRider(r)); }} className="text-slate-500 hover:text-red-500 transition-colors p-1" title="Desvincular">
-                    <XCircle size={16} />
-                  </button>
-                )}
+      {/* --- MÓDULOS DEL PROYECTO (TARJETAS GRANDES) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mt-6 mb-8">
+          <Card onClick={() => setCurrentView('RIDERS')} className="p-4 md:p-6 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-emerald-500 transition-all">
+              <div className="w-14 h-14 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <FileText className="text-emerald-500" size={28} />
               </div>
-              <h3 className="font-bold text-white text-sm md:text-base leading-tight truncate">{r.title}</h3>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center p-6 border border-slate-800 border-dashed rounded-xl bg-slate-900/50 mb-8">
-          <p className="text-slate-400 text-xs md:text-sm">No hay Riders vinculados a este proyecto.</p>
-        </div>
-      )}
+              <h3 className="font-bold text-white text-lg">Riders Técnicos</h3>
+              <p className="text-xs text-slate-400 mt-1">Stageplots y Requerimientos</p>
+          </Card>
+
+          <Card onClick={() => setCurrentView('TRANSPORT')} className="p-4 md:p-6 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-blue-500 transition-all">
+              <div className="w-14 h-14 bg-blue-500/10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <Truck className="text-blue-500" size={28} />
+              </div>
+              <h3 className="font-bold text-white text-lg">Transportes</h3>
+              <p className="text-xs text-slate-400 mt-1">Logística y Rutas</p>
+          </Card>
+
+          <Card onClick={() => setCurrentView('CHAT')} className="p-4 md:p-6 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-amber-500 transition-all">
+              <div className="w-14 h-14 bg-amber-500/10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <MessageSquare className="text-amber-500" size={28} />
+              </div>
+              <h3 className="font-bold text-white text-lg">Anuncios</h3>
+              <p className="text-xs text-slate-400 mt-1">Comunicados oficiales</p>
+          </Card>
+      </div>
 
       {/* --- SECCIÓN TIMING --- */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-8 mb-4 gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-8 mb-4 gap-4 border-t border-slate-800 pt-6">
         <div className="flex items-center gap-4 flex-wrap">
           <h2 className="text-xl font-bold text-white flex items-center gap-2"><Clock className="text-emerald-500"/> Run of Show / Timing</h2>
           {showClock && (
@@ -1373,41 +1273,12 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
           </Card>
         </div>
       )}
-
-      {/* --- MODAL VINCULAR RIDER --- */}
-      {linkingRider && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
-          <Card className="w-full max-w-md p-4 md:p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
-            <div className="flex justify-between items-center mb-3 border-b border-slate-800 pb-3">
-              <h2 className="text-base md:text-lg font-bold text-white">Vincular Documento</h2>
-              <button onClick={() => setLinkingRider(false)} className="text-slate-400 hover:text-white"><X size={20}/></button>
-            </div>
-            <p className="text-xs md:text-sm text-slate-400 mb-4">Selecciona un Rider existente para añadirlo a <span className="text-emerald-400 font-bold">{p.name}</span>.</p>
-            
-            <div className="flex-1 overflow-y-auto space-y-2 mb-3 pr-2 custom-scrollbar">
-              {allRiders.filter(r => String(r.content.proyectoId) !== String(p.id)).length === 0 ? (
-                 <p className="text-slate-500 text-xs md:text-sm text-center">No hay documentos disponibles para vincular.</p>
-              ) : allRiders.filter(r => String(r.content.proyectoId) !== String(p.id)).map(r => (
-                <button key={r.id} onClick={() => handleLinkRider(r.id)} className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-700 bg-slate-800 hover:border-emerald-500 hover:bg-slate-700 transition-colors text-left group">
-                  <div>
-                    <p className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors">{r.title}</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">{r.type}</p>
-                  </div>
-                  <Plus size={18} className="text-slate-500 group-hover:text-emerald-500"/>
-                </button>
-              ))}
-            </div>
-          </Card>
-        </div>
-      )}
-
     </div>
   );
 };
 
-const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setActiveRider, directory }) => {
+const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setActiveRider, directory, selectedProject, setCurrentView }) => {
   const [riders, setRiders] = useState([]);
-  const [proyectos, setProyectos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [viewMode, setViewMode] = useState(activeRider ? 'DETAIL' : 'LIST');
@@ -1415,13 +1286,14 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   const [allHitos, setAllHitos] = useState([]);
   const [includeTiming, setIncludeTiming] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
+  const [linkingRider, setLinkingRider] = useState(false);
   
   const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE].includes(currentUser.role);
   const canDeleteRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
   const canManageProjects = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
 
   const defaultContent = {
-    proyectoId: '',
+    proyectoId: selectedProject ? selectedProject.id : '',
     importante: '',
     contacto: { mgmtNombre: '', mgmtCel: '', mgmtCorreo: '', prodNombre: '', prodCel: '', prodCorreo: '' },
     soundcheck: '',
@@ -1457,13 +1329,11 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
     if (!isBackground) setLoading(true);
     setFetchError(false);
     try {
-      let rd = CACHE.riders, pd = CACHE.proyectos, hd = CACHE.hitos;
+      let rd = CACHE.riders, hd = CACHE.hitos;
       
       if (force || !rd) { const res = await apiFetch('getRiders'); if(res.status==='success') { rd = res.data; CACHE.riders = rd; } }
-      if (force || !pd) { const res = await apiFetch('getProyectos'); if(res.status==='success') { pd = res.data; CACHE.proyectos = pd; } }
       if (force || !hd) { const res = await apiFetch('getHitos'); if(res.status==='success') { hd = res.data; CACHE.hitos = hd; } }
       
-      if (pd) setProyectos(pd.filter(p => p.status === 'ACTIVO'));
       if (hd) setAllHitos(hd);
       
       if (rd) {
@@ -1493,20 +1363,22 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   };
   
   useEffect(() => { 
-    fetchData(); 
+    if(selectedProject) fetchData(); 
     const interval = setInterval(() => fetchData(true, true), 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedProject]);
   
   useEffect(() => {
     if (activeRider) setViewMode('DETAIL');
   }, [activeRider]);
 
+  if (!selectedProject) return <div className="text-center p-8"><Button onClick={() => setCurrentView('DASHBOARD')}>Volver a Proyectos</Button></div>;
+
   const handleSave = async (e) => {
     e.preventDefault(); setLoading(true);
     try {
       const action = form.id ? 'updateRider' : 'createRider';
-      const payloadToSave = { ...form, content: JSON.stringify(form.content) };
+      const payloadToSave = { ...form, content: JSON.stringify({ ...form.content, proyectoId: selectedProject.id }) };
       await apiFetch(action, payloadToSave);
       showToast("Documento guardado correctamente."); 
       setViewMode('LIST');
@@ -1645,6 +1517,45 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
     });
   };
 
+  const handleLinkRider = async (riderId) => {
+    const riderToLink = riders.find(r => r.id === riderId);
+    if(!riderToLink) return;
+    const newContent = { ...riderToLink.content, proyectoId: selectedProject.id };
+    setLoading(true);
+    try {
+      await apiFetch('updateRider', { 
+        id: riderToLink.id, 
+        title: riderToLink.title, 
+        type: riderToLink.type, 
+        content: JSON.stringify(newContent) 
+      });
+      showToast("Rider vinculado al proyecto.");
+      setLinkingRider(false);
+      clearCache('riders'); fetchData(true); 
+    } catch(e) { 
+      showToast("Error al vincular."); 
+      setLoading(false); 
+    }
+  };
+
+  const handleUnlinkRider = async (rider) => {
+    const newContent = { ...rider.content, proyectoId: '' };
+    setLoading(true);
+    try {
+      await apiFetch('updateRider', { 
+        id: rider.id, 
+        title: rider.title, 
+        type: rider.type, 
+        content: JSON.stringify(newContent) 
+      });
+      showToast("Documento desvinculado de la gira.");
+      clearCache('riders'); fetchData(true);
+    } catch(err) { 
+      showToast("Error al desvincular."); 
+      setLoading(false); 
+    }
+  };
+
   const icons = { 'SONIDO': Mic2, 'ILUMINACIÓN': Lightbulb, 'STAGEPLOT': MapIcon, 'HOSPITALITY': Utensils, 'COMPLETO': FileText };
 
   const getTabsForType = (type) => {
@@ -1665,11 +1576,6 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
     if (!getTabsForType(newType).includes(editTab)) {
       setEditTab('GENERAL');
     }
-  };
-
-  const getProjectName = (pId) => {
-     const p = proyectos.find(proj => String(proj.id) === String(pId));
-     return p ? p.name : 'Documento General';
   };
 
   const getRiderHitos = () => {
@@ -1698,21 +1604,14 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
 
   const handlePrintRider = () => {
     const originalTitle = document.title;
-    const projectName = getProjectName(displayRider.content.proyectoId);
-    const safeProjectName = projectName === 'Documento General' ? 'General' : projectName.replace(/[^a-z0-9]/gi, '_');
+    const safeProjectName = selectedProject.name.replace(/[^a-z0-9]/gi, '_');
     const safeRiderTitle = displayRider.title.replace(/[^a-z0-9]/gi, '_');
     document.title = `RIDER_${safeProjectName}_${safeRiderTitle}`;
     window.print();
     setTimeout(() => { document.title = originalTitle; }, 1000);
   };
 
-  const visibleRiders = canManageProjects 
-    ? riders 
-    : riders.filter(r => {
-        if (!r.content.proyectoId) return true; // Documentos Generales sin asignar
-        const proj = proyectos.find(p => String(p.id) === String(r.content.proyectoId));
-        return proj && proj.asignados.includes(currentUser.email);
-    });
+  const visibleRiders = riders.filter(r => String(r.content.proyectoId) === String(selectedProject.id));
 
   return (
     <div className="space-y-4 animate-fade-in pb-24 max-w-5xl mx-auto print:m-0 print:p-0 print:w-full print:max-w-none">
@@ -1720,14 +1619,16 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
       {/* HEADER PRINCIPAL */}
       <header className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 print:hidden">
         <div>
-           {viewMode !== 'LIST' && !isPreview && (
+           {(!isPreview && viewMode === 'LIST') ? (
+             <button onClick={() => setCurrentView('PROJECT_DETAILS')} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a {selectedProject.name}</button>
+           ) : (!isPreview && viewMode === 'DETAIL') && (
              <button onClick={() => { setViewMode('LIST'); setActiveRider(null); }} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a Documentos</button>
            )}
            <h1 className="text-2xl font-black text-white flex items-center gap-2">
              <FileText className="text-emerald-500" size={24}/> 
              {viewMode === 'EDIT' && !isPreview ? 'Editor de Documento' : viewMode === 'EDIT' && isPreview ? 'Vista Previa de Documento' : 'Documentos Técnicos'}
            </h1>
-           <p className="text-xs md:text-sm text-slate-400 mt-1">Especificaciones Oficiales de Producción.</p>
+           <p className="text-xs md:text-sm text-slate-400 mt-1">Especificaciones Oficiales para {selectedProject.name}.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {viewMode === 'LIST' && <Button variant="ghost" icon={RefreshCw} onClick={() => fetchData(true)} className="px-2 border border-slate-700 hover:text-emerald-400 mr-1" title="Actualizar Documentos" />}
@@ -1739,6 +1640,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
           )}
           {(viewMode === 'DETAIL' || isPreview) && <Button icon={Printer} variant="secondary" onClick={handlePrintRider} className="flex-1 sm:flex-none" title="Imprimir o Descargar en PDF">Imprimir PDF</Button>}
           {viewMode === 'DETAIL' && canManageRiders && <Button icon={Edit3} onClick={() => openEditor(activeRider)} className="flex-1 sm:flex-none">Editar</Button>}
+          {viewMode === 'LIST' && canManageRiders && <Button icon={Link} onClick={() => setLinkingRider(true)} variant="secondary" className="flex-1 sm:flex-none">Vincular</Button>}
           {viewMode === 'LIST' && canManageRiders && <Button icon={Plus} onClick={() => openEditor(null)} className="flex-1 sm:flex-none">Nuevo Documento</Button>}
         </div>
       </header>
@@ -1751,7 +1653,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
               <h2 className="text-base md:text-lg font-bold text-white">{form.id ? 'Editar Documento' : 'Generar Nuevo Documento'}</h2>
               <Button variant="ghost" className="text-[10px] py-1 px-2 border border-slate-700" icon={RefreshCw} onClick={() => requestConfirm('¿Restaurar plantilla? Se borrarán los datos no guardados.', restoreDefaults)}>Restaurar</Button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div><label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Título del Documento</label><input required className="w-full bg-slate-800 border-slate-700 rounded p-2 text-xs md:text-sm text-white outline-none focus:border-emerald-500" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} /></div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Área / Tipo</label>
@@ -1761,13 +1663,6 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                   <option value="ILUMINACIÓN">ILUMINACIÓN</option>
                   <option value="STAGEPLOT">STAGEPLOT / BACKLINE</option>
                   <option value="HOSPITALITY">HOSPITALITY / CATERING</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Vincular a Gira / Proyecto</label>
-                <select className="w-full bg-slate-800 border-slate-700 rounded p-2 text-xs md:text-sm text-white font-bold outline-none focus:border-emerald-500 max-w-full break-words" value={form.content.proyectoId || ''} onChange={e=>setForm({...form, content: {...form.content, proyectoId: e.target.value}})}>
-                  <option value="">Documento General (Sin Asignar)</option>
-                  {(canManageProjects ? proyectos : proyectos.filter(p => p.asignados.includes(currentUser.email))).map(p => <option key={p.id} value={p.id}>🎤 {p.name}</option>)}
                 </select>
               </div>
             </div>
@@ -1972,9 +1867,9 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                   </div>
                 ))}
 
-                {/* Tabla de Crew y Dietas Automática con botón Toggle */}
+                {/* Tabla de Crew y Dietas Automática */}
                 {form.content.catering.showCatEquipo && (() => {
-                  if(!form.content.proyectoId) return <div className="p-4 border border-slate-800 border-dashed rounded-xl text-center text-xs text-slate-500 mt-6">⚠️ Vincula este Rider a una Gira/Proyecto en la pestaña GENERAL para cargar automáticamente la lista del Crew y sus dietas.</div>;
+                  if(!form.content.proyectoId) return <div className="p-4 border border-slate-800 border-dashed rounded-xl text-center text-xs text-slate-500 mt-6">⚠️ Vincula este Rider a un Proyecto en la pestaña GENERAL para ver el Crew.</div>;
                   
                   const selectedProj = proyectos.find(proj => String(proj.id) === String(form.content.proyectoId));
                   if(!selectedProj) return null;
@@ -2488,62 +2383,81 @@ const StaffDirectory = ({ currentUser }) => {
   );
 };
 
-// --- CHAT GLOBAL (Conectado a la BD) ---
+// --- CHAT GLOBAL Y POR PROYECTO (Conectado a la BD) ---
 const ChatView = ({ currentUser, showToast }) => {
   const [messages, setMessages] = useState([]);
+  const [proyectos, setProyectos] = useState([]);
+  const [selectedProyecto, setSelectedProyecto] = useState(null);
   const [newMsg, setNewMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
+  
   const canSendMessages = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.APV].includes(currentUser.role);
+  const canViewAllProjects = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const fetchMessages = async (force = false, isBackground = false) => {
+  const fetchData = async (force = false, isBackground = false) => {
     if (!isBackground) setLoading(true);
-    if (!force && CACHE.mensajes) {
-       setMessages(CACHE.mensajes);
-       if (!isBackground) scrollToBottom();
-       if (!isBackground) setLoading(false);
-       return;
-    }
     try {
-      const res = await apiFetch('getMensajes');
-      if (res.status === 'success') {
-        const isNew = CACHE.mensajes && CACHE.mensajes.length < res.data.length;
-        CACHE.mensajes = res.data;
-        setMessages(res.data);
-        if (!isBackground || isNew) scrollToBottom();
+      // Cargar Proyectos
+      let projData = CACHE.proyectos;
+      if (force || !projData) {
+        const resP = await apiFetch('getProyectos');
+        if (resP.status === 'success') { 
+          projData = resP.data.map(p => ({ ...p, asignados: Array.isArray(p.asignados) ? p.asignados : [] })); 
+          CACHE.proyectos = projData; 
+        }
+      }
+      if (projData) {
+        const activeProjs = projData.filter(p => p.status === 'ACTIVO');
+        setProyectos(canViewAllProjects ? activeProjs : activeProjs.filter(p => p.asignados.includes(currentUser.email)));
+      }
+
+      // Cargar Mensajes
+      let msgData = CACHE.mensajes;
+      if (force || !msgData) {
+        const resM = await apiFetch('getMensajes');
+        if (resM.status === 'success') {
+          msgData = resM.data;
+          CACHE.mensajes = msgData;
+        }
+      }
+      if (msgData) {
+        const isNew = CACHE.mensajes && CACHE.mensajes.length < msgData.length;
+        setMessages(msgData);
+        if (selectedProyecto && (!isBackground || isNew)) setTimeout(scrollToBottom, 100);
       }
     } catch (e) {
-      if (!isBackground) showToast("Error conectando al chat.");
+      if (!isBackground) showToast("Error al cargar datos del chat.");
     }
     if (!isBackground) setLoading(false);
   };
 
   useEffect(() => {
-    fetchMessages();
-    const interval = setInterval(() => fetchMessages(true, true), 10000);
+    fetchData();
+    const interval = setInterval(() => fetchData(true, true), 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedProyecto]);
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!newMsg.trim() || !canSendMessages) return;
+    if (!newMsg.trim() || !canSendMessages || !selectedProyecto) return;
     
     const timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     const tempId = Date.now();
-    const newMsgObj = { id: tempId, sender: currentUser.name, role: currentUser.role, text: newMsg, time: timeStr, readBy: [] };
+    const newMsgObj = { id: tempId, proyectoId: selectedProyecto.id, sender: currentUser.name, role: currentUser.role, text: newMsg, time: timeStr, readBy: [] };
     
     setMessages([...messages, newMsgObj]); 
     setNewMsg('');
     setTimeout(scrollToBottom, 100);
 
     try {
-      await apiFetch('sendMensaje', { sender: currentUser.name, role: currentUser.role, text: newMsgObj.text, time: timeStr });
+      await apiFetch('sendMensaje', { proyectoId: selectedProyecto.id, sender: currentUser.name, role: currentUser.role, text: newMsgObj.text, time: timeStr });
       clearCache('mensajes');
-      fetchMessages(true);
+      fetchData(true, true);
     } catch (e) {
       showToast("No se pudo enviar el mensaje.");
     }
@@ -2565,20 +2479,71 @@ const ChatView = ({ currentUser, showToast }) => {
     }
   };
 
+  // VISTA 1: LISTADO DE PROYECTOS (CANALES)
+  if (!selectedProyecto) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 pb-24 animate-fade-in">
+        <header className="border-b border-slate-800 pb-4 flex justify-between items-end">
+          <div>
+            <h1 className="text-2xl font-black text-white flex items-center gap-2"><MessageSquare className="text-emerald-500" size={24}/> Anuncios de Gira</h1>
+            <p className="text-sm text-slate-400">Selecciona un proyecto para ver los comunicados.</p>
+          </div>
+          <Button variant="ghost" icon={RefreshCw} onClick={() => fetchData(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar" />
+        </header>
+
+        {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> : proyectos.length === 0 ? (
+          <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
+             <MessageSquare className="mx-auto text-slate-600 mb-4" size={48} />
+             <p className="text-slate-400 text-sm max-w-md mx-auto">No tienes proyectos asignados para visualizar anuncios.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {proyectos.map(p => {
+              const unreadCount = messages.filter(m => String(m.proyectoId) === String(p.id) && !m.readBy.includes(currentUser.name)).length;
+              return (
+                <Card key={p.id} onClick={() => { setSelectedProyecto(p); setTimeout(scrollToBottom, 100); }} className="p-4 flex flex-col justify-between cursor-pointer hover:border-emerald-500 transition-colors group">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors"><MessageSquare className="text-emerald-500" size={24} /></div>
+                      <div>
+                        <h3 className="font-bold text-white text-lg leading-tight line-clamp-1">{p.name}</h3>
+                        <span className="text-[10px] text-slate-400 uppercase tracking-widest">{p.type}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-700/50 flex justify-between items-center">
+                    <span className="text-xs text-slate-500 font-bold flex items-center gap-1.5"><Users size={14}/> {p.asignados.length} miembros</span>
+                    {unreadCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">{unreadCount} Nuevos</span>}
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // VISTA 2: CHAT DEL PROYECTO
+  const projectMsgs = messages.filter(m => String(m.proyectoId) === String(selectedProyecto.id));
+
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] md:h-[calc(100vh-4rem)] max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+    <div className="flex flex-col h-[calc(100vh-5rem)] md:h-[calc(100vh-4rem)] max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg animate-fade-in">
       <header className="p-3 md:p-4 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <MessageSquare className="text-emerald-500" size={20} />
-          <div><h2 className="font-black text-white text-base md:text-lg leading-tight">Anuncios de Gira</h2><p className="text-[10px] md:text-xs text-slate-400">Canal oficial</p></div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setSelectedProyecto(null)} className="text-slate-400 hover:text-white transition-colors p-1"><ChevronLeft size={20}/></button>
+          <div>
+            <h2 className="font-black text-white text-base md:text-lg leading-tight">{selectedProyecto.name}</h2>
+            <p className="text-[10px] md:text-xs text-emerald-400 font-bold uppercase tracking-wider">Canal Oficial</p>
+          </div>
         </div>
-        <Button variant="ghost" className="text-slate-400 hover:text-emerald-400 p-1.5 md:p-2 border border-slate-700 rounded" onClick={() => { setLoading(true); fetchMessages(true); }} title="Actualizar Chat"><RefreshCw size={14} className={loading ? "animate-spin text-emerald-500" : ""}/></Button>
+        <Button variant="ghost" className="text-slate-400 hover:text-emerald-400 p-1.5 md:p-2 border border-slate-700 rounded" onClick={() => fetchData(true)} title="Actualizar Chat"><RefreshCw size={14} className={loading ? "animate-spin text-emerald-500" : ""}/></Button>
       </header>
 
       <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 custom-scrollbar">
-        {messages.length === 0 && !loading && <div className="text-center text-slate-500 mt-8 text-xs md:text-sm">No hay mensajes.</div>}
+        {projectMsgs.length === 0 && !loading && <div className="text-center text-slate-500 mt-8 text-xs md:text-sm">No hay comunicados en esta gira.</div>}
         
-        {messages.map(msg => {
+        {projectMsgs.map(msg => {
           const isMe = msg.sender === currentUser.name;
           const hasRead = msg.readBy.includes(currentUser.name);
           return (
@@ -2979,7 +2944,13 @@ export default function App() {
     return window.localStorage.getItem('esquemapps_view') || 'DASHBOARD';
   });
 
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(() => {
+    try {
+      const savedProj = window.localStorage.getItem('esquemapps_project');
+      return savedProj ? JSON.parse(savedProj) : null;
+    } catch (e) { return null; }
+  });
+
   const [toastMessage, setToastMessage] = useState(null);
   const [directory, setDirectory] = useState([]); 
   const [activeRider, setActiveRider] = useState(null);
@@ -2994,8 +2965,10 @@ export default function App() {
       window.localStorage.setItem('esquemapps_user', JSON.stringify(currentUser));
     } else {
       window.localStorage.removeItem('esquemapps_user');
-      window.localStorage.removeItem('esquemapps_view'); // Reseteamos la vista al desloguearse
+      window.localStorage.removeItem('esquemapps_view');
+      window.localStorage.removeItem('esquemapps_project');
       setCurrentView('DASHBOARD');
+      setSelectedProject(null);
     }
   }, [currentUser]);
 
@@ -3005,6 +2978,14 @@ export default function App() {
       window.localStorage.setItem('esquemapps_view', currentView);
     }
   }, [currentView, currentUser]);
+
+  useEffect(() => {
+    if (selectedProject) {
+      window.localStorage.setItem('esquemapps_project', JSON.stringify(selectedProject));
+    } else {
+      window.localStorage.removeItem('esquemapps_project');
+    }
+  }, [selectedProject]);
 
   const showToast = (message) => {
     setToastMessage(message);
@@ -3022,27 +3003,17 @@ export default function App() {
     if (!currentUser) return [];
     if (currentUser.role === 'CONDUCTOR') return [{ id: 'CONDUCTOR_VIEW', label: 'Mi Ruta', icon: Truck }, { id: 'LOGOUT', label: 'Salir', icon: LogOut }];
 
-    const allOptions = [
+    const options = [
       { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation },
-      { id: 'RIDERS', label: 'Riders Téc.', icon: FileText },
-      { id: 'TRANSPORT', label: 'Transportes', icon: Truck },
-      { id: 'CHAT', label: 'Anuncios', icon: MessageSquare },
-      { id: 'STAFF', label: 'Directorio', icon: Users },
-      { id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck }
+      { id: 'STAFF', label: 'Directorio', icon: Users }
     ];
     
-    // Filtrar basado en permisos del usuario. Fallback por si es cuenta antigua.
-    const perms = currentUser.permisos || [];
-    
-    // Si no tiene permisos asignados (migración), damos acceso base.
-    if (perms.length === 0) {
-       const r = currentUser.role;
-       if (r === ROLES.ADMIN) return [ ...allOptions, { id: 'PROFILE', label: 'Mi Perfil', icon: User } ];
-       return [ allOptions[0], allOptions[1], allOptions[2], allOptions[3], allOptions[4], { id: 'PROFILE', label: 'Mi Perfil', icon: User } ];
+    if (currentUser.role === ROLES.ADMIN) {
+       options.push({ id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck });
     }
-
-    const userOptions = allOptions.filter(opt => perms.includes(opt.id));
-    return [ ...userOptions, { id: 'PROFILE', label: 'Mi Perfil', icon: User } ];
+    
+    options.push({ id: 'PROFILE', label: 'Mi Perfil', icon: User });
+    return options;
   };
 
   const fetchDirectoryGlobal = async (force = false) => {
@@ -3180,7 +3151,7 @@ export default function App() {
         <div className="p-4 flex items-center gap-2.5 border-b border-slate-800"><Music className="text-emerald-500" size={20} /><h1 className="text-lg font-black text-white tracking-widest">ESQUEMAPPS</h1></div>
         <div className="p-3 flex-1 space-y-1 overflow-y-auto custom-scrollbar">
           {menuOptions.map(opt => (
-            <button key={opt.id} onClick={() => setCurrentView(opt.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg font-bold transition-colors text-left text-sm ${currentView === opt.id ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white border border-transparent'}`}><opt.icon size={18} />{opt.label}</button>
+            <button key={opt.id} onClick={() => { setCurrentView(opt.id); if (opt.id === 'DASHBOARD') setSelectedProject(null); }} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg font-bold transition-colors text-left text-sm ${currentView === opt.id ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white border border-transparent'}`}><opt.icon size={18} />{opt.label}</button>
           ))}
         </div>
         <div className="p-3 border-t border-slate-800">
@@ -3200,15 +3171,15 @@ export default function App() {
           {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} theme={theme} setTheme={setTheme} />}
           {currentView === 'STAFF' && <StaffDirectory currentUser={currentUser} />}
           {currentView === 'CHAT' && <ChatView currentUser={currentUser} showToast={showToast} />}
-          {currentView === 'TRANSPORT' && <TransportView currentUser={currentUser} setCurrentView={setCurrentView} showToast={showToast} />}
+          {currentView === 'TRANSPORT' && <TransportView currentUser={currentUser} setCurrentView={setCurrentView} showToast={showToast} selectedProject={selectedProject} />}
           {currentView === 'TRANSPORT_DETAILS' && <TransportDetailsView currentUser={currentUser} setCurrentView={setCurrentView} showToast={showToast} />}
-          {currentView === 'RIDERS' && <RidersView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} activeRider={activeRider} setActiveRider={setActiveRider} directory={directory} />}
+          {currentView === 'RIDERS' && <RidersView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} activeRider={activeRider} setActiveRider={setActiveRider} directory={directory} selectedProject={selectedProject} setCurrentView={setCurrentView} />}
         </div>
       </main>
       
       <nav className="md:hidden fixed bottom-0 w-full bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex justify-between px-1 pb-safe z-50 overflow-x-auto hide-scrollbar print:hidden">
          {menuOptions.map(opt => (
-            <button key={opt.id} onClick={() => setCurrentView(opt.id)} className={`flex flex-col items-center justify-center gap-0.5 p-1.5 min-w-[64px] flex-1 transition-colors ${currentView === opt.id ? 'text-emerald-400' : 'text-slate-400 hover:text-white'}`}>
+            <button key={opt.id} onClick={() => { setCurrentView(opt.id); if (opt.id === 'DASHBOARD') setSelectedProject(null); }} className={`flex flex-col items-center justify-center gap-0.5 p-1.5 min-w-[64px] flex-1 transition-colors ${currentView === opt.id ? 'text-emerald-400' : 'text-slate-400 hover:text-white'}`}>
               <opt.icon size={18} className="shrink-0" />
               <span className="text-[9px] font-bold truncate w-full text-center">{opt.label}</span>
             </button>
