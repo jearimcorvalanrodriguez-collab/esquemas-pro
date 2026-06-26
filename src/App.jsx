@@ -1259,7 +1259,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                    {activeRider.content.catering.notes && (
                       <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black mb-3">
                          <p className="text-xs md:text-sm text-white print:text-black whitespace-pre-wrap">{activeRider.content.catering.notes}</p>
-                      </div>
+                       </div>
                    )}
                    
                    {(() => {
