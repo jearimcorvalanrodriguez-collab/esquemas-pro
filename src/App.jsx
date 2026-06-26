@@ -212,13 +212,10 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
   const handlePointerMove = (e) => {
     if (!draggedId || readOnly || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    
     let x = ((e.clientX - rect.left) / rect.width) * 100;
     let y = ((e.clientY - rect.top) / rect.height) * 100;
-
     x = Math.max(0, Math.min(100, x));
     y = Math.max(0, Math.min(100, y));
-
     onChange(items.map(item => item.id === draggedId ? { ...item, x, y } : item));
   };
 
@@ -258,7 +255,6 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
 
   return (
     <div className={containerClasses}>
-      {/* PALETA DE CONTROLES */}
       {!readOnly && (
         <div className="w-full md:w-56 bg-slate-950 md:bg-slate-900 border border-slate-800 md:border-slate-700 rounded-xl p-3 shrink-0 print:hidden flex flex-col gap-3 h-auto max-h-[35vh] md:max-h-none overflow-y-auto">
           <div className="flex justify-between items-center mb-1">
@@ -296,7 +292,6 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
         </div>
       )}
 
-      {/* CANVAS DEL ESCENARIO */}
       <div className="flex-1 bg-slate-800 p-2 md:p-4 rounded-xl border border-slate-700 print:bg-white print:border-none print:p-0 flex items-center justify-center overflow-hidden relative">
         <div 
           id="canvas-bg"
@@ -1219,120 +1214,264 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   );
 };
 
-// --- STAFF DIRECTORIO ---
-const StaffDirectory = ({ currentUser }) => {
+// --- 11. DETALLES DEL PROYECTO (HITOS INTERNOS) ---
+const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, showToast, directory, requestConfirm, setActiveRider }) => {
+  const p = selectedProject;
+  const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+  const [hitos, setHitos] = useState([]);
+  const [projectRiders, setProjectRiders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
-  const [localDirectory, setLocalDirectory] = useState([]);
-  const [showCatering, setShowCatering] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
+  const [assigningHito, setAssigningHito] = useState(null);
 
-  useEffect(() => {
-    const fetchDirectory = async () => {
-      setLoading(true);
-      try {
-        const res = await apiFetch('getUsuarios');
-        if (res.status === 'success') {
-          const activeUsers = res.data.filter(u => u.status === 'ACTIVO' && u.email !== currentUser.email);
-          const canSeeEveryone = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.APV].includes(currentUser.role);
-          if (canSeeEveryone) setLocalDirectory(activeUsers);
-          else setLocalDirectory(activeUsers.filter(u => u.role === ROLES.TOUR_MANAGER));
-        }
-      } catch(e) { setFetchError(true); }
-      setLoading(false);
-    };
-    fetchDirectory();
-  }, [currentUser]);
+  const fetchHitos = async () => {
+    setFetchError(false);
+    try {
+      const res = await apiFetch('getHitos');
+      if (res.status === 'success') {
+        const projectHitos = res.data.filter(ev => String(ev.proyectoId) === String(p.id));
+        const parsedEvents = projectHitos.map(ev => {
+          let fullDate = new Date(0); 
+          try {
+              let dStr = '';
+              let dRaw = String(ev.date);
+              if (dRaw.includes('T')) dRaw = dRaw.split('T')[0];
+              const matchISO = dRaw.match(/(\d{4})-(\d{2})-(\d{2})/);
+              if (matchISO) dStr = matchISO[0];
+              else {
+                  const matchLoc = dRaw.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+                  if(matchLoc) dStr = `${matchLoc[3]}-${matchLoc[2]}-${matchLoc[1]}`;
+              }
+              
+              let tStr = '00:00';
+              const timeMatch = String(ev.time).match(/\d{2}:\d{2}/);
+              if(timeMatch) tStr = timeMatch[0];
 
-  const cateringCount = localDirectory.concat([currentUser]).reduce((acc, user) => {
-    const dieta = user.dieta || 'OMNÍVORA';
-    acc[dieta] = (acc[dieta] || 0) + 1;
-    return acc;
-  }, {});
+              const dateObj = new Date(`${dStr}T${tStr}:00`);
+              if(!isNaN(dateObj.getTime())) fullDate = dateObj;
+          } catch(e) { console.error("Error parseando fecha", e); }
+          return { ...ev, fullDate, asignados: Array.isArray(ev.asignados) ? ev.asignados : [] };
+        });
+        setHitos(parsedEvents.sort((a,b) => a.fullDate - b.fullDate));
+      } else setFetchError(res.message || "Error al obtener hitos");
+    } catch(e) { setFetchError("Fallo de red al obtener hitos."); }
+    setLoading(false);
+  };
+
+  const fetchProjectRiders = async () => {
+    try {
+      const res = await apiFetch('getRiders');
+      if (res.status === 'success') {
+        const pRiders = res.data.reduce((acc, r) => {
+          try {
+            const content = JSON.parse(r.content);
+            if (String(content.proyectoId) === String(p.id)) {
+              acc.push({ ...r, content });
+            }
+          } catch(e) {}
+          return acc;
+        }, []);
+        setProjectRiders(pRiders);
+      }
+    } catch(e) {}
+  };
+
+  useEffect(() => { fetchHitos(); fetchProjectRiders(); }, []);
+
+  const firstHito = hitos.length > 0 ? hitos[0] : null;
+  let projectDateStr = "Sin hitos programados";
+  let showClock = false;
+
+  if (firstHito && firstHito.fullDate && firstHito.fullDate.getTime() !== 0) {
+    const fd = firstHito.fullDate;
+    projectDateStr = `${String(fd.getDate()).padStart(2, '0')}/${String(fd.getMonth() + 1).padStart(2, '0')}/${fd.getFullYear()} - ${String(fd.getHours()).padStart(2, '0')}:${String(fd.getMinutes()).padStart(2, '0')} h`;
+    
+    const diffMs = fd.getTime() - new Date().getTime();
+    const hoursDiff = diffMs / (1000 * 60 * 60);
+    if (hoursDiff <= 72) {
+      showClock = true;
+    }
+  }
+
+  const handleCreateHito = async (e) => {
+    e.preventDefault(); 
+    try {
+      const payload = { ...form, proyectoId: p.id };
+      const res = await apiFetch('createHito', payload);
+      if (res.status === 'success') {
+        showToast("Hito agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); fetchHitos();
+      } else {
+        showToast("Error: " + res.message); 
+      }
+    } catch(e) { showToast("Error al crear hito."); }
+  };
+
+  const handleDeleteHito = async (id) => {
+    try {
+      await apiFetch('deleteHito', { id });
+      showToast("Hito eliminado."); fetchHitos();
+    } catch(e) { showToast("Error al eliminar."); }
+  };
+
+  const captureGPS = () => {
+    if(navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        setForm(prev => ({...prev, location: `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`}));
+        showToast("GPS Capturado correctamente");
+      }, () => showToast("Error al obtener GPS. Activa los permisos."));
+    } else showToast("Tu navegador no soporta GPS.");
+  };
+
+  const toggleAssign = (email) => {
+    setAssigningHito(prev => {
+      const isAssigned = prev.asignados.includes(email);
+      const newAsignados = isAssigned ? prev.asignados.filter(e => e !== email) : [...prev.asignados, email];
+      return { ...prev, asignados: newAsignados };
+    });
+  };
+
+  const saveAsignaciones = async () => {
+    try {
+      await apiFetch('updateHitoAsignaciones', { id: assigningHito.id, asignados: assigningHito.asignados });
+      showToast("Asignaciones guardadas."); setAssigningHito(null); fetchHitos();
+    } catch(e) { showToast("Error al guardar."); }
+  };
 
   return (
-    <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto print:m-0 print:p-0 print:w-full">
-      <header className="border-b border-slate-800 pb-3 md:pb-4 flex justify-between items-end print:hidden">
+    <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-4xl mx-auto">
+      <button onClick={() => setCurrentView('DASHBOARD')} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a Proyectos</button>
+      
+      <header className="border-b border-slate-800 pb-4 flex flex-col items-start gap-2">
         <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3"><Users className="text-emerald-500" size={24} /> Directorio</h1>
-          <p className="text-xs md:text-sm text-slate-400 mt-1">{[ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) ? 'Lista del personal activo.' : 'Contactos asignados.'}</p>
+          <span className="text-[9px] md:text-[10px] bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider mb-1.5 inline-block">VISTA PROYECTO</span>
+          <h1 className="text-xl md:text-2xl font-black text-white leading-tight">{p.name}</h1>
+          <div className="mt-1.5 space-y-1">
+            <p className="text-xs md:text-sm text-slate-300 flex items-center gap-1.5"><Calendar size={12}/> Inicio: {projectDateStr}</p>
+            <p className="text-xs md:text-sm text-slate-400 flex items-center gap-1.5"><User size={12}/> Liderado por: {p.manager}</p>
+          </div>
         </div>
-        {[ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.APV].includes(currentUser.role) && (
-          <Button variant="secondary" icon={Utensils} onClick={() => setShowCatering(!showCatering)}>{showCatering ? 'Ocultar Catering' : 'Catering'}</Button>
-        )}
       </header>
 
-      {showCatering && (
-        <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 md:p-6 mb-6 print:border-black print:bg-white print:text-black">
-          <div className="flex justify-between items-center mb-4 md:mb-6 border-b border-slate-800 print:border-black pb-3 md:pb-4">
-            <h2 className="text-lg md:text-xl font-bold flex items-center gap-2"><Utensils className="text-amber-500 print:text-black"/> Reporte Catering (APV)</h2>
-            <Button variant="secondary" icon={Printer} className="print:hidden py-1.5 px-3 text-xs" onClick={handlePrint}>Imprimir PDF</Button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-[10px] md:text-xs font-bold text-slate-400 print:text-black mb-2 uppercase tracking-wider">Resumen por Dieta</h3>
-              <div className="space-y-1.5">
-                {Object.entries(cateringCount).sort((a,b) => b[1] - a[1]).map(([dieta, count]) => (
-                  <div key={dieta} className="flex justify-between items-center bg-slate-800 print:bg-transparent border border-slate-700 print:border-black p-2 md:p-3 rounded-lg text-xs md:text-sm">
-                    <span className="font-bold print:text-black">{dieta}</span>
-                    <span className="bg-emerald-500/20 text-emerald-400 print:bg-transparent print:text-black print:border print:border-black px-2 py-0.5 rounded-full font-black">{count}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between items-center p-2 md:p-3 font-black border-t border-slate-700 print:border-black mt-3 text-xs md:text-sm">
-                  <span>Total Staff</span>
-                  <span>{localDirectory.length + 1}</span>
-                </div>
+      {/* --- SECCIÓN RIDERS DEL PROYECTO --- */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-6 mb-3 gap-3">
+        <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><FileText className="text-emerald-500" size={18}/> Documentos Técnicos (Riders)</h2>
+        {canManage && <Button icon={Plus} onClick={() => setCurrentView('RIDERS')} variant="secondary" className="py-1.5 px-3 text-xs md:text-sm">Gestionar Riders</Button>}
+      </div>
+      
+      {projectRiders.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-8 border-b border-slate-800 pb-8">
+          {projectRiders.map(r => (
+            <Card key={r.id} onClick={() => { setActiveRider(r); setCurrentView('RIDERS'); }} className="p-3 md:p-4 group cursor-pointer hover:border-emerald-500 transition-colors">
+              <div className="flex justify-between items-start mb-2">
+                <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center group-hover:bg-emerald-500/20"><FileText className="text-emerald-500" size={16} /></div>
+                <span className="text-[9px] md:text-[10px] bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold uppercase">{r.type}</span>
               </div>
-            </div>
-            <div>
-               <h3 className="text-[10px] md:text-xs font-bold text-slate-400 print:text-black mb-2 uppercase tracking-wider">Detalle de Asignación</h3>
-               <div className="overflow-y-auto max-h-[300px] print:max-h-none border border-slate-700 print:border-black rounded-lg custom-scrollbar bg-slate-800 print:bg-transparent">
-                 <table className="w-full text-left text-xs md:text-sm print:text-black">
-                   <thead className="bg-slate-900 print:bg-gray-200 sticky top-0 border-b border-slate-700 print:border-black">
-                     <tr><th className="p-2 pl-3">Nombre</th><th className="p-2">Dieta</th></tr>
-                   </thead>
-                   <tbody>
-                      <tr className="border-b border-slate-700/50 print:border-black/50">
-                        <td className="p-2 pl-3 font-bold">{currentUser.name} (Tú)</td>
-                        <td className="p-2"><span className="text-[9px] md:text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/30 print:border-black print:text-black px-1.5 py-0.5 rounded font-black uppercase tracking-wider truncate block max-w-[100px] md:max-w-none">{currentUser.dieta || 'OMNÍVORA'}</span></td>
-                      </tr>
-                     {localDirectory.map(u => (
-                       <tr key={u.email} className="border-b border-slate-700/50 print:border-black/50 last:border-0">
-                         <td className="p-2 pl-3">{u.name}</td>
-                         <td className="p-2"><span className="text-[9px] md:text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/30 print:border-black print:text-black px-1.5 py-0.5 rounded font-black uppercase tracking-wider truncate block max-w-[100px] md:max-w-none">{u.dieta || 'OMNÍVORA'}</span></td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-               </div>
-            </div>
-          </div>
+              <h3 className="font-bold text-white text-sm md:text-base leading-tight truncate">{r.title}</h3>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center p-6 border border-slate-800 border-dashed rounded-xl bg-slate-900/50 mb-8">
+          <p className="text-slate-400 text-xs md:text-sm">No hay Riders vinculados a este proyecto.</p>
         </div>
       )}
 
-      {fetchError ? (
-        <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl text-red-400 flex items-center gap-2 text-sm print:hidden">
-          <AlertCircle size={18} /> Error al cargar el directorio.
+      {/* --- SECCIÓN TIMING --- */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-8 mb-4 gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2"><Clock className="text-emerald-500"/> Run of Show / Timing</h2>
+          {showClock && (
+            <div className="bg-slate-900 border border-slate-700 px-4 py-1.5 rounded-lg flex items-center gap-2 shadow-inner animate-fade-in">
+              <Timer className="text-emerald-500 animate-pulse" size={16} />
+              <LiveClock />
+            </div>
+          )}
         </div>
-      ) : loading && localDirectory.length === 0 ? ( 
-        <div className="flex justify-center p-8 print:hidden"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> 
+        {canManage && !isCreating && <Button icon={Plus} onClick={() => setIsCreating(true)}>Agregar Hito</Button>}
+      </div>
+
+      {isCreating && (
+        <Card className="p-6 border-emerald-500 mb-6">
+          <h2 className="text-lg font-bold text-white mb-4">Agendar Nuevo Hito</h2>
+          <form onSubmit={handleCreateHito} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Título del Hito</label>
+                <input list="hitos-list" required className="w-full bg-slate-900 border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500" placeholder="Ej: Soundcheck, Load In..." value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                <datalist id="hitos-list"><option value="Load In (Montaje)" /><option value="Soundcheck (Prueba de Sonido)" /><option value="Puertas (Apertura al público)" /><option value="Show Telonero" /><option value="Show Principal" /><option value="Load Out (Desmontaje)" /></datalist>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Ubicación / Locación</label>
+                <div className="flex items-center gap-2">
+                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500" placeholder="Ej: Escenario Principal" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
+                  <Button type="button" variant="secondary" icon={MapPin} onClick={captureGPS} title="Usar GPS" className="px-3" />
+                </div>
+              </div>
+              <div><label className="text-xs text-slate-400 block mb-1">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, date: e.target.value})} /></div>
+              <div><label className="text-xs text-slate-400 block mb-1">Hora</label><input required type="time" className="w-full bg-slate-900 border-slate-700 rounded p-2 md:p-2.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, time: e.target.value})} /></div>
+            </div>
+            <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1 py-2 md:py-2.5" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1 py-2 md:py-2.5">Guardar Hito</Button></div>
+          </form>
+        </Card>
+      )}
+
+      {fetchError ? (
+        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
+      ) : loading && hitos.length === 0 ? (
+        <div className="flex justify-center p-10"><Loader2 className="animate-spin text-emerald-500" size={32}/></div>
+      ) : hitos.length === 0 ? (
+        <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
+          <CalendarPlus className="mx-auto text-slate-600 mb-4" size={48} />
+          <p className="text-slate-400 text-sm max-w-md mx-auto">Aún no has agregado hitos al timing de este proyecto.</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 print:hidden">
-          {localDirectory.map((user, idx) => (
-            <Card key={idx} className="p-3 md:p-4 flex flex-col justify-between">
-              <div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-lg shrink-0">{user.name.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-white text-base md:text-lg truncate">{user.name}</h3><span className="text-[9px] md:text-[10px] bg-slate-900 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold inline-block">{user.role}</span></div></div>
-              <div className="space-y-1.5 mb-3 text-xs md:text-sm text-slate-300"><p className="flex items-center gap-2"><Phone size={12} className="text-slate-500 shrink-0"/> <span className="truncate">{user.phone}</span></p><p className="flex items-center gap-2"><Mail size={12} className="text-slate-500 shrink-0"/> <span className="truncate">{user.email}</span></p></div>
-              <div className="flex flex-row gap-2 mt-auto border-t border-slate-700 pt-3"><Button variant="ghost" className="flex-1 bg-slate-900 border border-slate-700 py-1.5 text-xs" icon={Mail} onClick={() => openEmail(user.email)}>Correo</Button><Button variant="primary" className="flex-1 py-1.5 text-xs" icon={MessageSquare} onClick={() => openWhatsApp(user.phone)}>WhatsApp</Button></div>
-            </Card>
+        <div className="space-y-4">
+          {hitos.map((event) => (
+            <EventCard 
+               key={event.id} 
+               event={event} 
+               canManage={canManage} 
+               handleDeleteHito={handleDeleteHito} 
+               setAssigningHito={setAssigningHito} 
+               currentUser={currentUser} 
+               requestConfirm={requestConfirm} 
+            />
           ))}
-          {localDirectory.length === 0 && ( <div className="col-span-full text-center p-8 border border-slate-800 border-dashed rounded-xl text-slate-500 text-sm">No se encontraron contactos.</div> )}
+        </div>
+      )}
+
+      {assigningHito && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <Card className="w-full max-w-md p-6 bg-slate-900 border-emerald-500 flex flex-col max-h-[80vh]">
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-white">Asignar Crew al Hito</h2>
+              <button onClick={() => setAssigningHito(null)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+            </div>
+            <p className="text-sm text-emerald-400 font-bold mb-4">{assigningHito.title}</p>
+            
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2 custom-scrollbar">
+              {directory.length === 0 ? <p className="text-slate-500 text-sm text-center">Cargando directorio...</p> : directory.map(u => {
+                const isChecked = assigningHito.asignados.includes(u.email);
+                return (
+                  <button key={u.email} onClick={() => toggleAssign(u.email)} className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${isChecked ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                    <div className="flex items-center gap-3">
+                      {isChecked ? <CheckSquare className="text-emerald-500" size={20}/> : <Square size={20}/>}
+                      <div className="text-left"><p className="font-bold text-sm">{u.name}</p><p className="text-[10px] uppercase tracking-wider">{u.role}</p></div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <Button onClick={saveAsignaciones} className="w-full py-3">Guardar Asignaciones</Button>
+          </Card>
         </div>
       )}
     </div>
   );
 };
 
-// --- EXPORT DEFAULT APP ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentView, setCurrentView] = useState('DASHBOARD');
