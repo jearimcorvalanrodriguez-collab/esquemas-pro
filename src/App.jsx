@@ -728,7 +728,7 @@ const TransportDetailsView = ({ currentUser, setCurrentView, selectedProject, sh
   );
 };
 
-const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setActiveRider }) => {
+const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setActiveRider, directory }) => {
   const [riders, setRiders] = useState([]);
   const [proyectos, setProyectos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -736,7 +736,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   const [viewMode, setViewMode] = useState(activeRider ? 'DETAIL' : 'LIST');
   const [editTab, setEditTab] = useState('GENERAL');
   
-  const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TECH].includes(currentUser.role);
+  const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TECH, ROLES.APV].includes(currentUser.role);
 
   const defaultContent = {
     proyectoId: '',
@@ -749,7 +749,8 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
     backline: [{ col1: '', col2: '', col3: '', col4: '' }],
     visuals: [{ col1: '', col2: '', col3: '', col4: '' }],
     stageplot: [],
-    stageplotConfig: { width: 10, depth: 8 }
+    stageplotConfig: { width: 10, depth: 8 },
+    catering: { showSizes: false, notes: '' }
   };
 
   const templatesTexto = {
@@ -780,6 +781,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
             if(!parsedContent.stageplot) parsedContent.stageplot = [];
             if(!parsedContent.stageplotConfig) parsedContent.stageplotConfig = { width: 10, depth: 8 };
             if(!parsedContent.proyectoId) parsedContent.proyectoId = '';
+            if(!parsedContent.catering) parsedContent.catering = { showSizes: false, notes: '' };
           } 
           catch(e) { parsedContent = { ...defaultContent, importante: r.content }; }
           return { ...r, content: parsedContent };
@@ -807,18 +809,18 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
       const action = form.id ? 'updateRider' : 'createRider';
       const payloadToSave = { ...form, content: JSON.stringify(form.content) };
       await apiFetch(action, payloadToSave);
-      showToast("Rider guardado correctamente."); 
+      showToast("Documento guardado correctamente."); 
       setViewMode('LIST');
       setActiveRider(null);
       fetchData();
-    } catch(e) { showToast("Error al guardar rider."); setLoading(false); }
+    } catch(e) { showToast("Error al guardar."); setLoading(false); }
   };
 
   const handleDelete = async (id) => {
     setLoading(true);
     try {
       await apiFetch('deleteRider', { id });
-      showToast("Rider eliminado permanentemente."); 
+      showToast("Documento eliminado permanentemente."); 
       setViewMode('LIST');
       setActiveRider(null);
       fetchData();
@@ -827,7 +829,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
 
   const openEditor = (rider = null) => {
     if (rider) setForm({ ...rider });
-    else setForm({ id: null, title: 'Nuevo Rider Téc.', type: 'COMPLETO', content: JSON.parse(JSON.stringify(defaultContent)) });
+    else setForm({ id: null, title: 'Nuevo Documento', type: 'COMPLETO', content: JSON.parse(JSON.stringify(defaultContent)) });
     setEditTab('GENERAL'); 
     setViewMode('EDIT');
   };
@@ -860,14 +862,15 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
     setForm(prev => ({ ...prev, content: { ...prev.content, stageplot: newItems } }));
   };
 
-  const icons = { 'SONIDO': Mic2, 'ILUMINACIÓN': Lightbulb, 'STAGEPLOT': MapIcon, 'COMPLETO': FileText };
+  const icons = { 'SONIDO': Mic2, 'ILUMINACIÓN': Lightbulb, 'STAGEPLOT': MapIcon, 'HOSPITALITY': Utensils, 'COMPLETO': FileText };
 
   const getTabsForType = (type) => {
     switch(type) {
       case 'SONIDO': return ['GENERAL', 'AUDIO', 'BACKLINE', 'STAGEPLOT'];
       case 'ILUMINACIÓN': return ['GENERAL', 'VISUALES', 'STAGEPLOT'];
       case 'STAGEPLOT': return ['GENERAL', 'BACKLINE', 'STAGEPLOT'];
-      default: return ['GENERAL', 'AUDIO', 'BACKLINE', 'VISUALES', 'STAGEPLOT'];
+      case 'HOSPITALITY': return ['GENERAL', 'CATERING'];
+      default: return ['GENERAL', 'AUDIO', 'BACKLINE', 'VISUALES', 'STAGEPLOT', 'CATERING'];
     }
   };
   
@@ -897,14 +900,14 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
            )}
            <h1 className="text-2xl font-black text-white flex items-center gap-2">
              <FileText className="text-emerald-500" size={24}/> 
-             {viewMode === 'EDIT' ? 'Editor de Rider' : 'Riders Técnicos'}
+             {viewMode === 'EDIT' ? 'Editor de Documento' : 'Documentos Técnicos'}
            </h1>
            <p className="text-xs md:text-sm text-slate-400 mt-1">Especificaciones Oficiales de Producción.</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           {viewMode === 'DETAIL' && <Button icon={Printer} variant="secondary" onClick={handlePrint} className="flex-1 sm:flex-none" title="Imprimir o Descargar en PDF">Imprimir PDF</Button>}
           {viewMode === 'DETAIL' && canManageRiders && <Button icon={Edit3} onClick={() => openEditor(activeRider)} className="flex-1 sm:flex-none">Editar</Button>}
-          {viewMode === 'LIST' && canManageRiders && <Button icon={Plus} onClick={() => openEditor(null)} className="flex-1 sm:flex-none">Crear Rider</Button>}
+          {viewMode === 'LIST' && canManageRiders && <Button icon={Plus} onClick={() => openEditor(null)} className="flex-1 sm:flex-none">Nuevo Documento</Button>}
         </div>
       </header>
 
@@ -913,7 +916,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
         <Card className="p-0 border-emerald-500 overflow-hidden flex flex-col h-[85vh]">
           <div className="p-3 md:p-4 border-b border-slate-700 bg-slate-900 shrink-0">
             <div className="flex justify-between items-center mb-3">
-              <h2 className="text-base md:text-lg font-bold text-white">{form.id ? 'Editar Rider' : 'Generar Nuevo Rider'}</h2>
+              <h2 className="text-base md:text-lg font-bold text-white">{form.id ? 'Editar Documento' : 'Generar Nuevo Documento'}</h2>
               <Button variant="ghost" className="text-[10px] py-1 px-2 border border-slate-700" icon={RefreshCw} onClick={() => requestConfirm('¿Restaurar plantilla? Se borrarán los datos no guardados.', restoreDefaults)}>Restaurar</Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -925,6 +928,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                   <option value="SONIDO">SONIDO</option>
                   <option value="ILUMINACIÓN">ILUMINACIÓN</option>
                   <option value="STAGEPLOT">STAGEPLOT / BACKLINE</option>
+                  <option value="HOSPITALITY">HOSPITALITY / CATERING</option>
                 </select>
               </div>
               <div>
@@ -1019,6 +1023,80 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                    onConfigChange={(newCfg) => setForm(prev => ({...prev, content: {...prev.content, stageplotConfig: newCfg}}))}
                    projectName={form.title}
                  />
+              </div>
+            )}
+
+            {editTab === 'CATERING' && activeTabs.includes('CATERING') && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs md:text-sm font-bold text-emerald-500">HOSPITALITY & CATERING</h3>
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input type="checkbox" checked={form.content.catering.showSizes} onChange={e => setForm({...form, content: {...form.content, catering: {...form.content.catering, showSizes: e.target.checked}}})} className="accent-emerald-500 rounded bg-slate-900 border-slate-700"/>
+                    <span>Incluir Tallaje (Merch/Uniformes)</span>
+                  </label>
+                </div>
+                
+                <div>
+                  <label className="text-[10px] md:text-xs font-bold text-slate-400 block mb-1 uppercase">Requerimientos Específicos / Camarines</label>
+                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-white text-xs md:text-sm min-h-[60px] outline-none focus:border-emerald-500" value={form.content.catering.notes} onChange={e=>setForm({...form, content: {...form.content, catering: {...form.content.catering, notes: e.target.value}}})} placeholder="Ej: Espejo de cuerpo entero, 12 toallas negras, agua sin gas..." />
+                </div>
+
+                {/* Tabla de Crew y Dietas */}
+                {(() => {
+                  if(!form.content.proyectoId) return <div className="p-4 border border-slate-800 border-dashed rounded-xl text-center text-xs text-slate-500">⚠️ Vincula este Rider a una Gira/Proyecto en la pestaña GENERAL para cargar automáticamente la lista del Crew y sus dietas.</div>;
+                  
+                  const selectedProj = proyectos.find(proj => String(proj.id) === String(form.content.proyectoId));
+                  if(!selectedProj) return null;
+                  
+                  const fullDir = [currentUser, ...directory];
+                  const assignedCrew = fullDir.filter(u => selectedProj.asignados.includes(u.email));
+                  
+                  if(assignedCrew.length === 0) return <div className="p-4 border border-slate-800 border-dashed rounded-xl text-center text-xs text-slate-500">El proyecto vinculado no tiene personal asignado aún.</div>;
+
+                  const cateringCount = assignedCrew.reduce((acc, user) => {
+                    const dieta = user.dieta || 'OMNÍVORA';
+                    acc[dieta] = (acc[dieta] || 0) + 1;
+                    return acc;
+                  }, {});
+
+                  return (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      <div className="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-xl p-3">
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Resumen Dietas</h4>
+                        <div className="space-y-1.5">
+                          {Object.entries(cateringCount).sort((a,b) => b[1] - a[1]).map(([dieta, count]) => (
+                            <div key={dieta} className="flex justify-between items-center bg-slate-800 border border-slate-700 p-2 rounded text-xs">
+                              <span className="font-bold text-white">{dieta}</span>
+                              <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-black">{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="lg:col-span-2 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
+                         <table className="w-full text-left text-xs md:text-sm text-slate-300">
+                            <thead className="bg-slate-800 text-[10px] uppercase text-slate-500 border-b border-slate-700">
+                               <tr>
+                                  <th className="p-2 pl-3">Nombre</th>
+                                  <th className="p-2">Rol</th>
+                                  <th className="p-2">Dieta</th>
+                                  {form.content.catering.showSizes && <th className="p-2">Talla</th>}
+                               </tr>
+                            </thead>
+                            <tbody>
+                               {assignedCrew.map(u => (
+                                  <tr key={u.email} className="border-b border-slate-800 last:border-0">
+                                     <td className="p-2 pl-3 font-bold text-white">{u.name}</td>
+                                     <td className="p-2 text-[10px]">{u.role}</td>
+                                     <td className="p-2"><span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded font-black uppercase tracking-wider">{u.dieta || 'OMNÍVORA'}</span></td>
+                                     {form.content.catering.showSizes && <td className="p-2 text-[10px] font-bold">{u.talla || 'M'}</td>}
+                                  </tr>
+                               ))}
+                            </tbody>
+                         </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -1171,6 +1249,71 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                          projectName={activeRider.title}
                       />
                    </div>
+                </div>
+             )}
+
+             {/* Render Catering View Mode */}
+             {(activeRider.type === 'COMPLETO' || activeRider.type === 'HOSPITALITY') && activeRider.content.catering && (
+                <div className="mt-3 md:mt-4 break-inside-avoid">
+                   <h4 className="text-slate-400 print:text-black text-[10px] md:text-xs font-black mb-1.5 uppercase">HOSPITALITY & CATERING</h4>
+                   {activeRider.content.catering.notes && (
+                      <div className="bg-slate-800 print:bg-transparent p-3 md:p-4 rounded-lg border border-slate-700 print:border-black mb-3">
+                         <p className="text-xs md:text-sm text-white print:text-black whitespace-pre-wrap">{activeRider.content.catering.notes}</p>
+                      </div>
+                   )}
+                   
+                   {(() => {
+                      if(!activeRider.content.proyectoId) return null;
+                      const selectedProj = proyectos.find(proj => String(proj.id) === String(activeRider.content.proyectoId));
+                      if(!selectedProj) return null;
+                      const fullDir = [currentUser, ...directory];
+                      const assignedCrew = fullDir.filter(u => selectedProj.asignados.includes(u.email));
+                      if(assignedCrew.length === 0) return null;
+
+                      const cateringCount = assignedCrew.reduce((acc, user) => {
+                        const dieta = user.dieta || 'OMNÍVORA';
+                        acc[dieta] = (acc[dieta] || 0) + 1;
+                        return acc;
+                      }, {});
+
+                      return (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4 print:block print:space-y-4">
+                          <div className="lg:col-span-1 bg-slate-800 print:bg-transparent border border-slate-700 print:border-black rounded-xl p-3 md:p-4">
+                            <h4 className="text-[10px] font-bold text-slate-400 print:text-black uppercase tracking-wider mb-2">Resumen Dietas ({assignedCrew.length} Pax)</h4>
+                            <div className="space-y-1.5">
+                              {Object.entries(cateringCount).sort((a,b) => b[1] - a[1]).map(([dieta, count]) => (
+                                <div key={dieta} className="flex justify-between items-center bg-slate-900 print:bg-transparent border border-slate-700 print:border-black p-2 rounded text-xs print:text-black">
+                                  <span className="font-bold">{dieta}</span>
+                                  <span className="bg-emerald-500/20 text-emerald-400 print:bg-transparent print:text-black px-2 py-0.5 rounded-full font-black">{count}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="lg:col-span-2 overflow-x-auto rounded-xl border border-slate-700 print:border-black bg-slate-900 print:bg-transparent">
+                             <table className="w-full text-left text-xs md:text-sm text-slate-300 print:text-black">
+                                <thead className="bg-slate-800 print:bg-gray-200 text-[10px] uppercase text-slate-500 print:text-black border-b border-slate-700 print:border-black">
+                                   <tr>
+                                      <th className="p-2 pl-3 border-r border-slate-700 print:border-black last:border-0">Nombre</th>
+                                      <th className="p-2 border-r border-slate-700 print:border-black last:border-0">Rol</th>
+                                      <th className="p-2 border-r border-slate-700 print:border-black last:border-0">Dieta</th>
+                                      {activeRider.content.catering.showSizes && <th className="p-2">Talla</th>}
+                                   </tr>
+                                </thead>
+                                <tbody>
+                                   {assignedCrew.map(u => (
+                                      <tr key={u.email} className="border-b border-slate-800 print:border-black last:border-0">
+                                         <td className="p-2 pl-3 font-bold text-white print:text-black border-r border-slate-800 print:border-black">{u.name}</td>
+                                         <td className="p-2 text-[10px] border-r border-slate-800 print:border-black">{u.role}</td>
+                                         <td className="p-2 border-r border-slate-800 print:border-black"><span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/30 print:border-none print:text-black px-1.5 py-0.5 rounded font-black uppercase tracking-wider">{u.dieta || 'OMNÍVORA'}</span></td>
+                                         {activeRider.content.catering.showSizes && <td className="p-2 text-[10px] font-bold">{u.talla || 'M'}</td>}
+                                      </tr>
+                                   ))}
+                                </tbody>
+                             </table>
+                          </div>
+                        </div>
+                      );
+                   })()}
                 </div>
              )}
            </div>
@@ -1597,7 +1740,7 @@ export default function App() {
           {currentView === 'TIMING' && <TimingGlobalView currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} />}
           {currentView === 'TRANSPORT' && <TransportView currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} />}
           {currentView === 'TRANSPORT_DETAILS' && <TransportDetailsView currentUser={currentUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} />}
-          {currentView === 'RIDERS' && <RidersView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} activeRider={activeRider} setActiveRider={setActiveRider} />}
+          {currentView === 'RIDERS' && <RidersView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} activeRider={activeRider} setActiveRider={setActiveRider} directory={directory} />}
         </div>
       </main>
       
