@@ -162,6 +162,25 @@ const AddressAutocomplete = ({ value, onChange, placeholder, className, required
   );
 };
 
+const ToggleSwitch = ({ checked, onChange, label }) => {
+  return (
+    <label className="flex items-center justify-between gap-3 text-xs text-slate-300 cursor-pointer select-none bg-slate-900/50 hover:bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg transition-all w-full">
+      <span className="font-bold text-[10px] md:text-xs tracking-wide uppercase">{label}</span>
+      <div className="relative shrink-0">
+        <input 
+          type="checkbox" 
+          checked={checked} 
+          onChange={onChange} 
+          className="sr-only" 
+        />
+        <div className={`w-9 h-5 rounded-full transition-colors duration-200 ease-in-out ${checked ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+          <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] left-[3px] transition-transform duration-200 ease-in-out transform ${checked ? 'translate-x-4' : 'translate-x-0'}`}></div>
+        </div>
+      </div>
+    </label>
+  );
+};
+
 const openWhatsApp = (phone) => window.open(`https://wa.me/${phone.replace('+', '')}`, '_blank');
 const openEmail = (email) => window.open(`mailto:${email}`, '_blank');
 const handlePrint = () => window.print();
@@ -640,7 +659,8 @@ const ProjectChatSidebar = ({ currentUser, selectedProject, showToast }) => {
   const [newMsg, setNewMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
-  const canSendMessages = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.APV].includes(currentUser.role);
+  const canSendMessages = (currentUser.permisos || []).includes('CHAT_SEND') || 
+    (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.APV].includes(currentUser.role));
 
   const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); };
 
@@ -724,7 +744,7 @@ const ProjectChatSidebar = ({ currentUser, selectedProject, showToast }) => {
             <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-slide-up`}>
               <div className={`flex flex-col mb-1 ${isMe ? 'items-end' : 'items-start'}`}>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-[10px] font-bold text-slate-300">{isMe ? 'Tú' : msg.sender}</span>
+                  <span className="text-[10px] font-bold text-slate-300">{msg.sender}</span>
                   <span className="text-[9px] text-slate-500">{msg.time}</span>
                 </div>
                 <span className="text-[8px] text-amber-500 uppercase font-black leading-none mt-0.5">{msg.role}</span>
@@ -913,8 +933,8 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: selectedProject?.id || '' });
-  const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role);
-  const canManageAll = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+  const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role) || (currentUser.permisos || []).includes('TRANSPORT_MANAGE');
+  const canManageAll = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) || (currentUser.permisos || []).includes('TRANSPORT_MANAGE');
 
   const fetchTransports = async (force = false, isBackground = false) => {
     if (!isBackground) setLoading(true);
@@ -1114,7 +1134,7 @@ const ConductorView = ({ currentUser, showToast }) => {
 
 // --- VISTAS PRINCIPALES ---
 const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast, directory }) => {
-  const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+  const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) || (currentUser.permisos || []).includes('PROJECTS_MANAGE');
   const [proyectos, setProyectos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -1321,7 +1341,7 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
 
 const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, showToast, requestConfirm }) => {
   const p = selectedProject;
-  const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+  const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) || (currentUser.permisos || []).includes('PROJECTS_MANAGE');
   
   const [hitos, setHitos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1616,9 +1636,9 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   const [isPreview, setIsPreview] = useState(false);
   const [linkingRider, setLinkingRider] = useState(false);
   
-  const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE].includes(currentUser.role);
-  const canDeleteRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
-  const canManageProjects = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
+  const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE].includes(currentUser.role) || (currentUser.permisos || []).includes('RIDERS_MANAGE');
+  const canDeleteRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) || (currentUser.permisos || []).includes('RIDERS_MANAGE');
+  const canManageProjects = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) || (currentUser.permisos || []).includes('PROJECTS_MANAGE');
 
   const defaultContent = {
     proyectoId: selectedProject ? selectedProject.id : '',
@@ -2720,7 +2740,8 @@ const ChatView = ({ currentUser, showToast, requestConfirm }) => {
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
   
-  const canSendMessages = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.APV].includes(currentUser.role);
+  const canSendMessages = (currentUser.permisos || []).includes('CHAT_SEND') || 
+    (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.APV].includes(currentUser.role));
   const canViewAllProjects = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
 
   const scrollToBottom = () => {
@@ -2897,7 +2918,7 @@ const ChatView = ({ currentUser, showToast, requestConfirm }) => {
             <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-slide-up group relative`}>
               <div className={`flex flex-col mb-1 ${isMe ? 'items-end' : 'items-start'}`}>
                 <div className="flex items-baseline gap-1.5 font-sans">
-                  <span className="text-[10px] md:text-xs font-bold text-slate-300">{isMe ? 'Tú' : msg.sender}</span>
+                  <span className="text-[10px] md:text-xs font-bold text-slate-300">{msg.sender}</span>
                   <span className="text-[9px] text-slate-500">{msg.time}</span>
                 </div>
                 <span className="text-[9px] text-emerald-500 uppercase font-black leading-none mt-0.5">{msg.role}</span>
@@ -2954,12 +2975,16 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
   const [editingUser, setEditingUser] = useState(null);
 
   const MODULOS = [
-    { id: 'DASHBOARD', label: 'Proyectos' },
-    { id: 'RIDERS', label: 'Riders' },
-    { id: 'TRANSPORT', label: 'Transportes' },
-    { id: 'CHAT', label: 'Anuncios' },
-    { id: 'STAFF', label: 'Directorio' },
-    { id: 'ADMIN_PANEL', label: 'Admin Panel' }
+    { id: 'DASHBOARD', label: 'Ver Proyectos' },
+    { id: 'PROJECTS_MANAGE', label: 'Gestionar Proyectos' },
+    { id: 'RIDERS', label: 'Ver Riders' },
+    { id: 'RIDERS_MANAGE', label: 'Gestionar Riders' },
+    { id: 'TRANSPORT', label: 'Ver Transportes' },
+    { id: 'TRANSPORT_MANAGE', label: 'Gestionar Transportes' },
+    { id: 'CHAT', label: 'Ver Anuncios (Chat)' },
+    { id: 'CHAT_SEND', label: 'Enviar Anuncios (Chat)' },
+    { id: 'STAFF', label: 'Ver Directorio' },
+    { id: 'ADMIN_PANEL', label: 'Acceso Admin Panel' }
   ];
 
   const fetchUsers = async (force = false) => {
@@ -3130,29 +3155,28 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
                       <select className="w-full max-w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white font-bold outline-none focus:border-emerald-500 break-words" value={editingUser.status} onChange={e=>setEditingUser({...editingUser, status: e.target.value})}><option value="ACTIVO">ACTIVO</option><option value="INACTIVO">BLOQUEADO</option></select>
                       
                       <div className="pt-2 mt-2 border-t border-slate-700">
-                         <h4 className="text-[10px] uppercase text-slate-400 font-bold mb-2">Accesos Permitidos</h4>
-                         <div className="grid grid-cols-2 gap-2">
-                           {MODULOS.map(mod => (
-                             <label key={mod.id} className="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer">
-                               <input type="checkbox" 
-                                      checked={(editingUser.permisos || []).includes(mod.id)} 
-                                      onChange={(e) => {
-                                        const isChecked = e.target.checked;
-                                        setEditingUser(prev => {
-                                          const currentPerms = prev.permisos || [];
-                                          return {
-                                            ...prev,
-                                            permisos: isChecked 
-                                              ? [...currentPerms, mod.id] 
-                                              : currentPerms.filter(p => p !== mod.id)
-                                          };
-                                        });
-                                      }}
-                                      className="accent-emerald-500 rounded bg-slate-800 border-slate-600" />
-                               {mod.label}
-                             </label>
-                           ))}
-                         </div>
+                          <h4 className="text-[10px] uppercase text-slate-400 font-bold mb-3">Privilegios Detallados</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {MODULOS.map(mod => (
+                              <ToggleSwitch 
+                                key={mod.id}
+                                label={mod.label}
+                                checked={(editingUser.permisos || []).includes(mod.id)}
+                                onChange={(e) => {
+                                  const isChecked = e.target.checked;
+                                  setEditingUser(prev => {
+                                    const currentPerms = prev.permisos || [];
+                                    return {
+                                      ...prev,
+                                      permisos: isChecked 
+                                        ? [...currentPerms, mod.id] 
+                                        : currentPerms.filter(p => p !== mod.id)
+                                    };
+                                  });
+                                }}
+                              />
+                            ))}
+                          </div>
                       </div>
 
                       <div className="flex flex-row gap-2 mt-2"><Button variant="ghost" className="flex-1 bg-slate-800 py-1.5" onClick={() => setEditingUser(null)}>Cancelar</Button><Button type="submit" variant="primary" className="flex-1 py-1.5" disabled={processingId === 'editing'}>{processingId === 'editing' ? '...' : 'Guardar'}</Button></div>
