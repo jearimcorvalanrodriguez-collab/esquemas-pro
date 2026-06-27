@@ -3015,7 +3015,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
 
 // --- MI PERFIL ---
 const ProfileView = ({ currentUser, setCurrentUser, showToast, theme, setTheme, requestConfirm }) => {
-  const [pPhone, setPPhone] = useState(currentUser.phone || '');
+  const [pPhone, setPPhone] = useState(currentUser.phone ? String(currentUser.phone) : '');
   const [pTalla, setPTalla] = useState(currentUser.talla || 'M');
   const [pDieta, setPDieta] = useState(currentUser.dieta || 'OMNÍVORA');
   
@@ -3038,16 +3038,20 @@ const ProfileView = ({ currentUser, setCurrentUser, showToast, theme, setTheme, 
 
     setSaving(true);
     try {
-      const payload = { email: currentUser.email.trim(), phone: pPhone.trim(), talla: pTalla, dieta: pDieta };
+      const trimmedPhone = String(pPhone).trim();
+      const payload = { email: currentUser.email.trim(), phone: trimmedPhone, talla: pTalla, dieta: pDieta };
       if (newPass && oldPass) { payload.oldPassword = oldPass.trim(); payload.newPassword = newPass.trim(); }
       const res = await apiFetch('updateProfile', payload);
       if (res.status === 'success') {
-        setCurrentUser({ ...currentUser, phone: pPhone.trim(), talla: pTalla, dieta: pDieta });
+        setCurrentUser({ ...currentUser, phone: trimmedPhone, talla: pTalla, dieta: pDieta });
         setOldPass(''); setNewPass(''); setConfirmPass('');
         showToast(newPass ? "¡Perfil y Contraseña actualizados!" : "¡Perfil actualizado!");
         clearCache('usuarios');
       } else { showToast(res.message); }
-    } catch (err) { showToast("Error al guardar."); }
+    } catch (err) { 
+      console.error(err);
+      showToast("Error al guardar."); 
+    }
     setSaving(false);
   };
 
