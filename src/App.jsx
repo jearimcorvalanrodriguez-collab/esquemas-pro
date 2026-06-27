@@ -64,6 +64,104 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
   );
 };
 
+const AddressAutocomplete = ({ value, onChange, placeholder, className, required }) => {
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const searchAddress = async (query) => {
+    if (!query || query.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&accept-language=es`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setSuggestions(data.map(item => ({
+          label: item.display_name,
+          value: item.display_name
+        })));
+      }
+    } catch (e) {
+      console.error("Autocomplete error:", e);
+    }
+    setLoading(false);
+  };
+
+  const timeoutRef = useRef(null);
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    onChange(val);
+    setShowDropdown(true);
+
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      searchAddress(val);
+    }, 450);
+  };
+
+  const handleSelect = (item) => {
+    onChange(item.value);
+    setSuggestions([]);
+    setShowDropdown(false);
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <div className="flex gap-2">
+        <input 
+          required={required}
+          className={className}
+          value={value}
+          onChange={handleInputChange}
+          placeholder={placeholder}
+          onFocus={() => { if (value && value.length >= 3) setShowDropdown(true); }}
+        />
+        <button 
+          type="button" 
+          onClick={() => window.open(value ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(value)}` : 'https://www.google.com/maps', '_blank')} 
+          className="p-2.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 rounded-lg transition-colors shrink-0" 
+          title="Ver en Google Maps"
+        >
+          <MapPin size={14} />
+        </button>
+      </div>
+      {showDropdown && (suggestions.length > 0 || loading) && (
+        <ul className="absolute z-[9999] w-full bg-slate-900 border border-slate-700 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-2xl text-left">
+          {loading && (
+            <li className="p-2.5 text-xs text-slate-400 flex items-center gap-2">
+              <Loader2 className="animate-spin text-blue-500" size={12} />
+              <span>Buscando sugerencias...</span>
+            </li>
+          )}
+          {!loading && suggestions.map((item, idx) => (
+            <li 
+              key={idx} 
+              onClick={() => handleSelect(item)}
+              className="p-2.5 text-xs text-slate-200 hover:bg-slate-800 cursor-pointer border-b border-slate-800 last:border-0 leading-tight transition-colors"
+            >
+              📍 {item.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 const openWhatsApp = (phone) => window.open(`https://wa.me/${phone.replace('+', '')}`, '_blank');
 const openEmail = (email) => window.open(`mailto:${email}`, '_blank');
 const handlePrint = () => window.print();
@@ -666,9 +764,11 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   const [regRole, setRegRole] = useState(ROLES.TECH);
   const [regPhone, setRegPhone] = useState('+569');
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  const [tcAccepted, setTcAccepted] = useState(false);
 
   useEffect(() => {
     setDisclaimerAccepted(false);
+    setTcAccepted(false);
   }, [mode]);
 
   const handleLogin = async (e) => {
@@ -697,6 +797,10 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
       setError("Debes aceptar los términos y condiciones de tratamiento de datos.");
       return;
     }
+    if (!tcAccepted) {
+      setError("Debes aceptar los Términos y Condiciones y la Política de Privacidad.");
+      return;
+    }
     setError(''); setLoading(true);
     try {
       const result = await apiFetch('solicitarAcceso', { 
@@ -704,7 +808,8 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
         email: email.trim(), 
         phone: regPhone.trim(), 
         role: regRole,
-        disclaimerAceptado: true
+        disclaimerAceptado: true,
+        tcVersion: 'v1.0'
       });
       if (result.status === 'success') { 
         setMode('REGISTER_SUCCESS'); 
@@ -774,6 +879,10 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
               <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer select-none">
                 <input type="checkbox" required checked={disclaimerAccepted} onChange={e => setDisclaimerAccepted(e.target.checked)} className="accent-emerald-500 rounded bg-slate-900 border-slate-700 mt-0.5" />
                 <span>Acepto el tratamiento de mis datos personales y sensibles.</span>
+              </label>
+              <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer select-none pt-1">
+                <input type="checkbox" required checked={tcAccepted} onChange={e => setTcAccepted(e.target.checked)} className="accent-emerald-500 rounded bg-slate-900 border-slate-700 mt-0.5" />
+                <span>He leído y acepto los <a href="#" className="text-emerald-500 hover:underline font-bold">Términos y Condiciones</a> y la <a href="#" className="text-emerald-500 hover:underline font-bold">Política de Privacidad</a>.</span>
               </label>
             </div>
 
@@ -884,31 +993,23 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
             <div className="grid grid-cols-2 gap-4 text-left">
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Origen</label>
-                <div className="flex gap-2">
-                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" value={form.origin} onChange={e=>setForm({...form, origin: e.target.value})} placeholder="Dirección o recinto..." />
-                  <button type="button" onClick={() => window.open(form.origin ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.origin)}` : 'https://www.google.com/maps', '_blank')} className="p-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 rounded transition-colors" title="Buscar en Google Maps">
-                    <MapPin size={18} />
-                  </button>
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1">
-                  <a href={form.origin ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.origin)}` : 'https://www.google.com/maps'} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-blue-400 flex items-center gap-0.5">
-                    📍 Buscar en Google Maps
-                  </a>
-                </div>
+                <AddressAutocomplete 
+                  required 
+                  value={form.origin} 
+                  onChange={val => setForm({...form, origin: val})} 
+                  placeholder="Buscar dirección o recinto..." 
+                  className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" 
+                />
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Destino</label>
-                <div className="flex gap-2">
-                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" value={form.dest} onChange={e=>setForm({...form, dest: e.target.value})} placeholder="Dirección o recinto..." />
-                  <button type="button" onClick={() => window.open(form.dest ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.dest)}` : 'https://www.google.com/maps', '_blank')} className="p-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 rounded transition-colors" title="Buscar en Google Maps">
-                    <MapPin size={18} />
-                  </button>
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1">
-                  <a href={form.dest ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.dest)}` : 'https://www.google.com/maps'} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-blue-400 flex items-center gap-0.5">
-                    📍 Buscar en Google Maps
-                  </a>
-                </div>
+                <AddressAutocomplete 
+                  required 
+                  value={form.dest} 
+                  onChange={val => setForm({...form, dest: val})} 
+                  placeholder="Buscar dirección o recinto..." 
+                  className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" 
+                />
               </div>
             </div>
             <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1 py-2" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" variant="blue" className="flex-1 py-2">Guardar Ruta</Button></div>
@@ -1419,17 +1520,17 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
                       </div>
                       <div>
                         <label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Ubicación / Locación</label>
-                        <div className="flex items-center gap-2">
-                          <input required className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" placeholder="Ej: Escenario Principal o dirección..." value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
-                          <button type="button" onClick={() => window.open(form.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.location)}` : 'https://www.google.com/maps', '_blank')} className="p-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-emerald-400 rounded transition-colors" title="Buscar en Google Maps">
-                            <MapIcon size={14} />
-                          </button>
-                          <Button type="button" variant="secondary" icon={MapPin} onClick={captureGPS} title="Usar GPS" className="px-3" />
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-1">
-                          <a href={form.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.location)}` : 'https://www.google.com/maps'} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-emerald-400 flex items-center gap-0.5">
-                            📍 Buscar en Google Maps
-                          </a>
+                        <div className="flex items-center gap-2 w-full">
+                          <div className="flex-1 min-w-0">
+                            <AddressAutocomplete 
+                              required 
+                              value={form.location} 
+                              onChange={val => setForm({...form, location: val})} 
+                              placeholder="Buscar dirección o recinto..." 
+                              className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" 
+                            />
+                          </div>
+                          <Button type="button" variant="secondary" icon={MapPin} onClick={captureGPS} title="Usar GPS" className="px-3 py-2 text-xs" />
                         </div>
                       </div>
                       <div><label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Fecha</label><input required type="date" className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, date: e.target.value})} /></div>
@@ -3246,6 +3347,7 @@ export default function App() {
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
 
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', onConfirm: null });
+  const [simulatedRole, setSimulatedRole] = useState(null);
 
   // Efecto automático: Si el currentUser cambia (login o perfil actualizado), lo guardamos. Si es null (logout), lo borramos.
   useEffect(() => {
@@ -3287,16 +3389,22 @@ export default function App() {
     }});
   };
 
+  const effectiveUser = currentUser ? { 
+    ...currentUser, 
+    role: simulatedRole || currentUser.role, 
+    realRole: currentUser.realRole || currentUser.role
+  } : null;
+
   const getMenuOptions = () => {
-    if (!currentUser) return [];
-    if (currentUser.role === 'CONDUCTOR') return [{ id: 'CONDUCTOR_VIEW', label: 'Mi Ruta', icon: Truck }, { id: 'LOGOUT', label: 'Salir', icon: LogOut }];
+    if (!effectiveUser) return [];
+    if (effectiveUser.role === 'CONDUCTOR') return [{ id: 'CONDUCTOR_VIEW', label: 'Mi Ruta', icon: Truck }, { id: 'LOGOUT', label: 'Salir', icon: LogOut }];
 
     const options = [
       { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation },
       { id: 'STAFF', label: 'Directorio', icon: Users }
     ];
     
-    if (currentUser.role === ROLES.ADMIN) {
+    if (effectiveUser.role === ROLES.ADMIN) {
        options.push({ id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck, badgeCount: pendingCount });
     }
     
@@ -3385,22 +3493,58 @@ export default function App() {
     );
   };
 
-  if (!currentUser) return (
+  if (!effectiveUser) return (
     <>
       {toastMessage && <div className="fixed top-4 right-4 z-[300] bg-emerald-500 text-white px-3 md:px-4 py-2.5 md:py-3 rounded-lg shadow-lg flex items-center gap-2.5 animate-fade-in"><CheckCircle2 size={18} /><span className="font-bold text-xs md:text-sm">{toastMessage}</span></div>}
       <AuthRouter setCurrentUser={setCurrentUser} setCurrentView={setCurrentView} showToast={showToast} />
     </>
   );
   
-  if (currentUser.role === 'CONDUCTOR') {
+  if (effectiveUser.role === 'CONDUCTOR') {
     return (
       <div className="min-h-screen bg-slate-950 font-sans">
         {toastMessage && <div className="fixed top-4 right-4 z-[300] bg-blue-500 text-white px-3 md:px-4 py-2.5 md:py-3 rounded-lg shadow-lg flex items-center gap-2.5 animate-fade-in"><CheckCircle2 size={18} /><span className="font-bold text-xs md:text-sm">{toastMessage}</span></div>}
+        
+        {currentUser && (currentUser.role === ROLES.ADMIN || currentUser.realRole === ROLES.ADMIN) && (
+          <div className="bg-slate-900 border-b border-amber-500/50 p-2 px-4 text-xs text-white flex flex-wrap items-center justify-between gap-2 shadow-md z-[100] print:hidden">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-amber-500"></span>
+              <span className="font-bold text-amber-500 uppercase tracking-wider font-sans">Modo Simulación de Rol</span>
+              <span className="text-slate-400">| Rol real: ADMIN</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <select 
+                value={simulatedRole || currentUser.role} 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === currentUser.role) setSimulatedRole(null);
+                  else setSimulatedRole(val);
+                }}
+                className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-xs text-white outline-none focus:border-amber-500 cursor-pointer"
+              >
+                <option value={currentUser.role}>ADMIN (Original)</option>
+                {Object.values(ROLES).filter(r => r !== 'ADMIN').map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+                <option value="CONDUCTOR">CONDUCTOR</option>
+              </select>
+              {simulatedRole && (
+                <button 
+                  onClick={() => setSimulatedRole(null)} 
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-2 py-1 rounded text-[10px] transition-colors"
+                >
+                  Restablecer
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="p-3 md:p-4 flex justify-between items-center bg-slate-900 border-b border-slate-800">
           <div className="flex items-center gap-2"><Truck className="text-blue-500" size={20}/><span className="text-white font-bold tracking-widest text-xs md:text-sm">CONDUCTOR</span></div>
           <Button variant="ghost" className="text-red-400 py-1.5 px-3 text-xs md:text-sm" onClick={() => setCurrentUser(null)} icon={LogOut}>Salir</Button>
         </div>
-        <ConductorView currentUser={currentUser} showToast={showToast} />
+        <ConductorView currentUser={effectiveUser} showToast={showToast} />
       </div>
     );
   }
@@ -3408,7 +3552,43 @@ export default function App() {
   const menuOptions = getMenuOptions();
 
   return (
-    <div className={`min-h-screen ${theme === 'light' ? 'light-mode bg-slate-50' : 'bg-slate-950'} flex flex-col md:flex-row font-sans print:bg-white print:text-black`}>
+    <div className="flex flex-col min-h-screen">
+      {currentUser && (currentUser.role === ROLES.ADMIN || currentUser.realRole === ROLES.ADMIN) && (
+        <div className="bg-slate-900 border-b border-amber-500/50 p-2 px-4 text-xs text-white flex flex-wrap items-center justify-between gap-2 shadow-md z-[100] print:hidden">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-amber-500"></span>
+            <span className="font-bold text-amber-500 uppercase tracking-wider font-sans">Modo Simulación de Rol</span>
+            <span className="text-slate-400">| Rol real: ADMIN</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <select 
+              value={simulatedRole || currentUser.role} 
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === currentUser.role) setSimulatedRole(null);
+                else setSimulatedRole(val);
+              }}
+              className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-xs text-white outline-none focus:border-amber-500 cursor-pointer"
+            >
+              <option value={currentUser.role}>ADMIN (Original)</option>
+              {Object.values(ROLES).filter(r => r !== 'ADMIN').map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+              <option value="CONDUCTOR">CONDUCTOR</option>
+            </select>
+            {simulatedRole && (
+              <button 
+                onClick={() => setSimulatedRole(null)} 
+                className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-2 py-1 rounded text-[10px] transition-colors"
+              >
+                Restablecer
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className={`flex-1 min-h-0 ${theme === 'light' ? 'light-mode bg-slate-50' : 'bg-slate-950'} flex flex-col md:flex-row font-sans print:bg-white print:text-black`}>
       {theme === 'light' && (
         <style>{`
           .light-mode { background-color: #f8fafc !important; color: #0f172a !important; }
@@ -3533,8 +3713,8 @@ export default function App() {
         </div>
         <div className="p-3 border-t border-slate-800">
            <div className="flex items-center gap-2.5 mb-3 px-1">
-             <div className="w-8 h-8 bg-slate-800 rounded-full flex items-center justify-center text-xs font-black text-emerald-500 border border-emerald-500 shrink-0">{currentUser.name.charAt(0)}</div>
-             <div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{currentUser.name}</p><p className="text-[9px] text-slate-400 uppercase font-bold truncate">{currentUser.role}</p></div>
+             <div className="w-8 h-8 bg-slate-800 rounded-full flex items-center justify-center text-xs font-black text-emerald-500 border border-emerald-500 shrink-0">{effectiveUser.name.charAt(0)}</div>
+             <div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{effectiveUser.name}</p><p className="text-[9px] text-slate-400 uppercase font-bold truncate">{effectiveUser.role}</p></div>
            </div>
            <Button variant="danger" icon={LogOut} onClick={() => requestConfirm("¿Cerrar sesión?", () => setCurrentUser(null))} className="w-full py-2 bg-transparent border-transparent hover:bg-red-500/10 text-xs">Cerrar Sesión</Button>
         </div>
@@ -3542,15 +3722,15 @@ export default function App() {
 
       <main className="flex-1 relative overflow-y-auto h-screen bg-slate-950 print:bg-white custom-scrollbar print:overflow-visible print:h-auto pb-[70px] md:pb-0">
         <div className="p-3 md:p-6 print:p-0">
-          {currentView === 'DASHBOARD' && <Dashboard currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} directory={directory} />}
-          {currentView === 'PROJECT_DETAILS' && <ProjectDetailsView currentUser={currentUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} requestConfirm={requestConfirm} />}
-          {currentView === 'ADMIN_PANEL' && <AdminPanel currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} refreshPendingCount={() => fetchDirectoryGlobal(true)} />}
-          {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} theme={theme} setTheme={setTheme} requestConfirm={requestConfirm} />}
-          {currentView === 'STAFF' && <StaffDirectory currentUser={currentUser} />}
-          {currentView === 'CHAT' && <ChatView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} />}
-          {currentView === 'TRANSPORT' && <TransportView currentUser={currentUser} setCurrentView={setCurrentView} showToast={showToast} selectedProject={selectedProject} />}
-          {currentView === 'TRANSPORT_DETAILS' && <TransportDetailsView currentUser={currentUser} setCurrentView={setCurrentView} showToast={showToast} />}
-          {currentView === 'RIDERS' && <RidersView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} activeRider={activeRider} setActiveRider={setActiveRider} directory={directory} selectedProject={selectedProject} setCurrentView={setCurrentView} />}
+          {currentView === 'DASHBOARD' && <Dashboard currentUser={effectiveUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} directory={directory} />}
+          {currentView === 'PROJECT_DETAILS' && <ProjectDetailsView currentUser={effectiveUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} requestConfirm={requestConfirm} />}
+          {currentView === 'ADMIN_PANEL' && <AdminPanel currentUser={effectiveUser} showToast={showToast} requestConfirm={requestConfirm} refreshPendingCount={() => fetchDirectoryGlobal(true)} />}
+          {currentView === 'PROFILE' && <ProfileView currentUser={effectiveUser} setCurrentUser={setCurrentUser} showToast={showToast} theme={theme} setTheme={setTheme} requestConfirm={requestConfirm} />}
+          {currentView === 'STAFF' && <StaffDirectory currentUser={effectiveUser} />}
+          {currentView === 'CHAT' && <ChatView currentUser={effectiveUser} showToast={showToast} requestConfirm={requestConfirm} />}
+          {currentView === 'TRANSPORT' && <TransportView currentUser={effectiveUser} setCurrentView={setCurrentView} showToast={showToast} selectedProject={selectedProject} />}
+          {currentView === 'TRANSPORT_DETAILS' && <TransportDetailsView currentUser={effectiveUser} setCurrentView={setCurrentView} showToast={showToast} />}
+          {currentView === 'RIDERS' && <RidersView currentUser={effectiveUser} showToast={showToast} requestConfirm={requestConfirm} activeRider={activeRider} setActiveRider={setActiveRider} directory={directory} selectedProject={selectedProject} setCurrentView={setCurrentView} />}
         </div>
       </main>
       
@@ -3567,6 +3747,7 @@ export default function App() {
             </button>
           ))}
       </nav>
+      </div>
     </div>
   );
 }
