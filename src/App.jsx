@@ -34,8 +34,10 @@ const CACHE = {
 const clearCache = (key) => { CACHE[key] = null; };
 
 const apiFetch = async (action, payload = {}) => {
-  const response = await fetch('/.netlify/functions/api', {
+  const url = import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbwNXxsCfNlOV-JkeUO2Sl55SquzwcrwP50ZpfSUyeg-mI1ugvtCw-1E1mLF-2OS5tmAEw/exec';
+  const response = await fetch(url, {
     method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ app_secret: ESQUEMAS_MASTER_SECRET, action, payload })
   });
   return response.json();
