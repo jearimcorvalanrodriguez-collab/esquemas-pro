@@ -415,7 +415,7 @@ const STAGE_ITEMS = {
     )
   },
   POWER: {
-    label: "Toma 220V", width: 8, height: 8, defaultRotation: 0,
+    label: "Toma 220V", width: 4, height: 4, defaultRotation: 0,
     render: () => (
       <svg viewBox="0 0 100 100" className="w-full h-full">
         <rect x="5" y="5" width="90" height="90" fill="#ef4444" rx="10"/>
@@ -424,7 +424,7 @@ const STAGE_ITEMS = {
     )
   },
   DI: {
-    label: "D.I. Box", width: 8, height: 6, defaultRotation: 0,
+    label: "D.I. Box", width: 4, height: 3, defaultRotation: 0,
     render: () => (
       <svg viewBox="0 0 100 100" className="w-full h-full">
         <rect x="10" y="20" width="80" height="60" fill="#3b82f6" stroke="#1e3a8a" strokeWidth="4" rx="5"/>
