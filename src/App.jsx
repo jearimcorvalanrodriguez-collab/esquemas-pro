@@ -212,6 +212,19 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
   const [draggedId, setDraggedId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [canvasWidth, setCanvasWidth] = useState(600);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setCanvasWidth(entry.contentRect.width || entry.target.clientWidth);
+      }
+    });
+    observer.observe(canvasRef.current);
+    setCanvasWidth(canvasRef.current.clientWidth || 600);
+    return () => observer.disconnect();
+  }, []);
 
   const handlePointerDown = (e, id) => {
     if (readOnly) return;
@@ -335,13 +348,23 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
           {items.map(item => {
             const def = STAGE_ITEMS[item.type];
             const isSelected = selectedId === item.id && !readOnly;
+
+            const w = Number(config.width) || 10;
+            const d = Number(config.depth) || 8;
+            const sizeScale = Math.max(0.6, Math.min(2.0, 10 / w));
+            const mobileScale = (canvasWidth && canvasWidth < 500) ? 1.35 : 1.0;
+            const scale = sizeScale * mobileScale;
+
+            const itemWidthPercent = def.width * scale;
+            const itemHeightPercent = itemWidthPercent * (def.height / def.width) * (w / d);
+
             return (
               <div 
                 key={item.id}
                 className="absolute flex flex-col items-center justify-center print:cursor-default"
                 style={{ 
                   left: `${item.x}%`, top: `${item.y}%`, 
-                  width: `${def.width}%`, height: `${def.height}%`,
+                  width: `${itemWidthPercent}%`, height: `${itemHeightPercent}%`,
                   transform: `translate(-50%, -50%)`, 
                   zIndex: isSelected ? 50 : 10
                 }}
@@ -369,7 +392,7 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
                 </div>
                 
                 {item.label && (!isSelected || readOnly) && (
-                  <div className="absolute top-[calc(100%+12px)] left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-900/80 print:bg-transparent print:text-black px-2 py-1 rounded text-xs md:text-sm font-bold text-white text-center pointer-events-none">
+                  <div className="absolute top-[calc(100%+12px)] left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-900/80 print:bg-transparent print:text-black px-2 py-1 rounded text-[10px] md:text-xs font-bold text-white text-center pointer-events-none">
                     {item.label}
                   </div>
                 )}
@@ -2991,7 +3014,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
 };
 
 // --- MI PERFIL ---
-const ProfileView = ({ currentUser, setCurrentUser, showToast, theme, setTheme }) => {
+const ProfileView = ({ currentUser, setCurrentUser, showToast, theme, setTheme, requestConfirm }) => {
   const [pPhone, setPPhone] = useState(currentUser.phone || '');
   const [pTalla, setPTalla] = useState(currentUser.talla || 'M');
   const [pDieta, setPDieta] = useState(currentUser.dieta || 'OMNÍVORA');
@@ -3094,6 +3117,9 @@ const ProfileView = ({ currentUser, setCurrentUser, showToast, theme, setTheme }
           </div>
           <Button type="submit" variant="primary" className="w-full py-3 mt-4" disabled={saving || (confirmPass && newPass !== confirmPass)}>{saving ? <Loader2 className="animate-spin"/> : 'Guardar Cambios'}</Button>
         </form>
+        <div className="pt-4 border-t border-slate-700 mt-4">
+          <Button variant="danger" className="w-full py-3 font-bold uppercase tracking-wider text-xs" icon={LogOut} onClick={() => requestConfirm("¿Cerrar sesión?", () => setCurrentUser(null))}>Cerrar Sesión</Button>
+        </div>
       </Card>
     </div>
   );
@@ -3430,7 +3456,7 @@ export default function App() {
           {currentView === 'DASHBOARD' && <Dashboard currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} directory={directory} />}
           {currentView === 'PROJECT_DETAILS' && <ProjectDetailsView currentUser={currentUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} requestConfirm={requestConfirm} />}
           {currentView === 'ADMIN_PANEL' && <AdminPanel currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} refreshPendingCount={() => fetchDirectoryGlobal(true)} />}
-          {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} theme={theme} setTheme={setTheme} />}
+          {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} theme={theme} setTheme={setTheme} requestConfirm={requestConfirm} />}
           {currentView === 'STAFF' && <StaffDirectory currentUser={currentUser} />}
           {currentView === 'CHAT' && <ChatView currentUser={currentUser} showToast={showToast} />}
           {currentView === 'TRANSPORT' && <TransportView currentUser={currentUser} setCurrentView={setCurrentView} showToast={showToast} selectedProject={selectedProject} />}
