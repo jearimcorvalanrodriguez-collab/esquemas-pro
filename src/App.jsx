@@ -881,9 +881,35 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
               <div><label className="text-xs text-slate-400 block mb-1">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} /></div>
               <div><label className="text-xs text-slate-400 block mb-1">Hora</label><input required type="time" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500" value={form.time} onChange={e=>setForm({...form, time: e.target.value})} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><label className="text-xs text-slate-400 block mb-1">Origen</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500" value={form.origin} onChange={e=>setForm({...form, origin: e.target.value})} /></div>
-              <div><label className="text-xs text-slate-400 block mb-1">Destino</label><input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500" value={form.dest} onChange={e=>setForm({...form, dest: e.target.value})} /></div>
+            <div className="grid grid-cols-2 gap-4 text-left">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Origen</label>
+                <div className="flex gap-2">
+                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" value={form.origin} onChange={e=>setForm({...form, origin: e.target.value})} placeholder="Dirección o recinto..." />
+                  <button type="button" onClick={() => window.open(form.origin ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.origin)}` : 'https://www.google.com/maps', '_blank')} className="p-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 rounded transition-colors" title="Buscar en Google Maps">
+                    <MapPin size={18} />
+                  </button>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  <a href={form.origin ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.origin)}` : 'https://www.google.com/maps'} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-blue-400 flex items-center gap-0.5">
+                    📍 Buscar en Google Maps
+                  </a>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Destino</label>
+                <div className="flex gap-2">
+                  <input required className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" value={form.dest} onChange={e=>setForm({...form, dest: e.target.value})} placeholder="Dirección o recinto..." />
+                  <button type="button" onClick={() => window.open(form.dest ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.dest)}` : 'https://www.google.com/maps', '_blank')} className="p-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 rounded transition-colors" title="Buscar en Google Maps">
+                    <MapPin size={18} />
+                  </button>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  <a href={form.dest ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.dest)}` : 'https://www.google.com/maps'} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-blue-400 flex items-center gap-0.5">
+                    📍 Buscar en Google Maps
+                  </a>
+                </div>
+              </div>
             </div>
             <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1 py-2" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" variant="blue" className="flex-1 py-2">Guardar Ruta</Button></div>
           </form>
@@ -900,8 +926,16 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
               </div>
               <div className="space-y-1 text-sm text-slate-300 mb-4">
                 <p className="flex items-center gap-2"><Calendar size={14}/> {t.date} {t.time}</p>
-                <p className="flex items-center gap-2"><MapPin size={14}/> Origen: {t.origin}</p>
-                <p className="flex items-center gap-2"><Navigation size={14}/> Destino: {t.dest}</p>
+                <p className="flex items-center gap-2">
+                  <MapPin size={14} className="text-blue-400 shrink-0"/> 
+                  <span>Origen: </span>
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.origin)}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{t.origin}</a>
+                </p>
+                <p className="flex items-center gap-2">
+                  <Navigation size={14} className="text-blue-400 shrink-0"/> 
+                  <span>Destino: </span>
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.dest)}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{t.dest}</a>
+                </p>
               </div>
               <div className="bg-slate-900 border border-slate-700 p-2 rounded flex justify-between items-center">
                 <span className="text-xs text-slate-400 uppercase font-bold">Token Piloto</span>
@@ -953,8 +987,16 @@ const ConductorView = ({ currentUser, showToast }) => {
         <div className="space-y-3 text-sm text-slate-300 mb-6">
           <p className="flex items-center gap-2"><Calendar size={16} className="text-blue-400"/> Fecha: {routeInfo.date} a las {routeInfo.time}</p>
           <div className="p-3 bg-slate-900 rounded border border-slate-800">
-             <p className="flex items-center gap-2 mb-2 font-bold text-white"><MapPin size={16} className="text-amber-500"/> Origen: {routeInfo.origin}</p>
-             <p className="flex items-center gap-2 font-bold text-white"><Navigation size={16} className="text-emerald-500"/> Destino: {routeInfo.dest}</p>
+             <p className="flex items-center gap-2 mb-2 font-bold text-white">
+               <MapPin size={16} className="text-amber-500 shrink-0"/> 
+               <span>Origen: </span>
+               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(routeInfo.origin)}`} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline">{routeInfo.origin}</a>
+             </p>
+             <p className="flex items-center gap-2 font-bold text-white">
+               <Navigation size={16} className="text-emerald-500 shrink-0"/> 
+               <span>Destino: </span>
+               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(routeInfo.dest)}`} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">{routeInfo.dest}</a>
+             </p>
           </div>
         </div>
         
@@ -1378,8 +1420,16 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
                       <div>
                         <label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Ubicación / Locación</label>
                         <div className="flex items-center gap-2">
-                          <input required className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" placeholder="Ej: Escenario Principal" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
+                          <input required className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" placeholder="Ej: Escenario Principal o dirección..." value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
+                          <button type="button" onClick={() => window.open(form.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.location)}` : 'https://www.google.com/maps', '_blank')} className="p-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-emerald-400 rounded transition-colors" title="Buscar en Google Maps">
+                            <MapIcon size={14} />
+                          </button>
                           <Button type="button" variant="secondary" icon={MapPin} onClick={captureGPS} title="Usar GPS" className="px-3" />
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-1">
+                          <a href={form.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.location)}` : 'https://www.google.com/maps'} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-emerald-400 flex items-center gap-0.5">
+                            📍 Buscar en Google Maps
+                          </a>
                         </div>
                       </div>
                       <div><label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Fecha</label><input required type="date" className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, date: e.target.value})} /></div>
@@ -1856,29 +1906,29 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
               <div className="space-y-4 md:space-y-6">
                 <div>
                   <div className="flex justify-between items-end mb-1.5"><label className="text-xs md:text-sm font-bold text-white block">Sección IMPORTANTE</label><Button variant="ghost" className="py-0.5 px-2 text-[10px]" icon={FileText} onClick={() => setForm(prev => ({...prev, content: {...prev.content, importante: templatesTexto.importante}}))}>Usar Plantilla</Button></div>
-                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] focus:border-emerald-500 outline-none" value={form.content.importante} onChange={e=>setForm({...form, content: {...form.content, importante: e.target.value}})} placeholder="Información crucial..." />
+                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] focus:border-emerald-500 outline-none" value={form.content.importante} onChange={e=>setForm({...form, content: {...prev.content, importante: e.target.value}})} placeholder="Información crucial..." />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
                   <div className="p-3 md:p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2.5">
                     <h4 className="font-bold text-white text-xs md:text-sm mb-1.5">Contacto Management</h4>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Nombre y Apellidos</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtNombre || ''} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, mgmtNombre: e.target.value}}})} placeholder="Ej: Juan Pérez" /></div>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Celular</label><input type="tel" className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtCel} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, mgmtCel: e.target.value.replace(/[^0-9+]/g, '')}}})} placeholder="+569..." /></div>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Correo</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtCorreo} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, mgmtCorreo: e.target.value}}})} /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Nombre y Apellidos</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtNombre || ''} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, mgmtNombre: e.target.value}}})} placeholder="Ej: Juan Pérez" /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Celular</label><input type="tel" className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtCel} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, mgmtCel: e.target.value.replace(/[^0-9+]/g, '')}}})} placeholder="+569..." /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Correo</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtCorreo} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, mgmtCorreo: e.target.value}}})} /></div>
                   </div>
                   <div className="p-3 md:p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2.5">
                     <h4 className="font-bold text-white text-xs md:text-sm mb-1.5">Contacto Producción</h4>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Nombre y Apellidos</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodNombre || ''} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, prodNombre: e.target.value}}})} placeholder="Ej: Ana Rojas" /></div>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Celular</label><input type="tel" className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodCel} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, prodCel: e.target.value.replace(/[^0-9+]/g, '')}}})} placeholder="+569..."/></div>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Correo</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodCorreo} onChange={e=>setForm({...form, content: {...form.content, contacto: {...form.content.contacto, prodCorreo: e.target.value}}})} /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Nombre y Apellidos</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodNombre || ''} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, prodNombre: e.target.value}}})} placeholder="Ej: Ana Rojas" /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Celular</label><input type="tel" className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodCel} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, prodCel: e.target.value.replace(/[^0-9+]/g, '')}}})} placeholder="+569..."/></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Correo</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodCorreo} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, prodCorreo: e.target.value}}})} /></div>
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between items-end mb-1.5"><label className="text-xs md:text-sm font-bold text-white block">Requerimientos de SoundCheck</label><Button variant="ghost" className="py-0.5 px-2 text-[10px]" icon={FileText} onClick={() => setForm(prev => ({...prev, content: {...prev.content, soundcheck: templatesTexto.soundcheck}}))}>Usar Plantilla</Button></div>
-                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] focus:border-emerald-500 outline-none" value={form.content.soundcheck} onChange={e=>setForm({...form, content: {...form.content, soundcheck: e.target.value}})} />
+                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] focus:border-emerald-500 outline-none" value={form.content.soundcheck} onChange={e=>setForm({...form, content: {...prev.content, soundcheck: e.target.value}})} />
                 </div>
                 <div>
                   <div className="flex justify-between items-end mb-1.5"><label className="text-xs md:text-sm font-bold text-white block">Recordatorio Oficial</label><Button variant="ghost" className="py-0.5 px-2 text-[10px]" icon={FileText} onClick={() => setForm(prev => ({...prev, content: {...prev.content, recordatorio: templatesTexto.recordatorio}}))}>Usar Plantilla</Button></div>
-                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-red-400 font-mono text-xs md:text-sm min-h-[60px] outline-none focus:border-red-500" value={form.content.recordatorio} onChange={e=>setForm({...form, content: {...form.content, recordatorio: e.target.value}})} />
+                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-red-400 font-mono text-xs md:text-sm min-h-[60px] outline-none focus:border-red-500" value={form.content.recordatorio} onChange={e=>setForm({...form, content: {...prev.content, recordatorio: e.target.value}})} />
                 </div>
               </div>
             )}
@@ -1977,14 +2027,14 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                 <div className="flex justify-between items-center">
                   <h3 className="text-xs md:text-sm font-bold text-emerald-500">HOSPITALITY & CATERING</h3>
                   <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                    <input type="checkbox" checked={form.content.catering.showSizes} onChange={e => setForm({...form, content: {...form.content, catering: {...form.content.catering, showSizes: e.target.checked}}})} className="accent-emerald-500 rounded bg-slate-900 border-slate-700"/>
+                    <input type="checkbox" checked={form.content.catering.showSizes} onChange={e => setForm({...form, content: {...prev.content, catering: {...prev.content.catering, showSizes: e.target.checked}}})} className="accent-emerald-500 rounded bg-slate-900 border-slate-700"/>
                     <span>Incluir Tallaje (Merch/Uniformes)</span>
                   </label>
                 </div>
                 
                 <div>
                   <label className="text-[10px] md:text-xs font-bold text-slate-400 block mb-1 uppercase">Requerimientos Específicos / Camarines</label>
-                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-white text-xs md:text-sm min-h-[60px] outline-none focus:border-emerald-500" value={form.content.catering.notes} onChange={e=>setForm({...form, content: {...form.content, catering: {...form.content.catering, notes: e.target.value}}})} placeholder="Ej: Espejo de cuerpo entero, 12 toallas negras, agua sin gas..." />
+                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-white text-xs md:text-sm min-h-[60px] outline-none focus:border-emerald-500" value={form.content.catering.notes} onChange={e=>setForm({...form, content: {...prev.content, catering: {...prev.content.catering, notes: e.target.value}}})} placeholder="Ej: Espejo de cuerpo entero, 12 toallas negras, agua sin gas..." />
                 </div>
 
                 <div className="space-y-2 mt-4">
@@ -1994,7 +2044,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                       <Button key={sec} type="button" variant="secondary" onClick={() => addCateringTable(sec)} className="py-1 px-2 text-[10px]" icon={Plus}>{sec}</Button>
                     ))}
                     <div className="flex flex-col gap-1 items-start ml-2">
-                      <Button type="button" variant={form.content.catering.showCatEquipo ? 'primary' : 'secondary'} onClick={() => setForm({...form, content: {...form.content, catering: {...form.content.catering, showCatEquipo: !form.content.catering.showCatEquipo}}})} className="py-1.5 px-3 text-[10px]" icon={form.content.catering.showCatEquipo ? X : Plus}>
+                      <Button type="button" variant={form.content.catering.showCatEquipo ? 'primary' : 'secondary'} onClick={() => setForm({...form, content: {...prev.content, catering: {...prev.content.catering, showCatEquipo: !form.content.catering.showCatEquipo}}})} className="py-1.5 px-3 text-[10px]" icon={form.content.catering.showCatEquipo ? X : Plus}>
                         {form.content.catering.showCatEquipo ? 'QUITAR CAT EQUIPO ASIGNADO' : 'AÑADIR CAT EQUIPO ASIGNADO'}
                       </Button>
                       <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider pl-1">Información de la sección Mi Perfil</span>
@@ -2391,7 +2441,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                              </div>
                              <div className="text-xs text-slate-400 print:text-black flex items-center gap-1.5 sm:text-right">
                                <MapPin size={14} className="text-emerald-500 print:text-black shrink-0"/> 
-                               <span>{h.location}</span>
+                               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(h.location)}`} target="_blank" rel="noopener noreferrer" className="text-emerald-400 print:text-black hover:underline">{h.location}</a>
                              </div>
                            </div>
                          );
@@ -2561,7 +2611,7 @@ const StaffDirectory = ({ currentUser }) => {
 };
 
 // --- CHAT GLOBAL Y POR PROYECTO (Conectado a la BD) ---
-const ChatView = ({ currentUser, showToast }) => {
+const ChatView = ({ currentUser, showToast, requestConfirm }) => {
   const [messages, setMessages] = useState([]);
   const [proyectos, setProyectos] = useState([]);
   const [selectedProyecto, setSelectedProyecto] = useState(null);
@@ -2640,6 +2690,18 @@ const ChatView = ({ currentUser, showToast }) => {
     }
   };
 
+  const handleDeleteClick = (msgId) => {
+    requestConfirm("¿Deseas ocultar este mensaje de la vista del chat? (Permanecerá registrado en la base de datos de producción)", async () => {
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: 'OCULTO' } : m));
+      try {
+        await apiFetch('ocultarMensaje', { id: msgId });
+        clearCache('mensajes');
+      } catch (e) {
+        showToast("Error al ocultar el mensaje.");
+      }
+    });
+  };
+
   const toggleReadReceipt = async (msgId) => {
     setMessages(messages.map(m => {
       if (m.id === msgId) {
@@ -2702,7 +2764,13 @@ const ChatView = ({ currentUser, showToast }) => {
   }
 
   // VISTA 2: CHAT DEL PROYECTO
-  const projectMsgs = messages.filter(m => String(m.proyectoId) === String(selectedProyecto.id));
+  const projectMsgs = messages.filter(m => {
+    if (m.status === 'OCULTO') return false;
+    if (m.proyectoId === undefined || m.proyectoId === null || m.proyectoId === '') {
+      return true;
+    }
+    return String(m.proyectoId) === String(selectedProyecto.id);
+  });
 
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] md:h-[calc(100vh-4rem)] max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg animate-fade-in">
@@ -2723,16 +2791,33 @@ const ChatView = ({ currentUser, showToast }) => {
         {projectMsgs.map(msg => {
           const isMe = msg.sender === currentUser.name;
           const hasRead = msg.readBy.includes(currentUser.name);
+          const isAdmin = currentUser.role === ROLES.ADMIN;
           return (
-            <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-slide-up`}>
+            <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-slide-up group relative`}>
               <div className={`flex flex-col mb-1 ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className="flex items-baseline gap-1.5">
+                <div className="flex items-baseline gap-1.5 font-sans">
                   <span className="text-[10px] md:text-xs font-bold text-slate-300">{isMe ? 'Tú' : msg.sender}</span>
                   <span className="text-[9px] text-slate-500">{msg.time}</span>
                 </div>
                 <span className="text-[9px] text-emerald-500 uppercase font-black leading-none mt-0.5">{msg.role}</span>
               </div>
-              <div className={`p-2.5 md:p-3 rounded-xl max-w-[85%] text-xs md:text-sm shadow-sm ${isMe ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-none'}`}>{msg.text}</div>
+              
+              <div className="flex items-center gap-2 max-w-[85%] w-fit">
+                {isMe && isAdmin && (
+                  <button type="button" onClick={() => handleDeleteClick(msg.id)} className="text-slate-500 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" title="Ocultar comunicado (Solo Admin)">
+                    <Trash2 size={12} />
+                  </button>
+                )}
+                
+                <div className={`p-2.5 md:p-3 rounded-xl text-xs md:text-sm shadow-sm ${isMe ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-none'}`}>{msg.text}</div>
+                
+                {!isMe && isAdmin && (
+                  <button type="button" onClick={() => handleDeleteClick(msg.id)} className="text-slate-500 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" title="Ocultar comunicado (Solo Admin)">
+                    <Trash2 size={12} />
+                  </button>
+                )}
+              </div>
+
               {!isMe && ( <button onClick={() => toggleReadReceipt(msg.id)} disabled={hasRead} className={`mt-1 flex items-center gap-1 text-[9px] md:text-[10px] font-bold px-1.5 py-1 rounded transition-colors ${hasRead ? 'bg-blue-500/20 text-blue-400 cursor-default' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}><CheckCheck size={10} /> {hasRead ? 'Leído' : 'Marcar Leído'}</button> )}
               {isMe && msg.readBy.length > 0 && ( <span className="text-[9px] md:text-[10px] text-blue-400 mt-1 font-bold flex items-center gap-1"><CheckCheck size={10} /> Visto por {msg.readBy.length} {msg.readBy.length === 1 ? 'persona' : 'personas'}</span> )}
             </div>
@@ -3462,7 +3547,7 @@ export default function App() {
           {currentView === 'ADMIN_PANEL' && <AdminPanel currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} refreshPendingCount={() => fetchDirectoryGlobal(true)} />}
           {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} theme={theme} setTheme={setTheme} requestConfirm={requestConfirm} />}
           {currentView === 'STAFF' && <StaffDirectory currentUser={currentUser} />}
-          {currentView === 'CHAT' && <ChatView currentUser={currentUser} showToast={showToast} />}
+          {currentView === 'CHAT' && <ChatView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} />}
           {currentView === 'TRANSPORT' && <TransportView currentUser={currentUser} setCurrentView={setCurrentView} showToast={showToast} selectedProject={selectedProject} />}
           {currentView === 'TRANSPORT_DETAILS' && <TransportDetailsView currentUser={currentUser} setCurrentView={setCurrentView} showToast={showToast} />}
           {currentView === 'RIDERS' && <RidersView currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} activeRider={activeRider} setActiveRider={setActiveRider} directory={directory} selectedProject={selectedProject} setCurrentView={setCurrentView} />}
