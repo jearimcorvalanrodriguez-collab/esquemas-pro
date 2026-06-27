@@ -181,6 +181,126 @@ const ToggleSwitch = ({ checked, onChange, label }) => {
   );
 };
 
+const NotificationsButton = ({ currentUser }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const loadNotifications = () => {
+    const list = [];
+    if (!currentUser) return;
+    const myProjects = (CACHE.proyectos || []).filter(p => 
+      [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) || 
+      (p.asignados || []).includes(currentUser.email)
+    );
+    const myProjectIds = myProjects.map(p => String(p.id));
+
+    // 1. Messages
+    const chatMsgs = (CACHE.mensajes || []).filter(m => myProjectIds.includes(String(m.proyectoId)));
+    chatMsgs.forEach(m => {
+      const projName = myProjects.find(p => String(p.id) === String(m.proyectoId))?.name || "Proyecto";
+      list.push({
+        id: 'msg-' + m.id,
+        type: 'chat',
+        title: `Mensaje de ${m.sender}`,
+        description: m.text,
+        time: m.time,
+        timestamp: Number(m.id) || 0,
+        projectName: projName
+      });
+    });
+
+    // 2. Transports
+    const trans = (CACHE.transportes || []).filter(t => myProjectIds.includes(String(t.proyectoId)));
+    trans.forEach(t => {
+      const projName = myProjects.find(p => String(p.id) === String(t.proyectoId))?.name || "Proyecto";
+      list.push({
+        id: 'trans-' + t.id,
+        type: 'transport',
+        title: `Nueva Ruta: ${t.title}`,
+        description: `${t.origin} ➡️ ${t.dest} (${t.date} ${t.time})`,
+        time: `${t.date} ${t.time}`,
+        timestamp: Number(t.id) || 0,
+        projectName: projName
+      });
+    });
+
+    // 3. Hitos
+    const hitos = (CACHE.hitos || []).filter(h => myProjectIds.includes(String(h.proyectoId)));
+    hitos.forEach(h => {
+      const projName = myProjects.find(p => String(p.id) === String(h.proyectoId))?.name || "Proyecto";
+      list.push({
+        id: 'hito-' + h.id,
+        type: 'hito',
+        title: `Nuevo Hito: ${h.title}`,
+        description: `${h.location} (${h.date} ${h.time})`,
+        time: `${h.date} ${h.time}`,
+        timestamp: Number(h.id) || 0,
+        projectName: projName
+      });
+    });
+
+    list.sort((a, b) => b.timestamp - a.timestamp);
+    setNotifications(list.slice(0, 8));
+  };
+
+  const handleToggle = () => {
+    if (!isOpen) {
+      loadNotifications();
+    }
+    setIsOpen(!isOpen);
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative inline-block text-left print:hidden">
+      <button 
+        type="button" 
+        onClick={handleToggle}
+        className="p-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-amber-500 hover:text-amber-400 rounded-lg transition-colors flex items-center justify-center shrink-0 relative"
+        title="Notificaciones de Proyectos"
+      >
+        <Bell size={14} />
+        <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-[9999] overflow-hidden animate-slide-up">
+          <div className="p-3 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+            <span className="font-bold text-xs text-white uppercase tracking-wider font-sans">Actividad Reciente</span>
+            <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-black font-sans">Novedades</span>
+          </div>
+          <div className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-slate-800/80 text-left">
+            {notifications.length === 0 ? (
+              <div className="p-6 text-center text-slate-500 text-xs">No hay novedades recientes en tus proyectos asignados.</div>
+            ) : (
+              notifications.map((n) => (
+                <div key={n.id} className="p-3 hover:bg-slate-800/50 transition-colors">
+                  <div className="flex justify-between items-start gap-2 mb-0.5 font-sans">
+                    <span className="text-[9px] font-black text-amber-500 truncate max-w-[140px] uppercase">{n.projectName}</span>
+                    <span className="text-[8px] text-slate-500 font-mono shrink-0">{n.time}</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-white leading-snug font-sans">{n.title}</h4>
+                  <p className="text-[10px] text-slate-400 line-clamp-2 mt-1 leading-relaxed font-sans">{n.description}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const openWhatsApp = (phone) => window.open(`https://wa.me/${phone.replace('+', '')}`, '_blank');
 const openEmail = (email) => window.open(`mailto:${email}`, '_blank');
 const handlePrint = () => window.print();
@@ -839,6 +959,22 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
     setLoading(false);
   };
 
+  const handleRecover = async (e) => {
+    e.preventDefault(); setError(''); setLoading(true);
+    try {
+      const result = await apiFetch('recuperarPassword', { email: email.trim() });
+      if (result.status === 'success') {
+        showToast("Clave temporal enviada a tu correo.");
+        setMode('LOGIN');
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+      setError("Error de red al intentar recuperar contraseña.");
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
       <div className="mb-6 text-center animate-fade-in">
@@ -849,7 +985,7 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
       <Card className="w-full max-w-md p-6 animate-slide-up border-slate-700/50">
         {mode !== 'REGISTER_SUCCESS' && (
           <div className="mb-4 text-center border-b border-slate-800 pb-3">
-            <h2 className="text-xl font-bold text-white">{mode === 'LOGIN' ? 'Iniciar Sesión' : mode === 'CONDUCTOR' ? 'Acceso Conductor' : 'Solicitar Acceso'}</h2>
+            <h2 className="text-xl font-bold text-white">{mode === 'LOGIN' ? 'Iniciar Sesión' : mode === 'CONDUCTOR' ? 'Acceso Conductor' : mode === 'RECOVER' ? 'Recuperar Contraseña' : 'Solicitar Acceso'}</h2>
           </div>
         )}
         
@@ -864,6 +1000,9 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
                 <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
+              </div>
+              <div className="text-right mt-1">
+                <button type="button" onClick={() => setMode('RECOVER')} className="text-[10px] text-emerald-500 hover:underline">¿Olvidaste tu contraseña?</button>
               </div>
             </div>
             <Button type="submit" className="w-full py-2.5" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Ingresar a Plataforma'}</Button>
@@ -881,6 +1020,16 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
             <div><label className="block text-xs font-bold text-slate-400 mb-1">Token de Ruta</label><input type="text" value={driverToken} onChange={e=>setDriverToken(e.target.value.toUpperCase())} className="w-full bg-slate-900 border border-blue-500/50 rounded-lg p-2.5 text-white text-center font-mono text-lg tracking-widest focus:border-blue-400 outline-none" placeholder="TR-XXXX" required /></div>
             <Button type="submit" className="w-full py-2.5" variant="blue" disabled={loading} icon={Truck}>{loading ? <Loader2 className="animate-spin"/> : 'Iniciar Ruta'}</Button>
             <p className="text-center text-xs text-slate-400 mt-3"><button type="button" onClick={()=>setMode('LOGIN')} className="text-emerald-500 font-bold hover:underline">Volver al Login de Crew</button></p>
+          </form>
+        )}
+
+        {mode === 'RECOVER' && (
+          <form onSubmit={handleRecover} className="space-y-4 animate-fade-in">
+            {error && <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-xs p-2.5 rounded-lg flex items-center gap-2"><AlertCircle size={14} /><span>{error}</span></div>}
+            <p className="text-xs text-slate-400 text-center">Ingresa tu correo para recibir una nueva clave de acceso temporal por email.</p>
+            <div><label className="block text-xs font-bold text-slate-400 mb-1">Correo Electrónico</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none transition-colors" required /></div>
+            <Button type="submit" className="w-full py-2.5" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Enviar Clave Temporal'}</Button>
+            <p className="text-center text-xs text-slate-400 mt-3"><button type="button" onClick={()=>setMode('LOGIN')} className="text-emerald-500 font-bold hover:underline">Volver al Login</button></p>
           </form>
         )}
 
@@ -993,7 +1142,8 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
           <h1 className="text-2xl font-black text-white flex items-center gap-2"><Truck className="text-blue-500" size={24}/> Transportes</h1>
           <p className="text-sm text-slate-400">Rutas para: {selectedProject.name}</p>
         </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <NotificationsButton currentUser={currentUser} />
           <Button variant="ghost" icon={RefreshCw} onClick={() => fetchTransports(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar Transportes" />
           {canCreate && !isCreating && <Button icon={Plus} onClick={() => setIsCreating(true)}>Nueva Ruta</Button>}
         </div>
@@ -1223,7 +1373,8 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
     <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-6xl mx-auto">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 border-b border-slate-800 pb-4">
         <div><h1 className="text-2xl md:text-3xl font-black text-white leading-tight">Hola, {currentUser.name.split(' ')[0]}</h1><p className="text-emerald-400 text-xs md:text-sm font-black uppercase tracking-wider">{currentUser.role}</p></div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <NotificationsButton currentUser={currentUser} />
           <Button variant="ghost" icon={RefreshCw} onClick={() => fetchProyectos(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar Proyectos" />
           {canCreate && !isCreating && <Button icon={FolderPlus} variant="primary" className="flex-1 sm:flex-none" onClick={() => setIsCreating(true)}>Nuevo Proyecto</Button>}
         </div>
@@ -1474,7 +1625,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
     <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-7xl mx-auto">
       <button onClick={() => setCurrentView('DASHBOARD')} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a Proyectos</button>
       
-      <header className="border-b border-slate-800 pb-4 flex flex-col items-start gap-2">
+      <header className="border-b border-slate-800 pb-4 flex justify-between items-start gap-4 w-full">
         <div>
           <span className="text-[9px] md:text-[10px] bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider mb-1.5 inline-block">VISTA PROYECTO</span>
           <h1 className="text-xl md:text-3xl font-black text-white leading-tight">{p.name}</h1>
@@ -1482,6 +1633,9 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
             <p className="text-xs md:text-sm text-slate-300 flex items-center gap-1.5"><Calendar size={12}/> Inicio: {projectDateStr}</p>
             <p className="text-xs md:text-sm text-slate-400 flex items-center gap-1.5"><User size={12}/> Liderado por: {p.manager}</p>
           </div>
+        </div>
+        <div className="shrink-0 pt-2">
+          <NotificationsButton currentUser={currentUser} />
         </div>
       </header>
 
@@ -1979,6 +2133,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
            <p className="text-xs md:text-sm text-slate-400 mt-1">Especificaciones Oficiales para {selectedProject.name}.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {viewMode === 'LIST' && <NotificationsButton currentUser={currentUser} />}
           {viewMode === 'LIST' && <Button variant="ghost" icon={RefreshCw} onClick={() => fetchData(true)} className="px-2 border border-slate-700 hover:text-emerald-400 mr-1" title="Actualizar Documentos" />}
           {(viewMode === 'DETAIL' || isPreview) && riderHitos.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer print:hidden mr-2">
@@ -2904,7 +3059,10 @@ const ChatView = ({ currentUser, showToast, requestConfirm }) => {
             <p className="text-[10px] md:text-xs text-emerald-400 font-bold uppercase tracking-wider">Canal Oficial</p>
           </div>
         </div>
-        <Button variant="ghost" className="text-slate-400 hover:text-emerald-400 p-1.5 md:p-2 border border-slate-700 rounded" onClick={() => fetchData(true)} title="Actualizar Chat"><RefreshCw size={14} className={loading ? "animate-spin text-emerald-500" : ""}/></Button>
+        <div className="flex gap-2 items-center">
+          <NotificationsButton currentUser={currentUser} />
+          <Button variant="ghost" className="text-slate-400 hover:text-emerald-400 p-1.5 md:p-2 border border-slate-700 rounded" onClick={() => fetchData(true)} title="Actualizar Chat"><RefreshCw size={14} className={loading ? "animate-spin text-emerald-500" : ""}/></Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 custom-scrollbar">
