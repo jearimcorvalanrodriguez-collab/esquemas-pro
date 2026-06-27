@@ -7,7 +7,7 @@ import {
   Phone, Mail, CheckCheck, Send, Timer, Hourglass,
   Shield, CalendarPlus, FileText, Mic2, Lightbulb, Map as MapIcon, Save,
   Trash2, FolderPlus, RefreshCw, ChevronLeft, CheckSquare, Square, Printer, Utensils, CalendarDays,
-  RotateCw, Maximize, Minimize, Link, Eye, EyeOff
+  RotateCw, Maximize, Minimize, Link, Eye, EyeOff, Copy, ExternalLink, MessageCircle
 } from 'lucide-react';
 
 const ROLES = {
@@ -1081,7 +1081,12 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
   const [transports, setTransports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [form, setForm] = useState({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: selectedProject?.id || '' });
+  const [form, setForm] = useState({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: selectedProject?.id || '', paradas: [] });
+  const [stopInput, setStopInput] = useState('');
+  const [assigningDriverToken, setAssigningDriverToken] = useState(null);
+  const [driverForm, setDriverForm] = useState({ name: '', email: '', phone: '+569' });
+  const [sendingId, setSendingId] = useState(null);
+
   const canCreate = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role) || (currentUser.permisos || []).includes('TRANSPORT_MANAGE');
   const canManageAll = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) || (currentUser.permisos || []).includes('TRANSPORT_MANAGE');
 
@@ -1116,6 +1121,66 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
 
   if (!selectedProject) return <div className="text-center p-8"><Button onClick={() => setCurrentView('DASHBOARD')}>Volver a Proyectos</Button></div>;
 
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    showToast("¡Token copiado al portapapeles!");
+  };
+
+  const handleSaveDriver = async (e, t) => {
+    e.preventDefault();
+    try {
+      const res = await apiFetch('asignarConductor', { 
+        token: t.token, 
+        conductor: `${driverForm.name.trim()} (${driverForm.email.trim()})`, 
+        conductorPhone: driverForm.phone.trim() 
+      });
+      if (res.status === 'success') {
+        showToast("Piloto asignado con éxito.");
+        setAssigningDriverToken(null);
+        clearCache('transportes');
+        fetchTransports(true);
+      } else {
+        showToast("Error: " + res.message);
+      }
+    } catch(err) {
+      showToast("Error al asignar piloto.");
+    }
+  };
+
+  const handleSendNotification = async (t) => {
+    setSendingId(t.token);
+    try {
+      const driverEmail = t.conductor.match(/\(([^)]+)\)/)?.[1] || t.conductor;
+      const driverName = t.conductor.split(' (')[0];
+      const res = await apiFetch('enviarAvisoConductor', {
+        token: t.token,
+        conductorEmail,
+        conductorName,
+        title: t.title,
+        date: t.date,
+        time: t.time,
+        origin: t.origin,
+        dest: t.dest,
+        paradas: t.paradas || []
+      });
+      if (res.status === 'success') {
+        showToast("Aviso enviado por email.");
+      } else {
+        showToast("Error: " + res.message);
+      }
+    } catch(err) {
+      showToast("Error al enviar correo al conductor.");
+    }
+    setSendingId(null);
+  };
+
+  const getWhatsAppLink = (t) => {
+    const cleanPhone = t.conductorPhone.replace(/[^0-9]/g, '');
+    const driverName = t.conductor.split(' (')[0];
+    const msg = `Hola ${driverName}! Te hemos asignado una nueva ruta: '${t.title}'. Para ver el itinerario completo e iniciar navegacion con Waze o Google Maps, ingresa con tu Token a la app:\n\n🔗 ${window.location.origin}\n🔑 Token: ${t.token}\n\nPor favor, confirma recepcion en el correo que te enviamos. ¡Gracias!`;
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
@@ -1124,7 +1189,7 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
       if (res.status === 'success') {
         showToast("Ruta creada con éxito.");
         setIsCreating(false);
-        setForm({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: selectedProject.id });
+        setForm({ title: '', date: '', time: '', origin: '', dest: '', proyectoId: selectedProject.id, paradas: [] });
         clearCache('transportes');
         fetchTransports(true);
       }
@@ -1160,14 +1225,14 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
               <div><label className="text-xs text-slate-400 block mb-1">Fecha</label><input required type="date" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} /></div>
               <div><label className="text-xs text-slate-400 block mb-1">Hora</label><input required type="time" className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500" value={form.time} onChange={e=>setForm({...form, time: e.target.value})} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4 text-left">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Origen</label>
                 <AddressAutocomplete 
                   required 
                   value={form.origin} 
                   onChange={val => setForm({...form, origin: val})} 
-                  placeholder="Buscar dirección o recinto..." 
+                  placeholder="Dirección o recinto de origen..." 
                   className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" 
                 />
               </div>
@@ -1177,41 +1242,201 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
                   required 
                   value={form.dest} 
                   onChange={val => setForm({...form, dest: val})} 
-                  placeholder="Buscar dirección o recinto..." 
+                  placeholder="Dirección o recinto de destino..." 
                   className="w-full bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" 
                 />
               </div>
             </div>
-            <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1 py-2" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" variant="blue" className="flex-1 py-2">Guardar Ruta</Button></div>
+
+            <div className="text-left space-y-2 border-t border-slate-800 pt-3">
+              <label className="text-xs text-slate-400 block font-bold">Paradas Intermedias (Recogidas / Puntos de Ruta)</label>
+              <div className="flex gap-2">
+                <AddressAutocomplete 
+                  value={stopInput} 
+                  onChange={setStopInput} 
+                  placeholder="Buscar dirección de parada..." 
+                  className="flex-1 bg-slate-900 border-slate-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none" 
+                />
+                <Button 
+                  type="button" 
+                  onClick={() => {
+                    if (stopInput.trim()) {
+                      setForm(prev => ({ ...prev, paradas: [...(prev.paradas || []), stopInput.trim()] }));
+                      setStopInput('');
+                    } else {
+                      showToast("Ingresa una dirección válida primero.");
+                    }
+                  }} 
+                  variant="blue" 
+                  className="px-4 py-2 shrink-0 text-xs"
+                >
+                  Agregar Parada
+                </Button>
+              </div>
+              
+              {form.paradas && form.paradas.length > 0 && (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar p-2.5 bg-slate-950 rounded border border-slate-800 mt-2">
+                  <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-2">Secuencia de Recogidas:</p>
+                  {form.paradas.map((st, idx) => (
+                    <div key={idx} className="flex justify-between items-center gap-2 text-xs bg-slate-900 px-2.5 py-2 rounded border border-slate-800 transition-colors hover:border-slate-700">
+                      <span className="text-slate-300 truncate flex-1"><span className="font-bold text-blue-400 mr-1.5">#{idx + 1}</span> {st}</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setForm(prev => ({ ...prev, paradas: prev.paradas.filter((_, i) => i !== idx) }))}
+                        className="text-red-400 hover:text-red-300 font-bold px-1 text-sm hover:scale-110 transition-transform"
+                        title="Eliminar parada"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2"><Button variant="secondary" className="flex-1 py-2.5" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" variant="blue" className="flex-1 py-2.5">Guardar Ruta</Button></div>
           </form>
         </Card>
       )}
 
       {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-blue-500" size={28}/></div> : transports.length === 0 ? <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50 text-slate-500">No hay transportes programados en este proyecto.</div> : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {transports.map(t => (
-            <Card key={t.id} className="p-4 border-l-4 border-l-blue-500">
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-lg text-white">{t.title}</h3>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${t.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50' : t.status === 'EN RUTA' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/50' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/50'}`}>{t.status}</span>
-              </div>
-              <div className="space-y-1 text-sm text-slate-300 mb-4">
-                <p className="flex items-center gap-2"><Calendar size={14}/> {t.date} {t.time}</p>
-                <p className="flex items-center gap-2">
-                  <MapPin size={14} className="text-blue-400 shrink-0"/> 
-                  <span>Origen: </span>
-                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.origin)}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{t.origin}</a>
-                </p>
-                <p className="flex items-center gap-2">
-                  <Navigation size={14} className="text-blue-400 shrink-0"/> 
-                  <span>Destino: </span>
-                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.dest)}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{t.dest}</a>
-                </p>
-              </div>
-              <div className="bg-slate-900 border border-slate-700 p-2 rounded flex justify-between items-center">
-                <span className="text-xs text-slate-400 uppercase font-bold">Token Piloto</span>
-                <span className="font-mono text-blue-400 font-bold tracking-widest">{t.token}</span>
-              </div>
+          {transports.map(t => {
+            const hasDriver = !!t.conductor;
+            return (
+              <Card key={t.id} className="p-4 border-l-4 border-l-blue-500 flex flex-col justify-between min-h-[280px]">
+                <div>
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="font-bold text-base md:text-lg text-white leading-tight">{t.title}</h3>
+                    <span className={`text-[9px] md:text-[10px] font-bold px-2 py-0.5 rounded uppercase ${t.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50' : t.status === 'EN RUTA' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/50' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/50'}`}>{t.status}</span>
+                  </div>
+                  
+                  <div className="space-y-2 text-xs md:text-sm text-slate-300 mb-4 text-left">
+                    <p className="flex items-center gap-2 font-mono"><Calendar size={13}/> {t.date} {t.time}</p>
+                    
+                    <div className="border border-slate-800/80 bg-slate-900/40 rounded-lg p-2.5 space-y-1.5">
+                      <p className="flex items-start gap-1.5">
+                        <MapPin size={13} className="text-amber-500 shrink-0 mt-0.5"/> 
+                        <span className="font-bold shrink-0">Origen: </span>
+                        <span className="text-slate-300 truncate">{t.origin}</span>
+                      </p>
+                      
+                      {t.paradas && t.paradas.length > 0 && (
+                        <div className="pl-4 border-l border-slate-800 space-y-1 my-1">
+                          {t.paradas.map((st, i) => (
+                            <p key={i} className="flex items-start gap-1 text-slate-400 text-xs">
+                              <span className="font-bold text-blue-400">📍 Stop {i+1}:</span>
+                              <span className="truncate">{st}</span>
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <p className="flex items-start gap-1.5 pt-1 border-t border-slate-800/50">
+                        <Navigation size={13} className="text-emerald-500 shrink-0 mt-0.5"/> 
+                        <span className="font-bold shrink-0">Destino: </span>
+                        <span className="text-slate-300 truncate">{t.dest}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 border-t border-slate-800 pt-3">
+                  {/* Conductor info */}
+                  <div className="flex justify-between items-center bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
+                    <div className="text-left">
+                      <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Piloto Asignado</p>
+                      {hasDriver ? (
+                        <div>
+                          <p className="text-xs font-bold text-white leading-tight">{t.conductor.split(' (')[0]}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5 leading-none">{t.conductorPhone}</p>
+                          <span className={`text-[9px] font-black uppercase inline-block mt-1 ${t.conductorAceptado === 'Ruta aceptada por conductor' ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`}>
+                            ● {t.conductorAceptado || 'PENDIENTE'}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 italic">Sin conductor asignado</p>
+                      )}
+                    </div>
+                    {canManageAll && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        className="py-1 px-2 text-[10px] border border-slate-700 bg-slate-900"
+                        onClick={() => {
+                          setAssigningDriverToken(t.token);
+                          if (hasDriver) {
+                            const name = t.conductor.split(' (')[0];
+                            const email = t.conductor.match(/\(([^)]+)\)/)?.[1] || '';
+                            setDriverForm({ name, email, phone: t.conductorPhone });
+                          } else {
+                            setDriverForm({ name: '', email: '', phone: '+569' });
+                          }
+                        }}
+                      >
+                        {hasDriver ? 'Cambiar' : 'Asignar'}
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Driver Edit Form Inline */}
+                  {assigningDriverToken === t.token && (
+                    <form onSubmit={(e) => handleSaveDriver(e, t)} className="p-3 bg-slate-900 border border-slate-700 rounded-lg space-y-2 text-left animate-fade-in">
+                      <h4 className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">Configurar Conductor</h4>
+                      <input required type="text" placeholder="Nombre completo" value={driverForm.name} onChange={e=>setDriverForm({...driverForm, name: e.target.value})} className="w-full bg-slate-950 border-slate-800 rounded p-1.5 text-xs text-white outline-none focus:border-blue-500"/>
+                      <input required type="email" placeholder="Email (recibe confirmación)" value={driverForm.email} onChange={e=>setDriverForm({...driverForm, email: e.target.value})} className="w-full bg-slate-950 border-slate-800 rounded p-1.5 text-xs text-white outline-none focus:border-blue-500"/>
+                      <input required type="tel" placeholder="WhatsApp (ej. +56912345678)" value={driverForm.phone} onChange={e=>setDriverForm({...driverForm, phone: e.target.value.replace(/[^0-9+]/g, '')})} className="w-full bg-slate-950 border-slate-800 rounded p-1.5 text-xs text-white outline-none focus:border-blue-500"/>
+                      <div className="flex gap-2 pt-1">
+                        <Button type="button" variant="secondary" className="flex-1 py-1 text-xs" onClick={()=>setAssigningDriverToken(null)}>Cancelar</Button>
+                        <Button type="submit" variant="blue" className="flex-1 py-1 text-xs">Guardar</Button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Token and Notification Buttons */}
+                  <div className="bg-slate-900 border border-slate-700 p-2.5 rounded-lg flex justify-between items-center gap-3">
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Token Piloto</p>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-blue-400 font-bold tracking-widest text-xs md:text-sm truncate">{t.token}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => copyToClipboard(t.token)} 
+                          className="text-slate-400 hover:text-white p-0.5"
+                          title="Copiar Token"
+                        >
+                          <Copy size={11} />
+                        </button>
+                      </div>
+                    </div>
+                    {hasDriver && canManageAll && (
+                      <div className="flex items-center gap-1.5">
+                        <button 
+                          type="button" 
+                          onClick={() => handleSendNotification(t)}
+                          disabled={sendingId === t.token}
+                          className="p-2 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-blue-400 hover:text-blue-300 rounded-lg transition-colors flex items-center justify-center shrink-0"
+                          title="Enviar Token por Correo"
+                        >
+                          {sendingId === t.token ? <Loader2 size={12} className="animate-spin"/> : <Mail size={12} />}
+                        </button>
+                        <a 
+                          href={getWhatsAppLink(t)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-emerald-400 hover:text-emerald-300 rounded-lg transition-colors flex items-center justify-center shrink-0"
+                          title="Enviar Token por WhatsApp"
+                        >
+                          <MessageCircle size={12} />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>              </div>
             </Card>
           ))}
         </div>
@@ -1255,20 +1480,76 @@ const ConductorView = ({ currentUser, showToast }) => {
            <span className="text-xs text-slate-400 uppercase font-bold">Token Ruta</span>
            <span className="font-mono text-emerald-400 font-bold tracking-widest text-lg">{routeInfo.token}</span>
         </div>
-        <div className="space-y-3 text-sm text-slate-300 mb-6">
+        <div className="space-y-3 text-sm text-slate-300 mb-6 text-left">
           <p className="flex items-center gap-2"><Calendar size={16} className="text-blue-400"/> Fecha: {routeInfo.date} a las {routeInfo.time}</p>
-          <div className="p-3 bg-slate-900 rounded border border-slate-800">
-             <p className="flex items-center gap-2 mb-2 font-bold text-white">
-               <MapPin size={16} className="text-amber-500 shrink-0"/> 
-               <span>Origen: </span>
-               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(routeInfo.origin)}`} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline">{routeInfo.origin}</a>
-             </p>
-             <p className="flex items-center gap-2 font-bold text-white">
-               <Navigation size={16} className="text-emerald-500 shrink-0"/> 
-               <span>Destino: </span>
-               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(routeInfo.dest)}`} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">{routeInfo.dest}</a>
-             </p>
+          
+          <div className="p-4 bg-slate-900 rounded-xl border border-slate-800 space-y-4">
+             {/* Origen */}
+             <div className="relative pl-6 pb-2">
+               <div className="absolute left-1.5 top-1.5 bottom-0 w-0.5 bg-blue-500/50"></div>
+               <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center border-2 border-slate-900">
+                 <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+               </div>
+               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Inicio (Origen)</p>
+               <p className="font-bold text-white text-sm leading-snug">{routeInfo.origin}</p>
+               <div className="flex gap-2 mt-1">
+                 <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeInfo.origin)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                   <MapIcon size={10}/> Google Maps
+                 </a>
+                 <a href={`https://waze.com/ul?q=${encodeURIComponent(routeInfo.origin)}&navigate=yes`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                   <Navigation size={10}/> Waze
+                 </a>
+               </div>
+             </div>
+
+             {/* Paradas Intermedias */}
+             {routeInfo.paradas && routeInfo.paradas.length > 0 && routeInfo.paradas.map((stop, sIdx) => (
+               <div key={sIdx} className="relative pl-6 pb-2">
+                 <div className="absolute left-1.5 top-1.5 bottom-0 w-0.5 bg-blue-500/50"></div>
+                 <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-amber-500 flex items-center justify-center border-2 border-slate-900">
+                   <span className="w-1.5 h-1.5 rounded-full bg-slate-950"></span>
+                 </div>
+                 <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Parada #{sIdx + 1}</p>
+                 <p className="font-bold text-slate-300 text-sm leading-snug">{stop}</p>
+                 <div className="flex gap-2 mt-1">
+                   <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                     <MapIcon size={10}/> Google Maps
+                   </a>
+                   <a href={`https://waze.com/ul?q=${encodeURIComponent(stop)}&navigate=yes`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                     <Navigation size={10}/> Waze
+                   </a>
+                 </div>
+               </div>
+             ))}
+
+             {/* Destino */}
+             <div className="relative pl-6">
+               <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-emerald-500 flex items-center justify-center border-2 border-slate-900">
+                 <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+               </div>
+               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Llegada (Destino)</p>
+               <p className="font-bold text-white text-sm leading-snug">{routeInfo.dest}</p>
+               <div className="flex gap-2 mt-1">
+                 <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeInfo.dest)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                   <MapIcon size={10}/> Google Maps
+                 </a>
+                 <a href={`https://waze.com/ul?q=${encodeURIComponent(routeInfo.dest)}&navigate=yes`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                   <Navigation size={10}/> Waze
+                 </a>
+               </div>
+             </div>
           </div>
+        </div>
+
+        <div className="mb-4">
+          <a 
+            href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(routeInfo.origin)}&destination=${encodeURIComponent(routeInfo.dest)}&waypoints=${encodeURIComponent((routeInfo.paradas || []).join('|'))}`} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm shadow-lg shadow-emerald-950/20"
+          >
+            <MapIcon size={16}/> Iniciar Ruta Completa (Google Maps)
+          </a>
         </div>
         
         <div className="space-y-3">
@@ -3558,6 +3839,27 @@ export default function App() {
       window.localStorage.removeItem('esquemapps_project');
     }
   }, [selectedProject]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const acceptToken = params.get('acceptToken');
+    if (acceptToken) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      const acceptRoute = async () => {
+        try {
+          const res = await apiFetch('aceptarRuta', { token: acceptToken });
+          if (res.status === 'success') {
+            showToast(`¡Ruta ${acceptToken} Aceptada con Éxito!`);
+          } else {
+            showToast(`Error al aceptar ruta: ${res.message}`);
+          }
+        } catch(e) {
+          showToast("Error de conexión al aceptar la ruta.");
+        }
+      };
+      acceptRoute();
+    }
+  }, []);
 
   const showToast = (message) => {
     setToastMessage(message);
