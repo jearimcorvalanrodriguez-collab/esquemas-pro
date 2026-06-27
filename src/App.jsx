@@ -642,6 +642,11 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   const [regName, setRegName] = useState('');
   const [regRole, setRegRole] = useState(ROLES.TECH);
   const [regPhone, setRegPhone] = useState('+569');
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+
+  useEffect(() => {
+    setDisclaimerAccepted(false);
+  }, [mode]);
 
   const handleLogin = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
@@ -664,9 +669,20 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   };
 
   const handleRegister = async (e) => {
-    e.preventDefault(); setError(''); setLoading(true);
+    e.preventDefault();
+    if (!disclaimerAccepted) {
+      setError("Debes aceptar los términos y condiciones de tratamiento de datos.");
+      return;
+    }
+    setError(''); setLoading(true);
     try {
-      const result = await apiFetch('solicitarAcceso', { name: regName.trim(), email: email.trim(), phone: regPhone.trim(), role: regRole });
+      const result = await apiFetch('solicitarAcceso', { 
+        name: regName.trim(), 
+        email: email.trim(), 
+        phone: regPhone.trim(), 
+        role: regRole,
+        disclaimerAceptado: true
+      });
       if (result.status === 'success') { 
         setMode('REGISTER_SUCCESS'); 
       } 
@@ -726,6 +742,18 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
             <div><label className="block text-xs font-bold text-slate-400 mb-1">Nombre Completo</label><input type="text" value={regName} onChange={e=>setRegName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div>
             <div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-slate-400 mb-1">Correo</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div><div><label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label><input type="tel" value={regPhone} onChange={e=>setRegPhone(e.target.value.replace(/[^0-9+]/g, ''))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div></div>
             <div><label className="block text-xs font-bold text-slate-400 mb-1">Rol</label><select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none break-words whitespace-normal">{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+            
+            <div className="space-y-2 pt-1 text-left">
+              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-[10px] text-slate-400 max-h-20 overflow-y-auto custom-scrollbar leading-relaxed">
+                <p className="font-bold text-slate-300 mb-0.5">AVISO DE TRATAMIENTO DE DATOS</p>
+                Al solicitar acceso, aceptas que recopilamos tu nombre, correo, teléfono (para contacto/WhatsApp), talla de vestimenta (para uniformes/merch) y restricciones alimenticias (para catering). Estos datos se usarán solo para fines operativos y se conservarán mientras existan la app y web app.
+              </div>
+              <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" required checked={disclaimerAccepted} onChange={e => setDisclaimerAccepted(e.target.checked)} className="accent-emerald-500 rounded bg-slate-900 border-slate-700 mt-0.5" />
+                <span>Acepto el tratamiento de mis datos personales y sensibles.</span>
+              </label>
+            </div>
+
             <Button type="submit" className="w-full py-2.5 mt-2" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Enviar Solicitud'}</Button>
             <p className="text-center text-xs text-slate-400 mt-3"><button type="button" onClick={()=>setMode('LOGIN')} className="text-emerald-500 font-bold hover:underline">Volver al Login</button></p>
           </form>
@@ -2703,7 +2731,7 @@ const ChatView = ({ currentUser, showToast }) => {
 };
 
 // --- PANEL DE ADMINISTRADOR ---
-const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
+const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCount }) => {
   const [dbUsers, setDbUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -2752,6 +2780,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
         showToast("Usuario aprobado. Correo enviado al usuario."); 
         clearCache('usuarios');
         setDbUsers(prev => prev.map(u => u.email === email ? { ...u, status: 'ACTIVO' } : u));
+        if (refreshPendingCount) refreshPendingCount();
       } 
       else { showToast("Error: " + res.message); }
     } catch(e) { showToast("Error de conexión al aprobar."); }
@@ -2766,6 +2795,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
         showToast("Solicitud rechazada. Correo enviado."); 
         clearCache('usuarios');
         setDbUsers(prev => prev.filter(u => u.email !== email));
+        if (refreshPendingCount) refreshPendingCount();
       } 
       else { showToast("Error: " + res.message); }
     } catch(e) { showToast("Error de conexión al rechazar."); }
@@ -2780,6 +2810,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
         showToast("Usuario eliminado y notificado."); 
         clearCache('usuarios');
         setDbUsers(prev => prev.filter(u => u.email !== email));
+        if (refreshPendingCount) refreshPendingCount();
       } 
       else { showToast("Error: " + res.message); }
     } catch(e) { showToast("Error de conexión al eliminar."); }
@@ -2796,6 +2827,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
           showToast(`Acceso creado. Credenciales enviadas a ${invEmail}`); setInvName(''); setInvEmail(''); setActiveTab('DIRECTORIO'); 
           clearCache('usuarios');
           fetchUsers(true);
+          if (refreshPendingCount) refreshPendingCount();
         }
       }
     } catch(e) { showToast("Error al invitar integrante."); }
@@ -2839,6 +2871,19 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm }) => {
         </div>
         <Button variant="ghost" icon={RefreshCw} onClick={() => fetchUsers(true)} className="px-2 py-1.5 border border-slate-700 hover:text-emerald-400" title="Actualizar Solicitudes" />
       </header>
+
+      {pendingUsers.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 animate-pulse">
+          <div className="flex items-center gap-3 text-left">
+            <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-500 shrink-0"><Bell size={20} /></div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Solicitudes de Acceso Pendientes</h3>
+              <p className="text-xs text-slate-400 font-medium">Hay {pendingUsers.length} solicitudes de técnicos o miembros del crew esperando aprobación.</p>
+            </div>
+          </div>
+          <Button variant="primary" className="bg-amber-600 hover:bg-amber-500 text-white border-amber-500/50 py-1.5 px-3.5 self-end sm:self-center text-xs" onClick={() => setActiveTab('PENDIENTES')}>Revisar Ahora</Button>
+        </div>
+      )}
 
       <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
         <Button variant={activeTab === 'PENDIENTES' ? 'primary' : 'secondary'} onClick={() => setActiveTab('PENDIENTES')} icon={Bell}>Solicitudes ({pendingUsers.length})</Button>
@@ -3082,6 +3127,8 @@ export default function App() {
   const [activeRider, setActiveRider] = useState(null);
   const [showPasswordAlert, setShowPasswordAlert] = useState(false);
   const [theme, setTheme] = useState(window.localStorage.getItem('esquemapps_theme') || 'dark');
+  const [pendingCount, setPendingCount] = useState(0);
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
 
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', onConfirm: null });
 
@@ -3135,7 +3182,7 @@ export default function App() {
     ];
     
     if (currentUser.role === ROLES.ADMIN) {
-       options.push({ id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck });
+       options.push({ id: 'ADMIN_PANEL', label: 'Admin Panel', icon: ShieldCheck, badgeCount: pendingCount });
     }
     
     options.push({ id: 'PROFILE', label: 'Mi Perfil', icon: User });
@@ -3145,6 +3192,7 @@ export default function App() {
   const fetchDirectoryGlobal = async (force = false) => {
     if (!force && CACHE.usuarios) {
        setDirectory(CACHE.usuarios.filter(u => u.status === 'ACTIVO'));
+       setPendingCount(CACHE.usuarios.filter(u => u.status === 'PENDING').length);
        return;
     }
     try {
@@ -3152,13 +3200,47 @@ export default function App() {
       if (res.status === 'success') {
          CACHE.usuarios = res.data;
          setDirectory(res.data.filter(u => u.status === 'ACTIVO'));
+         setPendingCount(res.data.filter(u => u.status === 'PENDING').length);
       }
     } catch(e) { console.error("Error fetching global directory", e); }
+  };
+
+  const handleAcceptDisclaimer = async () => {
+    if (!currentUser) return;
+    try {
+      const res = await apiFetch('updateProfile', { email: currentUser.email, disclaimerAceptado: true });
+      if (res.status === 'success') {
+        const updated = { ...currentUser, disclaimerAceptado: true };
+        setCurrentUser(updated);
+        window.localStorage.setItem(`disclaimer_${currentUser.email}`, 'true');
+        setShowDisclaimerModal(false);
+        showToast("Términos de privacidad aceptados.");
+      } else {
+        showToast("Error al guardar: " + res.message);
+      }
+    } catch (err) {
+      const updated = { ...currentUser, disclaimerAceptado: true };
+      setCurrentUser(updated);
+      window.localStorage.setItem(`disclaimer_${currentUser.email}`, 'true');
+      setShowDisclaimerModal(false);
+      showToast("Aceptado en local");
+    }
   };
 
   useEffect(() => {
     if (currentUser && currentUser.role !== 'CONDUCTOR') {
       fetchDirectoryGlobal();
+      
+      const disclaimerKey = `disclaimer_${currentUser.email}`;
+      const acceptedLocal = window.localStorage.getItem(disclaimerKey) === 'true';
+      const acceptedRemote = currentUser.disclaimerAceptado === true || currentUser.disclaimerAceptado === 'true';
+      
+      if (!acceptedLocal && !acceptedRemote) {
+        setShowDisclaimerModal(true);
+      } else if (acceptedRemote && !acceptedLocal) {
+        window.localStorage.setItem(disclaimerKey, 'true');
+      }
+
       if (!window.localStorage.getItem(`pwd_alert_${currentUser.email}`)) {
         setShowPasswordAlert(true);
         window.localStorage.setItem(`pwd_alert_${currentUser.email}`, 'true');
@@ -3260,6 +3342,52 @@ export default function App() {
         `}</style>
       )}
       <ConfirmModal />
+
+      {showDisclaimerModal && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[250] flex items-center justify-center p-4 animate-fade-in print:hidden">
+          <Card className="w-full max-w-lg p-5 md:p-7 border-emerald-500/50 flex flex-col gap-4 text-left">
+            <div className="flex items-center gap-2 md:gap-3 text-emerald-500 border-b border-slate-800 pb-3">
+              <ShieldCheck size={28} />
+              <h2 className="text-lg md:text-xl font-black text-white uppercase tracking-wider">Términos de Privacidad y Tratamiento de Datos</h2>
+            </div>
+            
+            <p className="text-xs md:text-sm text-slate-300 leading-relaxed">
+              Para poder utilizar la plataforma <b>Esquemas Pro</b>, es necesario que aceptes nuestra política de recopilación y uso de datos operativos, personales y sensibles.
+            </p>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] md:text-xs text-slate-400 space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar leading-relaxed">
+              <p className="font-bold text-slate-200">1. DATOS RECOPILADOS Y SU FINALIDAD</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li><b>Datos de Identificación y Contacto:</b> Nombre completo, correo electrónico y número de teléfono (necesario para coordinaciones de logística del equipo y contacto directo mediante WhatsApp).</li>
+                <li><b>Datos de Operación Técnica:</b> Rol asignado y permisos de accesos a módulos de la aplicación.</li>
+                <li><b>Datos Sensibles y de Bienestar:</b> 
+                  <ul className="list-circle pl-4 mt-0.5">
+                    <li><b>Talla de Vestimenta:</b> Para la confección, compra y asignación de vestuario de trabajo, uniformes del equipo y merchandising.</li>
+                    <li><b>Preferencia de Alimentación / Alergias:</b> Para la planificación adecuada del catering en camarines, eventos y giras, resguardando tu salud y preferencias alimenticias.</li>
+                  </ul>
+                </li>
+              </ul>
+              <p className="font-bold text-slate-200 pt-1">2. PLAZO DE CONSERVACIÓN</p>
+              <p>
+                Los datos se conservarán y utilizarán de manera segura única y exclusivamente para los fines de coordinación del crew <b>mientras exista y se mantenga activa la aplicación y su base de datos web</b>.
+              </p>
+              <p className="font-bold text-slate-200 pt-1">3. ACEPTACIÓN</p>
+              <p>
+                Al hacer clic en "Aceptar y Continuar", declaras estar en conocimiento y autorizar el tratamiento de estos datos para la operación de los shows y giras correspondientes.
+              </p>
+            </div>
+
+            <Button 
+              variant="primary" 
+              className="w-full py-2.5 md:py-3 text-xs md:text-sm font-bold uppercase tracking-wider mt-2" 
+              onClick={handleAcceptDisclaimer}
+            >
+              Aceptar y Continuar
+            </Button>
+          </Card>
+        </div>
+      )}
+
       {showPasswordAlert && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-fade-in print:hidden">
           <Card className="w-full max-w-sm p-6 bg-slate-900 border-amber-500/50 text-center shadow-2xl">
@@ -3277,7 +3405,15 @@ export default function App() {
         <div className="p-4 flex items-center gap-2.5 border-b border-slate-800"><Music className="text-emerald-500" size={20} /><h1 className="text-lg font-black text-white tracking-widest">ESQUEMAPPS</h1></div>
         <div className="p-3 flex-1 space-y-1 overflow-y-auto custom-scrollbar">
           {menuOptions.map(opt => (
-            <button key={opt.id} onClick={() => { setCurrentView(opt.id); if (opt.id === 'DASHBOARD') setSelectedProject(null); }} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg font-bold transition-colors text-left text-sm ${currentView === opt.id ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white border border-transparent'}`}><opt.icon size={18} />{opt.label}</button>
+            <button key={opt.id} onClick={() => { setCurrentView(opt.id); if (opt.id === 'DASHBOARD') setSelectedProject(null); }} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg font-bold transition-colors text-left text-sm ${currentView === opt.id ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white border border-transparent'}`}>
+              <opt.icon size={18} className="shrink-0" />
+              <span className="flex-1">{opt.label}</span>
+              {opt.badgeCount > 0 && (
+                <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                  {opt.badgeCount}
+                </span>
+              )}
+            </button>
           ))}
         </div>
         <div className="p-3 border-t border-slate-800">
@@ -3293,7 +3429,7 @@ export default function App() {
         <div className="p-3 md:p-6 print:p-0">
           {currentView === 'DASHBOARD' && <Dashboard currentUser={currentUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} directory={directory} />}
           {currentView === 'PROJECT_DETAILS' && <ProjectDetailsView currentUser={currentUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} requestConfirm={requestConfirm} />}
-          {currentView === 'ADMIN_PANEL' && <AdminPanel currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} />}
+          {currentView === 'ADMIN_PANEL' && <AdminPanel currentUser={currentUser} showToast={showToast} requestConfirm={requestConfirm} refreshPendingCount={() => fetchDirectoryGlobal(true)} />}
           {currentView === 'PROFILE' && <ProfileView currentUser={currentUser} setCurrentUser={setCurrentUser} showToast={showToast} theme={theme} setTheme={setTheme} />}
           {currentView === 'STAFF' && <StaffDirectory currentUser={currentUser} />}
           {currentView === 'CHAT' && <ChatView currentUser={currentUser} showToast={showToast} />}
@@ -3305,9 +3441,14 @@ export default function App() {
       
       <nav className="md:hidden fixed bottom-0 w-full bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex justify-between px-1 pb-safe z-50 overflow-x-auto hide-scrollbar print:hidden">
          {menuOptions.map(opt => (
-            <button key={opt.id} onClick={() => { setCurrentView(opt.id); if (opt.id === 'DASHBOARD') setSelectedProject(null); }} className={`flex flex-col items-center justify-center gap-0.5 p-1.5 min-w-[64px] flex-1 transition-colors ${currentView === opt.id ? 'text-emerald-400' : 'text-slate-400 hover:text-white'}`}>
+            <button key={opt.id} onClick={() => { setCurrentView(opt.id); if (opt.id === 'DASHBOARD') setSelectedProject(null); }} className={`flex flex-col items-center justify-center gap-0.5 p-1.5 min-w-[64px] flex-1 transition-colors relative ${currentView === opt.id ? 'text-emerald-400' : 'text-slate-400 hover:text-white'}`}>
               <opt.icon size={18} className="shrink-0" />
               <span className="text-[9px] font-bold truncate w-full text-center">{opt.label}</span>
+              {opt.badgeCount > 0 && (
+                <span className="absolute top-1 right-4 bg-red-500 text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-black animate-pulse">
+                  {opt.badgeCount}
+                </span>
+              )}
             </button>
           ))}
       </nav>
