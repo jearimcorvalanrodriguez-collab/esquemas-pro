@@ -516,135 +516,239 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
     : "flex flex-col md:flex-row gap-4 h-full print:block";
 
   return (
-    <div className={containerClasses}>
-      {!readOnly && (
-        <div className="w-full md:w-56 bg-slate-950 md:bg-slate-900 border border-slate-800 md:border-slate-700 rounded-xl p-3 shrink-0 print:hidden flex flex-col gap-3 h-auto max-h-[35vh] md:max-h-none overflow-y-auto">
-          <div className="flex justify-between items-center mb-1">
-            <h3 className="text-[10px] font-black uppercase text-emerald-400 tracking-widest">Equipos</h3>
-            <Button variant="ghost" className="px-1 py-1" onClick={() => setIsFullscreen(!isFullscreen)}>
-              {isFullscreen ? <Minimize size={16}/> : <Maximize size={16}/>}
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-4 md:grid-cols-2 gap-2 flex-1 overflow-y-auto custom-scrollbar">
-            {Object.entries(STAGE_ITEMS).map(([key, def]) => (
-              <button 
-                key={key} type="button" onClick={() => addItem(key)}
-                className="flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 transition-colors"
-              >
-                <div className="w-6 h-6 pointer-events-none">{def.render()}</div>
-                <span className="text-[8px] font-bold text-slate-300 leading-tight text-center">{def.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="pt-3 border-t border-slate-800 space-y-2 mt-auto">
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Dimensiones Stage</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[9px] text-slate-500 font-bold uppercase">Ancho (m)</label>
-                <input type="number" min="2" max="50" className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-xs text-white outline-none focus:border-emerald-500" value={config.width} onChange={e=>onConfigChange({...config, width: e.target.value.replace(/[^0-9]/g, '')})} onKeyDown={e => { if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault(); }} />
-              </div>
-              <div>
-                <label className="text-[9px] text-slate-500 font-bold uppercase">Fondo (m)</label>
-                <input type="number" min="2" max="50" className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-xs text-white outline-none focus:border-emerald-500" value={config.depth} onChange={e=>onConfigChange({...config, depth: e.target.value.replace(/[^0-9]/g, '')})} onKeyDown={e => { if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault(); }} />
-              </div>
+    <div className="space-y-4 w-full">
+      <div className={containerClasses}>
+        {!readOnly && (
+          <div className="w-full md:w-56 bg-slate-950 md:bg-slate-900 border border-slate-800 md:border-slate-700 rounded-xl p-3 shrink-0 print:hidden flex flex-col gap-3 h-auto max-h-[35vh] md:max-h-none overflow-y-auto">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-[10px] font-black uppercase text-emerald-400 tracking-widest">Equipos</h3>
+              <Button variant="ghost" className="px-1 py-1" onClick={() => setIsFullscreen(!isFullscreen)}>
+                {isFullscreen ? <Minimize size={16}/> : <Maximize size={16}/>}
+              </Button>
             </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 bg-slate-800 p-2 md:p-4 rounded-xl border border-slate-700 print:bg-white print:border-none print:p-0 flex items-center justify-center overflow-hidden relative">
-        <div 
-          id="canvas-bg"
-          ref={canvasRef}
-          className="relative w-full max-h-full bg-slate-950 print:bg-white border-2 border-slate-700 print:border-black touch-none shadow-inner"
-          style={{ 
-            aspectRatio: `${config.width} / ${config.depth}`,
-            maxHeight: isFullscreen ? '90vh' : 'auto'
-          }}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-          onPointerDown={(e) => {
-            if (e.target.id === 'canvas-bg') setSelectedId(null);
-          }}
-        >
-          {projectName && (
-            <div className="absolute top-2 md:top-4 left-3 md:left-5 text-sm md:text-lg font-black text-slate-500 print:text-black uppercase tracking-widest pointer-events-none opacity-50 print:opacity-100 z-0">
-              {projectName}
-            </div>
-          )}
-
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#334155_1px,transparent_1px),linear-gradient(to_bottom,#334155_1px,transparent_1px)] bg-[size:5%_5%] opacity-20 print:opacity-10 pointer-events-none z-0"></div>
-          
-          <div className="absolute bottom-2 left-0 right-0 text-center pointer-events-none z-0">
-            <span className="text-[9px] md:text-xs font-black tracking-widest text-slate-500 print:text-black uppercase">Público / Front of Stage</span>
-          </div>
-
-          {items.map(item => {
-            const def = STAGE_ITEMS[item.type];
-            const isSelected = selectedId === item.id && !readOnly;
-
-            const w = Number(config.width) || 10;
-            const d = Number(config.depth) || 8;
-            const sizeScale = Math.max(0.6, Math.min(2.0, 10 / w));
-            // Calculate scale based on physical canvas width to prevent crowded overlapping on mobile/tablet
-            let deviceScale = 1.0;
-            if (canvasWidth) {
-              if (canvasWidth < 500) {
-                deviceScale = 0.65; // Mobile scale
-              } else if (canvasWidth < 850) {
-                deviceScale = 0.82;  // iPad / Tablet scale
-              }
-            }
-            const scale = sizeScale * deviceScale;
-
-            const itemWidthPercent = def.width * scale;
-            const itemHeightPercent = itemWidthPercent * (def.height / def.width) * (w / d);
-
-            return (
-              <div 
-                key={item.id}
-                className="absolute flex flex-col items-center justify-center print:cursor-default"
-                style={{ 
-                  left: `${item.x}%`, top: `${item.y}%`, 
-                  width: `${itemWidthPercent}%`, height: `${itemHeightPercent}%`,
-                  transform: `translate(-50%, -50%)`, 
-                  zIndex: isSelected ? 50 : 10
-                }}
-              >
-                {isSelected && (
-                  <div className="absolute top-[-52px] left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-1.5 flex items-center gap-1.5 z-[60] cursor-default pointer-events-auto"
-                       onPointerDown={e => e.stopPropagation()}>
-                    <input 
-                      className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-white w-24 outline-none focus:border-emerald-500" 
-                      value={item.label} 
-                      onChange={e => updateSelected({ label: e.target.value })}
-                      placeholder="Nombre..."
-                    />
-                    <button type="button" onClick={() => updateSelected({ rotation: (item.rotation + 45) % 360 })} className="p-1.5 bg-slate-800 hover:bg-emerald-600 rounded text-white border border-slate-700 transition-colors" title="Girar 45º"><RotateCw size={12}/></button>
-                    <button type="button" onClick={removeSelected} className="p-1.5 bg-slate-800 hover:bg-red-600 rounded text-white border border-slate-700 transition-colors" title="Eliminar"><Trash2 size={12}/></button>
-                  </div>
-                )}
-
-                <div 
-                  className={`w-full h-full cursor-move transition-transform rounded-xl bg-slate-900 border border-slate-700/60 p-1 flex items-center justify-center shadow-lg hover:border-emerald-500/80 ${isSelected ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950' : ''} print:ring-0 print:bg-white print:border-black`}
-                  style={{ transform: `rotate(${item.rotation}deg)` }}
-                  onPointerDown={(e) => handlePointerDown(e, item.id)}
+            
+            <div className="grid grid-cols-4 md:grid-cols-2 gap-2 flex-1 overflow-y-auto custom-scrollbar">
+              {Object.entries(STAGE_ITEMS).map(([key, def]) => (
+                <button 
+                  key={key} type="button" onClick={() => addItem(key)}
+                  className="flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 transition-colors"
                 >
-                  {def.render()}
+                  <div className="w-6 h-6 pointer-events-none">{def.render()}</div>
+                  <span className="text-[8px] font-bold text-slate-300 leading-tight text-center">{def.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 space-y-2 mt-auto">
+              <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Dimensiones Stage</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[9px] text-slate-500 font-bold uppercase">Ancho (m)</label>
+                  <input type="number" min="2" max="50" className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-xs text-white outline-none focus:border-emerald-500" value={config.width} onChange={e=>onConfigChange({...config, width: e.target.value.replace(/[^0-9]/g, '')})} onKeyDown={e => { if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault(); }} />
                 </div>
-                
-                {item.label && (!isSelected || readOnly) && (
-                  <div className="absolute -bottom-4.5 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-950/90 border border-slate-850 px-1.5 py-0.5 rounded text-[8px] md:text-[9px] font-bold text-slate-300 text-center pointer-events-none shadow-md print:bg-transparent print:text-black print:border-none">
-                    {item.label}
-                  </div>
-                )}
+                <div>
+                  <label className="text-[9px] text-slate-500 font-bold uppercase">Fondo (m)</label>
+                  <input type="number" min="2" max="50" className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-xs text-white outline-none focus:border-emerald-500" value={config.depth} onChange={e=>onConfigChange({...config, depth: e.target.value.replace(/[^0-9]/g, '')})} onKeyDown={e => { if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault(); }} />
+                </div>
               </div>
-            );
-          })}
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 bg-slate-800 p-2 md:p-4 rounded-xl border border-slate-700 print:bg-white print:border-none print:p-0 flex items-center justify-center overflow-hidden relative">
+          <div 
+            id="canvas-bg"
+            ref={canvasRef}
+            className="relative w-full max-h-full bg-slate-950 print:bg-white border-2 border-slate-700 print:border-black touch-none shadow-inner"
+            style={{ 
+              aspectRatio: `${config.width} / ${config.depth}`,
+              maxHeight: isFullscreen ? '90vh' : 'auto'
+            }}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+            onPointerDown={(e) => {
+              if (e.target.id === 'canvas-bg') setSelectedId(null);
+            }}
+          >
+            {projectName && (
+              <div className="absolute top-2 md:top-4 left-3 md:left-5 text-sm md:text-lg font-black text-slate-500 print:text-black uppercase tracking-widest pointer-events-none opacity-50 print:opacity-100 z-0">
+                {projectName}
+              </div>
+            )}
+
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#334155_1px,transparent_1px),linear-gradient(to_bottom,#334155_1px,transparent_1px)] bg-[size:5%_5%] opacity-20 print:opacity-10 pointer-events-none z-0"></div>
+            
+            <div className="absolute bottom-2 left-0 right-0 text-center pointer-events-none z-0">
+              <span className="text-[9px] md:text-xs font-black tracking-widest text-slate-500 print:text-black uppercase">Público / Front of Stage</span>
+            </div>
+
+            {items.map((item, idx) => {
+              const def = STAGE_ITEMS[item.type];
+              const isSelected = selectedId === item.id && !readOnly;
+
+              const w = Number(config.width) || 10;
+              const d = Number(config.depth) || 8;
+              const sizeScale = Math.max(0.6, Math.min(2.0, 10 / w));
+              
+              // Calculate scale based on physical canvas width to prevent crowded overlapping on mobile/tablet
+              let deviceScale = 1.0;
+              if (canvasWidth) {
+                if (canvasWidth < 500) {
+                  deviceScale = 0.65; // Mobile scale
+                } else if (canvasWidth < 850) {
+                  deviceScale = 0.82;  // iPad / Tablet scale
+                }
+              }
+              const scale = sizeScale * deviceScale;
+
+              const itemWidthPercent = def.width * scale;
+              const itemHeightPercent = itemWidthPercent * (def.height / def.width) * (w / d);
+
+              return (
+                <div 
+                  key={item.id}
+                  className="absolute flex flex-col items-center justify-center print:cursor-default"
+                  style={{ 
+                    left: `${item.x}%`, top: `${item.y}%`, 
+                    width: `${itemWidthPercent}%`, height: `${itemHeightPercent}%`,
+                    transform: `translate(-50%, -50%)`, 
+                    zIndex: isSelected ? 50 : 10
+                  }}
+                >
+                  {isSelected && (
+                    <div className="absolute top-[-52px] left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-1.5 flex items-center gap-1.5 z-[60] cursor-default pointer-events-auto"
+                         onPointerDown={e => e.stopPropagation()}>
+                      <input 
+                        className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-white w-24 outline-none focus:border-emerald-500" 
+                        value={item.label} 
+                        onChange={e => updateSelected({ label: e.target.value })}
+                        placeholder="Nombre..."
+                      />
+                      <button type="button" onClick={() => updateSelected({ rotation: (item.rotation + 45) % 360 })} className="p-1.5 bg-slate-800 hover:bg-emerald-600 rounded text-white border border-slate-700 transition-colors" title="Girar 45º"><RotateCw size={12}/></button>
+                      <button type="button" onClick={removeSelected} className="p-1.5 bg-slate-800 hover:bg-red-600 rounded text-white border border-slate-700 transition-colors" title="Eliminar"><Trash2 size={12}/></button>
+                    </div>
+                  )}
+
+                  {/* Circular index badge */}
+                  <div className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-emerald-500 text-white font-black text-[9px] flex items-center justify-center border border-slate-950 shadow-md z-30 pointer-events-none">
+                    {idx + 1}
+                  </div>
+
+                  <div 
+                    className={`w-full h-full cursor-move transition-transform rounded-xl bg-slate-900 border border-slate-700/60 p-1 flex items-center justify-center shadow-lg hover:border-emerald-500/80 ${isSelected ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950' : ''} print:ring-0 print:bg-white print:border-black`}
+                    style={{ transform: `rotate(${item.rotation}deg)` }}
+                    onPointerDown={(e) => handlePointerDown(e, item.id)}
+                  >
+                    {def.render()}
+                  </div>
+                  
+                  {item.label && (!isSelected || readOnly) && (
+                    <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-950/80 border border-slate-900/60 px-1 py-0.5 rounded text-[7px] font-bold text-slate-400 text-center pointer-events-none shadow-sm print:bg-transparent print:text-black print:border-none">
+                      {item.label}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
+      </div>
+
+      {/* Legend Table underneath Stageplot */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mt-2 print:mt-4">
+        <div className="flex justify-between items-center mb-3">
+          <h4 className="text-xs font-black uppercase text-emerald-400 tracking-wider">Leyenda y Control de Escenario</h4>
+          <span className="text-[10px] text-slate-500 font-bold">{items.length} {items.length === 1 ? 'objeto' : 'objetos'}</span>
+        </div>
+        
+        {items.length === 0 ? (
+          <div className="text-center p-6 text-xs text-slate-500 italic">No hay equipos agregados en el escenario.</div>
+        ) : (
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-wider">
+                  <th className="py-2 px-3 w-12 text-center">#</th>
+                  <th className="py-2 px-3 w-28">Tipo</th>
+                  <th className="py-2 px-3">Etiqueta / Nombre de Personaje</th>
+                  {!readOnly && (
+                    <>
+                      <th className="py-2 px-3 w-24 text-center">Rotación</th>
+                      <th className="py-2 px-3 w-16 text-center">Acción</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {items.map((item, idx) => {
+                  const def = STAGE_ITEMS[item.type];
+                  return (
+                    <tr 
+                      key={item.id} 
+                      className={`hover:bg-slate-850/50 transition-colors ${selectedId === item.id ? 'bg-emerald-500/5' : ''}`}
+                      onClick={() => !readOnly && setSelectedId(item.id)}
+                    >
+                      <td className="py-2 px-3 text-center">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-black text-[10px] border border-emerald-500/30">
+                          {idx + 1}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 font-bold text-white flex items-center gap-2">
+                        <div className="w-4 h-4 shrink-0 text-slate-400">{def.render()}</div>
+                        <span className="truncate">{def.label}</span>
+                      </td>
+                      <td className="py-2 px-3">
+                        {readOnly ? (
+                          <span className="text-slate-300 font-bold">{item.label || '-'}</span>
+                        ) : (
+                          <input 
+                            className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded px-2.5 py-0.5 text-xs text-white outline-none transition-colors"
+                            value={item.label}
+                            onChange={(e) => {
+                              onChange(items.map(it => it.id === item.id ? { ...it, label: e.target.value } : it));
+                            }}
+                            placeholder="Ej. Guitarra, Voz 1..."
+                          />
+                        )}
+                      </td>
+                      {!readOnly && (
+                        <>
+                          <td className="py-2 px-3 text-center">
+                            <button 
+                              type="button" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onChange(items.map(it => it.id === item.id ? { ...it, rotation: (it.rotation + 45) % 360 } : it));
+                              }} 
+                              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 rounded text-[10px] font-bold inline-flex items-center gap-1 transition-colors"
+                            >
+                              <RotateCw size={10}/> {item.rotation}°
+                            </button>
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <button 
+                              type="button" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onChange(items.filter(it => it.id !== item.id));
+                                if (selectedId === item.id) setSelectedId(null);
+                              }} 
+                              className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={12}/>
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
