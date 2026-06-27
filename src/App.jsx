@@ -589,8 +589,16 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
             const w = Number(config.width) || 10;
             const d = Number(config.depth) || 8;
             const sizeScale = Math.max(0.6, Math.min(2.0, 10 / w));
-            const mobileScale = (canvasWidth && canvasWidth < 500) ? 1.35 : 1.0;
-            const scale = sizeScale * mobileScale;
+            // Calculate scale based on physical canvas width to prevent crowded overlapping on mobile/tablet
+            let deviceScale = 1.0;
+            if (canvasWidth) {
+              if (canvasWidth < 500) {
+                deviceScale = 0.65; // Mobile scale
+              } else if (canvasWidth < 850) {
+                deviceScale = 0.82;  // iPad / Tablet scale
+              }
+            }
+            const scale = sizeScale * deviceScale;
 
             const itemWidthPercent = def.width * scale;
             const itemHeightPercent = itemWidthPercent * (def.height / def.width) * (w / d);
@@ -607,21 +615,21 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
                 }}
               >
                 {isSelected && (
-                  <div className="absolute top-[-55px] left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl p-1.5 flex items-center gap-1.5 z-[60] cursor-default pointer-events-auto"
+                  <div className="absolute top-[-52px] left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-1.5 flex items-center gap-1.5 z-[60] cursor-default pointer-events-auto"
                        onPointerDown={e => e.stopPropagation()}>
                     <input 
-                      className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] text-white w-24 outline-none focus:border-emerald-500" 
+                      className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-white w-24 outline-none focus:border-emerald-500" 
                       value={item.label} 
                       onChange={e => updateSelected({ label: e.target.value })}
                       placeholder="Nombre..."
                     />
-                    <button type="button" onClick={() => updateSelected({ rotation: (item.rotation + 45) % 360 })} className="p-1.5 bg-slate-700 hover:bg-emerald-600 rounded text-white transition-colors" title="Girar 45º"><RotateCw size={12}/></button>
-                    <button type="button" onClick={removeSelected} className="p-1.5 bg-slate-700 hover:bg-red-600 rounded text-white transition-colors" title="Eliminar"><Trash2 size={12}/></button>
+                    <button type="button" onClick={() => updateSelected({ rotation: (item.rotation + 45) % 360 })} className="p-1.5 bg-slate-800 hover:bg-emerald-600 rounded text-white border border-slate-700 transition-colors" title="Girar 45º"><RotateCw size={12}/></button>
+                    <button type="button" onClick={removeSelected} className="p-1.5 bg-slate-800 hover:bg-red-600 rounded text-white border border-slate-700 transition-colors" title="Eliminar"><Trash2 size={12}/></button>
                   </div>
                 )}
 
                 <div 
-                  className={`w-full h-full cursor-move transition-transform ${isSelected ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950 rounded-sm' : ''} print:ring-0`}
+                  className={`w-full h-full cursor-move transition-transform rounded-xl bg-slate-900 border border-slate-700/60 p-1 flex items-center justify-center shadow-lg hover:border-emerald-500/80 ${isSelected ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950' : ''} print:ring-0 print:bg-white print:border-black`}
                   style={{ transform: `rotate(${item.rotation}deg)` }}
                   onPointerDown={(e) => handlePointerDown(e, item.id)}
                 >
@@ -629,12 +637,12 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
                 </div>
                 
                 {item.label && (!isSelected || readOnly) && (
-                  <div className="absolute top-[calc(100%+12px)] left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-900/80 print:bg-transparent print:text-black px-2 py-1 rounded text-[10px] md:text-xs font-bold text-white text-center pointer-events-none">
+                  <div className="absolute -bottom-4.5 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-950/90 border border-slate-850 px-1.5 py-0.5 rounded text-[8px] md:text-[9px] font-bold text-slate-300 text-center pointer-events-none shadow-md print:bg-transparent print:text-black print:border-none">
                     {item.label}
                   </div>
                 )}
               </div>
-            )
+            );
           })}
         </div>
       </div>
@@ -1230,7 +1238,7 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
     <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 pb-24 animate-fade-in">
       <button onClick={() => setCurrentView('PROJECT_DETAILS')} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a {selectedProject.name}</button>
       
-      <header className="border-b border-slate-800 pb-4 flex justify-between items-end">
+      <header className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
         <div>
           <h1 className="text-2xl font-black text-white flex items-center gap-2"><Truck className="text-blue-500" size={24}/> Transportes</h1>
           <p className="text-sm text-slate-400">Rutas para: {selectedProject.name}</p>
@@ -2000,7 +2008,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
     <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-7xl mx-auto">
       <button onClick={() => setCurrentView('DASHBOARD')} className="flex items-center gap-1.5 text-xs md:text-sm text-slate-400 hover:text-white transition-colors mb-2"><ChevronLeft size={16}/> Volver a Proyectos</button>
       
-      <header className="border-b border-slate-800 pb-4 flex justify-between items-start gap-4 w-full">
+      <header className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start gap-4 w-full">
         <div>
           <span className="text-[9px] md:text-[10px] bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded border border-slate-700 uppercase font-bold tracking-wider mb-1.5 inline-block">VISTA PROYECTO</span>
           <h1 className="text-xl md:text-3xl font-black text-white leading-tight">{p.name}</h1>
@@ -3189,7 +3197,7 @@ const StaffDirectory = ({ currentUser }) => {
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in pb-24 max-w-5xl mx-auto print:m-0 print:p-0 print:w-full">
-      <header className="border-b border-slate-800 pb-3 md:pb-4 flex justify-between items-end print:hidden">
+      <header className="border-b border-slate-800 pb-3 md:pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3"><Users className="text-emerald-500" size={24} /> Directorio</h1>
           <p className="text-xs md:text-sm text-slate-400 mt-1">{[ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) ? 'Lista del personal activo.' : 'Contactos asignados.'}</p>
@@ -3374,7 +3382,7 @@ const ChatView = ({ currentUser, showToast, requestConfirm }) => {
   if (!selectedProyecto) {
     return (
       <div className="max-w-5xl mx-auto space-y-4 md:space-y-6 pb-24 animate-fade-in">
-        <header className="border-b border-slate-800 pb-4 flex justify-between items-end">
+        <header className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
           <div>
             <h1 className="text-2xl font-black text-white flex items-center gap-2"><MessageSquare className="text-emerald-500" size={24}/> Anuncios de Gira</h1>
             <p className="text-sm text-slate-400">Selecciona un proyecto para ver los comunicados.</p>
@@ -4166,7 +4174,7 @@ export default function App() {
         </div>
       )}
 
-      <div className={`flex-1 min-h-0 ${theme === 'light' ? 'light-mode bg-slate-50' : 'bg-slate-950'} flex flex-col md:flex-row font-sans print:bg-white print:text-black`}>
+      <div className={`flex-1 min-h-0 ${theme === 'light' ? 'light-mode bg-slate-50' : 'bg-slate-950'} flex flex-col lg:flex-row font-sans print:bg-white print:text-black`}>
       {theme === 'light' && (
         <style>{`
           .light-mode { background-color: #f8fafc !important; color: #0f172a !important; }
@@ -4274,7 +4282,7 @@ export default function App() {
       )}
       {toastMessage && <div className="fixed top-4 right-4 z-[300] bg-emerald-500 text-white px-3 md:px-4 py-2.5 md:py-3 rounded-lg shadow-lg flex items-center gap-2.5 animate-fade-in print:hidden"><CheckCircle2 size={18} /><span className="font-bold text-xs md:text-sm">{toastMessage}</span></div>}
 
-      <aside className="bg-slate-900 border-r border-slate-800 w-64 shrink-0 hidden md:flex flex-col h-screen sticky top-0 print:hidden">
+      <aside className="bg-slate-900 border-r border-slate-800 w-64 shrink-0 hidden lg:flex flex-col h-screen sticky top-0 print:hidden">
         <div className="p-4 flex items-center gap-2.5 border-b border-slate-800"><Music className="text-emerald-500" size={20} /><h1 className="text-lg font-black text-white tracking-widest">ESQUEMAPPS</h1></div>
         <div className="p-3 flex-1 space-y-1 overflow-y-auto custom-scrollbar">
           {menuOptions.map(opt => (
@@ -4298,7 +4306,7 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="flex-1 relative overflow-y-auto h-screen bg-slate-950 print:bg-white custom-scrollbar print:overflow-visible print:h-auto pb-[70px] md:pb-0">
+      <main className="flex-1 relative overflow-y-auto h-screen bg-slate-950 print:bg-white custom-scrollbar print:overflow-visible print:h-auto pb-[70px] lg:pb-0">
         <div className="p-3 md:p-6 print:p-0">
           {currentView === 'DASHBOARD' && <Dashboard currentUser={effectiveUser} setCurrentView={setCurrentView} setSelectedProject={setSelectedProject} showToast={showToast} directory={directory} />}
           {currentView === 'PROJECT_DETAILS' && <ProjectDetailsView currentUser={effectiveUser} setCurrentView={setCurrentView} selectedProject={selectedProject} showToast={showToast} requestConfirm={requestConfirm} />}
@@ -4312,7 +4320,7 @@ export default function App() {
         </div>
       </main>
       
-      <nav className="md:hidden fixed bottom-0 w-full bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex justify-between px-1 pb-safe z-50 overflow-x-auto hide-scrollbar print:hidden">
+      <nav className="lg:hidden fixed bottom-0 w-full bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex justify-between px-1 pb-safe z-50 overflow-x-auto hide-scrollbar print:hidden">
          {menuOptions.map(opt => (
             <button key={opt.id} onClick={() => { setCurrentView(opt.id); if (opt.id === 'DASHBOARD') setSelectedProject(null); }} className={`flex flex-col items-center justify-center gap-0.5 p-1.5 min-w-[64px] flex-1 transition-colors relative ${currentView === opt.id ? 'text-emerald-400' : 'text-slate-400 hover:text-white'}`}>
               <opt.icon size={18} className="shrink-0" />
