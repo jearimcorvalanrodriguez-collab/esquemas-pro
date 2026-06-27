@@ -607,22 +607,22 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
 
               // Determine side label placement (right side by default, flip to left if near right boundary or item to the right)
               let sidePlacement = 'right';
-              if (item.x > 75) {
+              if (item.x > 70) {
                 sidePlacement = 'left';
               } else {
                 const itemToRight = items.some(other => {
                   if (other.id === item.id) return false;
                   const dx = other.x - item.x; // distance to the right
                   const dy = Math.abs(item.y - other.y);
-                  return dx > 0 && dx < 15 && dy < 10;
+                  return dx > 0 && dx < 24 && dy < 15;
                 });
                 if (itemToRight) {
                   sidePlacement = 'left';
                 }
               }
               const labelPosClass = sidePlacement === 'right'
-                ? 'absolute left-[calc(100%+4px)] top-1/2 -translate-y-1/2 whitespace-nowrap'
-                : 'absolute right-[calc(100%+4px)] top-1/2 -translate-y-1/2 whitespace-nowrap';
+                ? 'absolute left-[calc(100%+2px)] top-1/2 -translate-y-1/2'
+                : 'absolute right-[calc(100%+2px)] top-1/2 -translate-y-1/2';
 
               return (
                 <div 
@@ -649,10 +649,7 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
                     </div>
                   )}
 
-                  {/* Circular index badge */}
-                  <div className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-emerald-500 text-white font-black text-[9px] flex items-center justify-center border border-slate-950 shadow-md z-30 pointer-events-none">
-                    {idx + 1}
-                  </div>
+
 
                   <div 
                     className={`w-full h-full cursor-move transition-transform flex items-center justify-center ${isSelected ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-slate-950 rounded-sm' : ''} print:ring-0`}
@@ -663,9 +660,9 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
                   </div>
                   
                   {item.label && (!isSelected || readOnly) && (
-                    <div className={`${labelPosClass} bg-slate-955/90 border border-slate-850 px-1.5 py-0.5 rounded text-[8px] font-bold text-slate-300 pointer-events-none shadow-md flex items-center gap-1 print:bg-transparent print:text-black print:border-none`}>
-                      <span className="text-emerald-400 font-extrabold">#{idx + 1}</span>
-                      <span>{item.label}</span>
+                    <div className={`${labelPosClass} bg-slate-950/90 border border-slate-850 px-1 py-0.5 rounded text-[6.5px] font-bold text-slate-300 pointer-events-none shadow-md flex items-center gap-0.5 print:bg-transparent print:text-black print:border-none z-40`}>
+                      <span className="text-emerald-400 font-black">#{idx + 1}</span>
+                      <span className="max-w-[42px] truncate block" title={item.label}>{item.label}</span>
                     </div>
                   )}
                 </div>
