@@ -2375,7 +2375,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
                     </div>
                     <h3 className="text-base md:text-lg font-bold text-white leading-tight mb-1.5">{r.title}</h3>
                     <p className="text-[10px] md:text-xs text-slate-400 flex items-center gap-1.5">
-                      <Link size={12}/> {getProjectName(r.content.proyectoId)}
+                      <Link size={12}/> {selectedProject.name}
                     </p>
                   </Card>
                 );
