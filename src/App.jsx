@@ -660,9 +660,9 @@ const StageplotBuilder = ({ items, onChange, config, onConfigChange, readOnly = 
                   </div>
                   
                   {item.label && (!isSelected || readOnly) && (
-                    <div className={`${labelPosClass} bg-slate-950/90 border border-slate-850 px-1 py-0.5 rounded text-[6.5px] font-bold text-slate-300 pointer-events-none shadow-md flex items-center gap-0.5 print:bg-transparent print:text-black print:border-none z-40`}>
+                    <div className={`${labelPosClass} bg-slate-950/90 border border-slate-850 px-1 py-0.5 rounded text-[6.5px] font-bold text-slate-300 pointer-events-none shadow-md flex items-center gap-0.5 print:bg-transparent print:text-black print:border-none z-40 whitespace-nowrap`}>
                       <span className="text-emerald-400 font-black">#{idx + 1}</span>
-                      <span className="max-w-[42px] truncate block" title={item.label}>{item.label}</span>
+                      <span>{item.label}</span>
                     </div>
                   )}
                 </div>
