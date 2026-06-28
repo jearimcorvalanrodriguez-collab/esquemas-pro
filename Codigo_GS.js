@@ -10,9 +10,9 @@
 // =================================================================================
 
 const scriptProps = PropertiesService.getScriptProperties();
-const SPREADSHEET_ID = scriptProps.getProperty('SPREADSHEET_ID');
-const ESQUEMAS_MASTER_SECRET = scriptProps.getProperty('ESQUEMAS_MASTER_SECRET');
-const URL_PLATAFORMA = scriptProps.getProperty('URL_PLATAFORMA');
+const SPREADSHEET_ID = scriptProps.getProperty("SPREADSHEET_ID");
+const ESQUEMAS_MASTER_SECRET = scriptProps.getProperty("ESQUEMAS_MASTER_SECRET");
+const URL_PLATAFORMA = scriptProps.getProperty("URL_PLATAFORMA");
 
 function configurarCORS(salida) {
   return ContentService.createTextOutput(JSON.stringify(salida))
@@ -44,11 +44,11 @@ function cifrarPassword(passwordPlain) {
 
 // Sanitizar entradas para evitar Inyección de Fórmulas en Hojas de Cálculo (SEC-02)
 function sanitizarEntrada(valor) {
-  if (typeof valor === 'string') {
+  if (typeof valor === "string") {
     const valTrim = valor.trim();
     // Antepone comilla simple si empieza por caracteres ejecutables (=, +, -, @)
-    if (valTrim.startsWith('=') || valTrim.startsWith('+') || valTrim.startsWith('-') || valTrim.startsWith('@')) {
-      return "'" + valTrim;
+    if (valTrim.startsWith("=") || valTrim.startsWith("+") || valTrim.startsWith("-") || valTrim.startsWith("@")) {
+      return "\"" + valTrim;
     }
     return valTrim;
   }
@@ -58,11 +58,11 @@ function sanitizarEntrada(valor) {
 // Verificar rol del emisor de la petición para mitigar Escalada de Privilegios (SEC-01)
 function verificarPermisoRequester(ss, requesterEmail, rolesPermitidos) {
   if (!requesterEmail) return false;
-  const sheetUsuarios = ss.getSheetByName('Usuarios');
+  const sheetUsuarios = ss.getSheetByName("Usuarios");
   if (!sheetUsuarios) return false;
   const rows = sheetUsuarios.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][2].toString().trim().toLowerCase() === requesterEmail.trim().toLowerCase() && rows[i][6] === 'ACTIVO') {
+    if (rows[i][2].toString().trim().toLowerCase() === requesterEmail.trim().toLowerCase() && rows[i][6] === "ACTIVO") {
       const userRole = rows[i][4];
       return rolesPermitidos.includes(userRole);
     }
@@ -73,7 +73,7 @@ function verificarPermisoRequester(ss, requesterEmail, rolesPermitidos) {
 // Permisos por defecto segun el rol
 function getDefaultPermisos(ss, role) {
   try {
-    let sheet = ss.getSheetByName('RolesConfig');
+    let sheet = ss.getSheetByName("RolesConfig");
     if (sheet) {
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
@@ -87,29 +87,29 @@ function getDefaultPermisos(ss, role) {
   } catch(e) {}
 
   // Fallback to hardcoded defaults (updated with new granular permissions)
-  if (role === 'ADMIN') {
-    return ['DASHBOARD', 'PROJECTS_MANAGE', 'PROJECT_ASSIGN', 'PROJECT_STATUS', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'TRANSPORT_CREATE', 'TRANSPORT_EDIT', 'HITOS', 'HITOS_MANAGE', 'CHAT', 'CHAT_SEND', 'STAFF', 'ADMIN_PANEL', 'EXPENSES', 'EXPENSES_MANAGE'];
+  if (role === "ADMIN") {
+    return ["DASHBOARD", "PROJECTS_MANAGE", "PROJECT_ASSIGN", "PROJECT_STATUS", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "TRANSPORT_EDIT", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF", "ADMIN_PANEL", "EXPENSES", "EXPENSES_MANAGE"];
   }
-  if (role === 'MANAGER') {
-    return ['DASHBOARD', 'PROJECTS_MANAGE', 'PROJECT_ASSIGN', 'PROJECT_STATUS', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'TRANSPORT_CREATE', 'TRANSPORT_EDIT', 'HITOS', 'HITOS_MANAGE', 'CHAT', 'CHAT_SEND', 'STAFF', 'EXPENSES', 'EXPENSES_MANAGE'];
+  if (role === "MANAGER") {
+    return ["DASHBOARD", "PROJECTS_MANAGE", "PROJECT_ASSIGN", "PROJECT_STATUS", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "TRANSPORT_EDIT", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF", "EXPENSES", "EXPENSES_MANAGE"];
   }
-  if (role === 'TOUR MANAGER') {
-    return ['DASHBOARD', 'PROJECTS_MANAGE', 'PROJECT_ASSIGN', 'PROJECT_STATUS', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'TRANSPORT_CREATE', 'TRANSPORT_EDIT', 'HITOS', 'HITOS_MANAGE', 'CHAT', 'CHAT_SEND', 'STAFF', 'EXPENSES'];
+  if (role === "TOUR MANAGER") {
+    return ["DASHBOARD", "PROJECTS_MANAGE", "PROJECT_ASSIGN", "PROJECT_STATUS", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "TRANSPORT_EDIT", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF", "EXPENSES"];
   }
-  if (role === 'JEFE CAT/APV') {
-    return ['DASHBOARD', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'TRANSPORT_CREATE', 'HITOS', 'HITOS_MANAGE', 'CHAT', 'CHAT_SEND', 'STAFF', 'EXPENSES'];
+  if (role === "JEFE CAT/APV") {
+    return ["DASHBOARD", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF", "EXPENSES"];
   }
-  if (role === 'TEC. JEFE') {
-    return ['DASHBOARD', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'TRANSPORT_CREATE', 'HITOS', 'HITOS_MANAGE', 'CHAT', 'CHAT_SEND', 'STAFF'];
+  if (role === "TEC. JEFE") {
+    return ["DASHBOARD", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF"];
   }
-  if (role === 'APV/CATERING') {
-    return ['DASHBOARD', 'RIDERS', 'TRANSPORT', 'HITOS', 'CHAT', 'CHAT_SEND', 'STAFF'];
+  if (role === "APV/CATERING") {
+    return ["DASHBOARD", "RIDERS", "TRANSPORT", "HITOS", "CHAT", "CHAT_SEND", "STAFF"];
   }
-  if (role === 'TRASLADO') {
-    return ['TRANSPORT', 'TRANSPORT_CREATE', 'CHAT', 'CHAT_SEND', 'STAFF'];
+  if (role === "TRASLADO") {
+    return ["TRANSPORT", "TRANSPORT_CREATE", "CHAT", "CHAT_SEND", "STAFF"];
   }
   // Técnico y otros roles por defecto (solo lectura)
-  return ['DASHBOARD', 'RIDERS', 'TRANSPORT', 'HITOS', 'CHAT', 'STAFF'];
+  return ["DASHBOARD", "RIDERS", "TRANSPORT", "HITOS", "CHAT", "STAFF"];
 }
 
 // Helper para envío de correos
@@ -165,7 +165,7 @@ function doPost(e) {
     
     // Validar Secreto de Aplicación
     if (data.app_secret !== ESQUEMAS_MASTER_SECRET) {
-      return configurarCORS({ status: 'error', message: 'ACCESO DENEGADO' });
+      return configurarCORS({ status: "error", message: "ACCESO DENEGADO" });
     }
 
     const action = data.action; 
@@ -173,42 +173,42 @@ function doPost(e) {
     const requester = data.payload ? data.payload.requesterEmail : null;
 
     // 🛡️ CONTROL DE ACCESOS EN EL BACKEND (SEC-01)
-    const adminActions = ['aprobarUsuario', 'rechazarUsuario', 'eliminarUsuario', 'updateUserAdmin'];
+    const adminActions = ["aprobarUsuario", "rechazarUsuario", "eliminarUsuario", "updateUserAdmin"];
     if (adminActions.includes(action)) {
-      if (!verificarPermisoRequester(ss, requester, ['ADMIN'])) {
-        return configurarCORS({ status: 'error', message: 'ACCION RECHAZADA: Requiere privilegios de ADMIN.' });
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: Requiere privilegios de ADMIN." });
       }
     }
 
-    const managerActions = ['createProyecto', 'updateProyectoStatus', 'updateProyectoAsignaciones', 'createHito', 'deleteHito', 'updateHitoAsignaciones'];
+    const managerActions = ["createProyecto", "updateProyectoStatus", "updateProyectoAsignaciones", "createHito", "deleteHito", "updateHitoAsignaciones"];
     if (managerActions.includes(action)) {
-      if (!verificarPermisoRequester(ss, requester, ['ADMIN', 'MANAGER', 'TOUR MANAGER'])) {
-        return configurarCORS({ status: 'error', message: 'ACCION RECHAZADA: Requiere rol ADMIN o MANAGER.' });
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: Requiere rol ADMIN o MANAGER." });
       }
     }
 
     // ==========================================
     // 1. SECCIÓN USUARIOS, LOGIN Y PERFILES
     // ==========================================
-    if (action === 'solicitarAcceso' || action === 'checkEmailTC' || action === 'aprobarUsuario' || action === 'rechazarUsuario' || action === 'eliminarUsuario' || action === 'login' || action === 'getUsuarios' || action === 'updateProfile' || action === 'updateUserAdmin') {
-      const sheetUsuarios = ss.getSheetByName('Usuarios');
-      if (!sheetUsuarios) return configurarCORS({ status: 'error', message: 'Pestaña Usuarios no existe.' });
+    if (action === "solicitarAcceso" || action === "checkEmailTC" || action === "aprobarUsuario" || action === "rechazarUsuario" || action === "eliminarUsuario" || action === "login" || action === "getUsuarios" || action === "updateProfile" || action === "updateUserAdmin") {
+      const sheetUsuarios = ss.getSheetByName("Usuarios");
+      if (!sheetUsuarios) return configurarCORS({ status: "error", message: "Pestaña Usuarios no existe." });
 
-      if (action === 'checkEmailTC') {
+      if (action === "checkEmailTC") {
         const emailLower = data.payload.email.trim().toLowerCase();
         const rows = sheetUsuarios.getDataRange().getValues();
         for (let i = 1; i < rows.length; i++) {
           if (rows[i][2].toString().trim().toLowerCase() === emailLower) {
-            const tcVal = rows[i][10] ? rows[i][10].toString().trim() : '';
-            if (tcVal && (tcVal.indexOf('Aceptado:') === 0 || tcVal.indexOf('Reingreso Aceptado:') === 0)) {
-              return configurarCORS({ status: 'success', accepted: true });
+            const tcVal = rows[i][10] ? rows[i][10].toString().trim() : "";
+            if (tcVal && (tcVal.indexOf("Aceptado:") === 0 || tcVal.indexOf("Reingreso Aceptado:") === 0)) {
+              return configurarCORS({ status: "success", accepted: true });
             }
           }
         }
-        return configurarCORS({ status: 'success', accepted: false });
+        return configurarCORS({ status: "success", accepted: false });
       }
 
-      if (action === 'solicitarAcceso') {
+      if (action === "solicitarAcceso") {
         const newId = new Date().getTime(); 
         const name = sanitizarEntrada(data.payload.name);
         const email = sanitizarEntrada(data.payload.email);
@@ -216,21 +216,21 @@ function doPost(e) {
         const role = sanitizarEntrada(data.payload.role);
         
         let finalRole = role;
-        let finalStatus = 'PENDING';
-        let passVal = '';
+        let finalStatus = "PENDING";
+        let passVal = "";
         let isNewAdmin = false;
-        let claveTemporal = '';
+        let claveTemporal = "";
         
         const totalUsers = sheetUsuarios.getDataRange().getValues().length - 1; // Excluir cabecera
         if (totalUsers <= 0) {
-          finalRole = 'ADMIN';
-          finalStatus = 'ACTIVO';
+          finalRole = "ADMIN";
+          finalStatus = "ACTIVO";
           isNewAdmin = true;
           claveTemporal = Math.floor(100000 + Math.random() * 900000).toString();
           passVal = cifrarPassword(claveTemporal);
         }
         
-        const tcText = 'Aceptado: ' + new Date().toISOString();
+        const tcText = "Aceptado: " + new Date().toISOString();
         sheetUsuarios.appendRow([
           newId, 
           name, 
@@ -239,23 +239,23 @@ function doPost(e) {
           finalRole, 
           passVal, 
           finalStatus, 
-          'M', 
-          'OMNIVORA', 
+          "M", 
+          "OMNIVORA", 
           JSON.stringify(getDefaultPermisos(ss, finalRole)),
           tcText
         ]);
         
         if (isNewAdmin) {
           try {
-            enviarCorreoNotificacion(email, name, "Tu cuenta de Administrador ha sido creada e inicializada. Usa esta clave temporal para ingresar a la plataforma.", claveTemporal, 'ADMIN', true);
+            enviarCorreoNotificacion(email, name, "Tu cuenta de Administrador ha sido creada e inicializada. Usa esta clave temporal para ingresar a la plataforma.", claveTemporal, "ADMIN", true);
           } catch(e) {}
-          return configurarCORS({ status: 'success', isNewAdmin: true, tempPass: claveTemporal });
+          return configurarCORS({ status: "success", isNewAdmin: true, tempPass: claveTemporal });
         }
         
-        return configurarCORS({ status: 'success', message: 'Solicitud en revision.' });
+        return configurarCORS({ status: "success", message: "Solicitud en revision." });
       }
 
-      if (action === 'aprobarUsuario') {
+      if (action === "aprobarUsuario") {
         const rows = sheetUsuarios.getDataRange().getValues();
         for (let i = 1; i < rows.length; i++) {
           if (rows[i][2].toString().toLowerCase() === data.payload.email.toLowerCase()) {
@@ -263,16 +263,16 @@ function doPost(e) {
             const rol = rows[i][4];
             const claveTemporal = Math.floor(100000 + Math.random() * 900000).toString();
             sheetUsuarios.getRange(i + 1, 6).setValue(cifrarPassword(claveTemporal)); 
-            sheetUsuarios.getRange(i + 1, 7).setValue('ACTIVO');     
+            sheetUsuarios.getRange(i + 1, 7).setValue("ACTIVO");     
             
             enviarCorreoNotificacion(data.payload.email, nombre, "Tu solicitud de acceso ha sido aprobada. Utiliza esta clave temporal para ingresar a la plataforma y no olvides actualizarla en tu perfil.", claveTemporal, rol, true);
-            return configurarCORS({ status: 'success', message: 'Aprobado y correo enviado.' });
+            return configurarCORS({ status: "success", message: "Aprobado y correo enviado." });
           }
         }
-        return configurarCORS({ status: 'error', message: 'Usuario no encontrado.' });
+        return configurarCORS({ status: "error", message: "Usuario no encontrado." });
       }
 
-      if (action === 'rechazarUsuario') {
+      if (action === "rechazarUsuario") {
         const rows = sheetUsuarios.getDataRange().getValues();
         for (let i = 1; i < rows.length; i++) {
           if (rows[i][2].toString().toLowerCase() === data.payload.email.toLowerCase()) {
@@ -281,13 +281,13 @@ function doPost(e) {
             sheetUsuarios.deleteRow(i + 1); 
             
             enviarCorreoNotificacion(data.payload.email, nombre, "Lamentamos informarte que tu solicitud de acceso a la plataforma ha sido rechazada por el equipo de administracion.", null, rol, false);
-            return configurarCORS({ status: 'success', message: 'Rechazado y correo enviado.' });
+            return configurarCORS({ status: "success", message: "Rechazado y correo enviado." });
           }
         }
-        return configurarCORS({ status: 'error', message: 'Usuario no encontrado.' });
+        return configurarCORS({ status: "error", message: "Usuario no encontrado." });
       }
 
-      if (action === 'eliminarUsuario') {
+      if (action === "eliminarUsuario") {
         const rows = sheetUsuarios.getDataRange().getValues();
         for (let i = 1; i < rows.length; i++) {
           if (rows[i][2].toString().toLowerCase() === data.payload.email.toLowerCase()) {
@@ -296,18 +296,18 @@ function doPost(e) {
             sheetUsuarios.deleteRow(i + 1); 
             
             enviarCorreoNotificacion(data.payload.email, nombre, "Te informamos que tu cuenta ha sido eliminada y tu acceso a la plataforma ESQUEMAS ha sido revocado por la administracion.", null, rol, false);
-            return configurarCORS({ status: 'success', message: 'Usuario eliminado y correo enviado.' });
+            return configurarCORS({ status: "success", message: "Usuario eliminado y correo enviado." });
           }
         }
-        return configurarCORS({ status: 'error', message: 'Usuario no encontrado.' });
+        return configurarCORS({ status: "error", message: "Usuario no encontrado." });
       }
 
-      if (action === 'updateUserAdmin') {
+      if (action === "updateUserAdmin") {
         const { email, name, phone, role, status, permisos, requesterEmail } = data.payload;
         const rows = sheetUsuarios.getDataRange().getValues();
         
         let cedingAdmin = false;
-        if (role === 'ADMIN' && requesterEmail && email.toLowerCase() !== requesterEmail.toLowerCase()) {
+        if (role === "ADMIN" && requesterEmail && email.toLowerCase() !== requesterEmail.toLowerCase()) {
           cedingAdmin = true;
         }
 
@@ -322,20 +322,20 @@ function doPost(e) {
           }
           
           if (cedingAdmin && userEmail === requesterEmail.toLowerCase()) {
-            sheetUsuarios.getRange(i + 1, 5).setValue('MANAGER');
-            sheetUsuarios.getRange(i + 1, 10).setValue(JSON.stringify(getDefaultPermisos(ss, 'MANAGER')));
+            sheetUsuarios.getRange(i + 1, 5).setValue("MANAGER");
+            sheetUsuarios.getRange(i + 1, 10).setValue(JSON.stringify(getDefaultPermisos(ss, "MANAGER")));
           }
         }
-        return configurarCORS({ status: 'success', ceded: cedingAdmin });
+        return configurarCORS({ status: "success", ceded: cedingAdmin });
       }
 
-      if (action === 'login') {
+      if (action === "login") {
         const rows = sheetUsuarios.getDataRange().getValues();
         const passCifrada = cifrarPassword(data.payload.password);
         for (let i = 1; i < rows.length; i++) { 
           if (rows[i][2].toString().trim().toLowerCase() === data.payload.email.trim().toLowerCase() && passCifrada === rows[i][5].toString().trim()) {
-            if (rows[i][6] === 'PENDING' || rows[i][6] === 'INACTIVO') {
-              return configurarCORS({ status: 'error', message: 'Cuenta bloqueada o en revision.' });
+            if (rows[i][6] === "PENDING" || rows[i][6] === "INACTIVO") {
+              return configurarCORS({ status: "error", message: "Cuenta bloqueada o en revision." });
             }
             
             let permisosStr = rows[i][9];
@@ -347,13 +347,13 @@ function doPost(e) {
                sheetUsuarios.getRange(i + 1, 10).setValue(JSON.stringify(permisosParsed));
             }
 
-            return configurarCORS({ status: 'success', user: { id: rows[i][0], name: rows[i][1], email: rows[i][2].toString().trim(), phone: rows[i][3], role: rows[i][4], talla: rows[i][7] || 'M', dieta: rows[i][8] || 'OMNIVORA', permisos: permisosParsed } });
+            return configurarCORS({ status: "success", user: { id: rows[i][0], name: rows[i][1], email: rows[i][2].toString().trim(), phone: rows[i][3], role: rows[i][4], talla: rows[i][7] || "M", dieta: rows[i][8] || "OMNIVORA", permisos: permisosParsed } });
           }
         }
-        return configurarCORS({ status: 'error', message: 'Credenciales invalidas.' });
+        return configurarCORS({ status: "error", message: "Credenciales invalidas." });
       }
 
-      if (action === 'getUsuarios') {
+      if (action === "getUsuarios") {
         const rows = sheetUsuarios.getDataRange().getValues();
         const usuarios = [];
         for (let i = 1; i < rows.length; i++) {
@@ -363,13 +363,13 @@ function doPost(e) {
              if (!p || p.length === 0) {
                p = getDefaultPermisos(ss, rows[i][4]);
              }
-             usuarios.push({ id: rows[i][0], name: rows[i][1], email: rows[i][2].toString().trim(), phone: rows[i][3], role: rows[i][4], status: rows[i][6], dieta: rows[i][8] || 'OMNIVORA', permisos: p });
+             usuarios.push({ id: rows[i][0], name: rows[i][1], email: rows[i][2].toString().trim(), phone: rows[i][3], role: rows[i][4], status: rows[i][6], dieta: rows[i][8] || "OMNIVORA", permisos: p });
           }
         }
-        return configurarCORS({ status: 'success', data: usuarios });
+        return configurarCORS({ status: "success", data: usuarios });
       }
 
-      if (action === 'updateProfile') {
+      if (action === "updateProfile") {
         const { email, phone, talla, dieta, newPassword, oldPassword } = data.payload;
         const rows = sheetUsuarios.getDataRange().getValues();
         for (let i = 1; i < rows.length; i++) {
@@ -378,26 +378,26 @@ function doPost(e) {
             if (newPassword && oldPassword) {
                const oldPassCifrada = cifrarPassword(oldPassword);
                if (rows[i][5].toString().trim() !== oldPassCifrada) {
-                  return configurarCORS({ status: 'error', message: 'La contrasena actual ingresada es incorrecta.' });
+                  return configurarCORS({ status: "error", message: "La contrasena actual ingresada es incorrecta." });
                }
                sheetUsuarios.getRange(i + 1, 6).setValue(cifrarPassword(newPassword)); 
             }
             
             sheetUsuarios.getRange(i + 1, 4).setValue(sanitizarEntrada(phone)); 
-            sheetUsuarios.getRange(i + 1, 8).setValue(sanitizarEntrada(talla || 'M')); 
-            sheetUsuarios.getRange(i + 1, 9).setValue(sanitizarEntrada(dieta || 'OMNIVORA')); 
-            return configurarCORS({ status: 'success' });
+            sheetUsuarios.getRange(i + 1, 8).setValue(sanitizarEntrada(talla || "M")); 
+            sheetUsuarios.getRange(i + 1, 9).setValue(sanitizarEntrada(dieta || "OMNIVORA")); 
+            return configurarCORS({ status: "success" });
           }
         }
-        return configurarCORS({ status: 'error', message: 'Usuario no encontrado.' });
+        return configurarCORS({ status: "error", message: "Usuario no encontrado." });
       }
     }
 
     // ==========================================
     // 2. SECCIÓN PROYECTOS
     // ==========================================
-    if (action === 'getProyectos') {
-      const sheet = ss.getSheetByName('Proyectos');
+    if (action === "getProyectos") {
+      const sheet = ss.getSheetByName("Proyectos");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
       const proyectos = [];
       for (let i = 1; i < rows.length; i++) {
@@ -415,45 +415,45 @@ function doPost(e) {
           });
         }
       }
-      return configurarCORS({ status: 'success', data: proyectos });
+      return configurarCORS({ status: "success", data: proyectos });
     }
 
-    if (action === 'createProyecto') {
-      const sheet = ss.getSheetByName('Proyectos');
-      if (!sheet) return configurarCORS({ status: 'error', message: 'Pestaña Proyectos no existe.' });
-      sheet.appendRow([new Date().getTime(), sanitizarEntrada(data.payload.name), sanitizarEntrada(data.payload.type), sanitizarEntrada(data.payload.manager), 'ACTIVO', '[]']);
-      return configurarCORS({ status: 'success' });
+    if (action === "createProyecto") {
+      const sheet = ss.getSheetByName("Proyectos");
+      if (!sheet) return configurarCORS({ status: "error", message: "Pestaña Proyectos no existe." });
+      sheet.appendRow([new Date().getTime(), sanitizarEntrada(data.payload.name), sanitizarEntrada(data.payload.type), sanitizarEntrada(data.payload.manager), "ACTIVO", "[]"]);
+      return configurarCORS({ status: "success" });
     }
 
-    if (action === 'updateProyectoStatus') {
-      const sheet = ss.getSheetByName('Proyectos');
+    if (action === "updateProyectoStatus") {
+      const sheet = ss.getSheetByName("Proyectos");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
           sheet.getRange(i + 1, 5).setValue(sanitizarEntrada(data.payload.status));
-          return configurarCORS({ status: 'success' });
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Proyecto no encontrado' });
+      return configurarCORS({ status: "error", message: "Proyecto no encontrado" });
     }
 
-    if (action === 'updateProyectoAsignaciones') {
-      const sheet = ss.getSheetByName('Proyectos');
+    if (action === "updateProyectoAsignaciones") {
+      const sheet = ss.getSheetByName("Proyectos");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
           sheet.getRange(i + 1, 6).setValue(JSON.stringify(data.payload.asignados));
-          return configurarCORS({ status: 'success' });
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Proyecto no encontrado' });
+      return configurarCORS({ status: "error", message: "Proyecto no encontrado" });
     }
 
     // ==========================================
     // 3. SECCIÓN HITOS
     // ==========================================
-    if (action === 'getHitos') {
-      const sheet = ss.getSheetByName('Hitos');
+    if (action === "getHitos") {
+      const sheet = ss.getSheetByName("Hitos");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
       const hitos = [];
       for (let i = 1; i < rows.length; i++) {
@@ -472,12 +472,12 @@ function doPost(e) {
           });
         }
       }
-      return configurarCORS({ status: 'success', data: hitos });
+      return configurarCORS({ status: "success", data: hitos });
     }
 
-    if (action === 'createHito') {
-      const sheet = ss.getSheetByName('Hitos');
-      if (!sheet) return configurarCORS({ status: 'error', message: 'Pestaña Hitos no existe.' });
+    if (action === "createHito") {
+      const sheet = ss.getSheetByName("Hitos");
+      if (!sheet) return configurarCORS({ status: "error", message: "Pestaña Hitos no existe." });
       const newRow = [
         new Date().getTime(),    
         data.payload.proyectoId, 
@@ -485,49 +485,49 @@ function doPost(e) {
         sanitizarEntrada(data.payload.date),       
         sanitizarEntrada(data.payload.time),       
         sanitizarEntrada(data.payload.location),   
-        'AGENDADO',              
-        '[]'                     
+        "AGENDADO",              
+        "[]"                     
       ];
       sheet.appendRow(newRow);
-      return configurarCORS({ status: 'success' });
+      return configurarCORS({ status: "success" });
     }
 
-    if (action === 'deleteHito') {
-      const sheet = ss.getSheetByName('Hitos');
+    if (action === "deleteHito") {
+      const sheet = ss.getSheetByName("Hitos");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
           sheet.deleteRow(i + 1);
-          return configurarCORS({ status: 'success' });
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Hito no encontrado' });
+      return configurarCORS({ status: "error", message: "Hito no encontrado" });
     }
 
-    if (action === 'updateHitoAsignaciones') {
-      const sheet = ss.getSheetByName('Hitos');
+    if (action === "updateHitoAsignaciones") {
+      const sheet = ss.getSheetByName("Hitos");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
           sheet.getRange(i + 1, 8).setValue(JSON.stringify(data.payload.asignados));
-          return configurarCORS({ status: 'success' });
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Hito no encontrado' });
+      return configurarCORS({ status: "error", message: "Hito no encontrado" });
     }
 
     // ==========================================
     // 4. SECCIÓN CANAL DE ANUNCIOS / CHAT
     // ==========================================
-    if (action === 'getMensajes') {
-      const sheet = ss.getSheetByName('Chat');
-      if(!sheet) return configurarCORS({ status: 'error', message: 'Pestaña Chat no existe' });
+    if (action === "getMensajes") {
+      const sheet = ss.getSheetByName("Chat");
+      if(!sheet) return configurarCORS({ status: "error", message: "Pestaña Chat no existe" });
       const rows = sheet.getDataRange().getValues();
       const mensajes = [];
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0]) {
-          const statusVal = rows[i][7] ? String(rows[i][7]).trim() : 'ACTIVO';
-          if (statusVal === 'OCULTO') continue;
+          const statusVal = rows[i][7] ? String(rows[i][7]).trim() : "ACTIVO";
+          if (statusVal === "OCULTO") continue;
 
           let leidoPor = [];
           try { leidoPor = JSON.parse(rows[i][5]); } catch(e) {}
@@ -539,17 +539,17 @@ function doPost(e) {
             text: rows[i][3],
             time: rows[i][4],
             readBy: leidoPor,
-            proyectoId: rows[i][6] ? String(rows[i][6]).trim() : '',
+            proyectoId: rows[i][6] ? String(rows[i][6]).trim() : "",
             status: statusVal
           });
         }
       }
-      return configurarCORS({ status: 'success', data: mensajes });
+      return configurarCORS({ status: "success", data: mensajes });
     }
 
-    if (action === 'sendMensaje') {
-      const sheet = ss.getSheetByName('Chat');
-      if(!sheet) return configurarCORS({ status: 'error', message: 'Pestaña Chat no existe' });
+    if (action === "sendMensaje") {
+      const sheet = ss.getSheetByName("Chat");
+      if(!sheet) return configurarCORS({ status: "error", message: "Pestaña Chat no existe" });
       
       sheet.appendRow([
         new Date().getTime(),
@@ -557,15 +557,15 @@ function doPost(e) {
         sanitizarEntrada(data.payload.role),
         sanitizarEntrada(data.payload.text),
         sanitizarEntrada(data.payload.time),
-        '[]',                         
-        data.payload.proyectoId || '',
-        'ACTIVO'                      
+        "[]",                         
+        data.payload.proyectoId || "",
+        "ACTIVO"                      
       ]);
-      return configurarCORS({ status: 'success' });
+      return configurarCORS({ status: "success" });
     }
 
-    if (action === 'marcarLeido') {
-      const sheet = ss.getSheetByName('Chat');
+    if (action === "marcarLeido") {
+      const sheet = ss.getSheetByName("Chat");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
@@ -576,29 +576,29 @@ function doPost(e) {
             leidoPor.push(data.payload.userName);
             sheet.getRange(i + 1, 6).setValue(JSON.stringify(leidoPor));
           }
-          return configurarCORS({ status: 'success' });
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Mensaje no encontrado.' });
+      return configurarCORS({ status: "error", message: "Mensaje no encontrado." });
     }
 
-    if (action === 'ocultarMensaje') {
-      const sheet = ss.getSheetByName('Chat');
+    if (action === "ocultarMensaje") {
+      const sheet = ss.getSheetByName("Chat");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
-          sheet.getRange(i + 1, 8).setValue('OCULTO'); 
-          return configurarCORS({ status: 'success' });
+          sheet.getRange(i + 1, 8).setValue("OCULTO"); 
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Mensaje no encontrado.' });
+      return configurarCORS({ status: "error", message: "Mensaje no encontrado." });
     }
 
     // ==========================================
     // 5. SECCIÓN LOGÍSTICA / TRANSPORTES
     // ==========================================
-    if (action === 'getTransportes') {
-      const sheet = ss.getSheetByName('Transportes');
+    if (action === "getTransportes") {
+      const sheet = ss.getSheetByName("Transportes");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
       const trans = [];
       for (let i = 1; i < rows.length; i++) {
@@ -612,21 +612,21 @@ function doPost(e) {
             origin: rows[i][5], 
             dest: rows[i][6], 
             status: rows[i][7], 
-            proyectoId: rows[i][8] || '',
+            proyectoId: rows[i][8] || "",
             paradas: rows[i][9] ? JSON.parse(rows[i][9]) : [],
-            conductor: rows[i][10] || '',
-            conductorPhone: rows[i][11] || '',
-            conductorAceptado: rows[i][12] || 'PENDIENTE'
+            conductor: rows[i][10] || "",
+            conductorPhone: rows[i][11] || "",
+            conductorAceptado: rows[i][12] || "PENDIENTE"
           });
         }
       }
-      return configurarCORS({ status: 'success', data: trans });
+      return configurarCORS({ status: "success", data: trans });
     }
 
-    if (action === 'createTransporte') {
-      const sheet = ss.getSheetByName('Transportes');
-      if (!sheet) return configurarCORS({ status: 'error', message: 'Pestaña Transportes no existe.' });
-      const token = 'TR-' + Math.floor(1000 + Math.random() * 9000);
+    if (action === "createTransporte") {
+      const sheet = ss.getSheetByName("Transportes");
+      if (!sheet) return configurarCORS({ status: "error", message: "Pestaña Transportes no existe." });
+      const token = "TR-" + Math.floor(1000 + Math.random() * 9000);
       sheet.appendRow([
         new Date().getTime(), 
         token, 
@@ -635,38 +635,38 @@ function doPost(e) {
         sanitizarEntrada(data.payload.time), 
         sanitizarEntrada(data.payload.origin), 
         sanitizarEntrada(data.payload.dest), 
-        'PENDING', 
-        data.payload.proyectoId || '',
-        '[]', // paradas (Col J)
-        '',   // conductor (Col K)
-        '',   // conductorPhone (Col L)
-        'PENDIENTE' // conductorAceptado (Col M)
+        "PENDING", 
+        data.payload.proyectoId || "",
+        "[]", // paradas (Col J)
+        "",   // conductor (Col K)
+        "",   // conductorPhone (Col L)
+        "PENDIENTE" // conductorAceptado (Col M)
       ]);
-      return configurarCORS({ status: 'success' });
+      return configurarCORS({ status: "success" });
     }
 
-    if (action === 'updateTransportStatus') {
-      const sheet = ss.getSheetByName('Transportes');
+    if (action === "updateTransportStatus") {
+      const sheet = ss.getSheetByName("Transportes");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][1] === data.payload.token) {
           sheet.getRange(i + 1, 8).setValue(sanitizarEntrada(data.payload.newStatus));
-          return configurarCORS({ status: 'success' });
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Transporte no encontrado.' });
+      return configurarCORS({ status: "error", message: "Transporte no encontrado." });
     }
 
-    if (action === 'loginConductor') {
-      const sheet = ss.getSheetByName('Transportes');
+    if (action === "loginConductor") {
+      const sheet = ss.getSheetByName("Transportes");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][1] === data.payload.token) {
           return configurarCORS({ 
-            status: 'success', 
+            status: "success", 
             user: { 
-              role: 'CONDUCTOR', 
-              name: 'Conductor', 
+              role: "CONDUCTOR", 
+              name: "Conductor", 
               routeInfo: { 
                 token: rows[i][1], 
                 title: rows[i][2], 
@@ -676,32 +676,32 @@ function doPost(e) {
                 dest: rows[i][6], 
                 status: rows[i][7],
                 paradas: rows[i][9] ? JSON.parse(rows[i][9]) : [],
-                conductor: rows[i][10] || '',
-                conductorPhone: rows[i][11] || '',
-                conductorAceptado: rows[i][12] || 'PENDIENTE'
+                conductor: rows[i][10] || "",
+                conductorPhone: rows[i][11] || "",
+                conductorAceptado: rows[i][12] || "PENDIENTE"
               } 
             } 
           });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Token invalido' });
+      return configurarCORS({ status: "error", message: "Token invalido" });
     }
 
-    if (action === 'asignarConductor') {
-      const sheet = ss.getSheetByName('Transportes');
+    if (action === "asignarConductor") {
+      const sheet = ss.getSheetByName("Transportes");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][1] === data.payload.token) {
           sheet.getRange(i + 1, 11).setValue(sanitizarEntrada(data.payload.conductor)); // Col K
           sheet.getRange(i + 1, 12).setValue(sanitizarEntrada(data.payload.conductorPhone)); // Col L
-          sheet.getRange(i + 1, 13).setValue('PENDIENTE'); // Col M (conductorAceptado)
-          return configurarCORS({ status: 'success' });
+          sheet.getRange(i + 1, 13).setValue("PENDIENTE"); // Col M (conductorAceptado)
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Token no encontrado.' });
+      return configurarCORS({ status: "error", message: "Token no encontrado." });
     }
 
-    if (action === 'enviarAvisoConductor') {
+    if (action === "enviarAvisoConductor") {
       // Envía email con enlace de confirmación
       const linkConfirmar = URL_PLATAFORMA + "?acceptToken=" + data.payload.token;
       let emailBody = "Estimado conductor " + data.payload.conductorName + ",\n\n";
@@ -717,27 +717,27 @@ function doPost(e) {
 
       try {
         MailApp.sendEmail(data.payload.conductorEmail, "Asignacion de Ruta " + data.payload.token + " - Esquemas Pro", emailBody);
-        return configurarCORS({ status: 'success' });
+        return configurarCORS({ status: "success" });
       } catch (e) {
-        return configurarCORS({ status: 'error', message: "Error al enviar correo: " + e.toString() });
+        return configurarCORS({ status: "error", message: "Error al enviar correo: " + e.toString() });
       }
     }
 
-    if (action === 'aceptarRuta') {
-      const sheet = ss.getSheetByName('Transportes');
+    if (action === "aceptarRuta") {
+      const sheet = ss.getSheetByName("Transportes");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][1] === data.payload.token) {
-          sheet.getRange(i + 1, 13).setValue('Ruta aceptada por conductor'); // Col M
-          return configurarCORS({ status: 'success' });
+          sheet.getRange(i + 1, 13).setValue("Ruta aceptada por conductor"); // Col M
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Token no encontrado.' });
+      return configurarCORS({ status: "error", message: "Token no encontrado." });
     }
 
-    if (action === 'updateTransporte') {
-      const sheet = ss.getSheetByName('Transportes');
-      if (!sheet) return configurarCORS({ status: 'error', message: 'Pestaña Transportes no existe.' });
+    if (action === "updateTransporte") {
+      const sheet = ss.getSheetByName("Transportes");
+      if (!sheet) return configurarCORS({ status: "error", message: "Pestaña Transportes no existe." });
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
@@ -747,7 +747,7 @@ function doPost(e) {
           sheet.getRange(i + 1, 6).setValue(sanitizarEntrada(data.payload.origin));
           sheet.getRange(i + 1, 7).setValue(sanitizarEntrada(data.payload.dest));
           sheet.getRange(i + 1, 10).setValue(JSON.stringify(data.payload.paradas || []));
-          sheet.getRange(i + 1, 13).setValue('PENDIENTE'); // Reset a PENDIENTE
+          sheet.getRange(i + 1, 13).setValue("PENDIENTE"); // Reset a PENDIENTE
           
           // Enviar avisos por correo
           try {
@@ -756,7 +756,7 @@ function doPost(e) {
             const proyectoId = rows[i][8]; 
             
             let crewEmails = [];
-            const sheetProyectos = ss.getSheetByName('Proyectos');
+            const sheetProyectos = ss.getSheetByName("Proyectos");
             if (sheetProyectos) {
               const pRows = sheetProyectos.getDataRange().getValues();
               for (let j = 1; j < pRows.length; j++) {
@@ -775,63 +775,63 @@ function doPost(e) {
               });
             }
             
-            if (conductor && conductor.indexOf('@') !== -1) {
-              const condEmail = conductor.substring(conductor.indexOf('(') + 1, conductor.indexOf(')'));
+            if (conductor && conductor.indexOf("@") !== -1) {
+              const condEmail = conductor.substring(conductor.indexOf("(") + 1, conductor.indexOf(")"));
               MailApp.sendEmail(condEmail, "Actualizacion de Ruta Asignada - Esquemas Pro", alertMsg);
             }
           } catch(e) {}
 
-          return configurarCORS({ status: 'success' });
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Ruta no encontrada.' });
+      return configurarCORS({ status: "error", message: "Ruta no encontrada." });
     }
 
     // ==========================================
     // 6. SECCIÓN RIDERS / STAGEPLOT
     // ==========================================
-    if (action === 'getRiders') {
-      const sheet = ss.getSheetByName('Riders');
+    if (action === "getRiders") {
+      const sheet = ss.getSheetByName("Riders");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
       const riders = [];
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][1]) riders.push({ id: rows[i][0], title: rows[i][1], type: rows[i][2], content: rows[i][3] });
       }
-      return configurarCORS({ status: 'success', data: riders });
+      return configurarCORS({ status: "success", data: riders });
     }
 
-    if (action === 'createRider') {
-      const sheet = ss.getSheetByName('Riders');
-      if (!sheet) return configurarCORS({ status: 'error', message: 'Pestaña Riders no existe.' });
+    if (action === "createRider") {
+      const sheet = ss.getSheetByName("Riders");
+      if (!sheet) return configurarCORS({ status: "error", message: "Pestaña Riders no existe." });
       sheet.appendRow([new Date().getTime(), sanitizarEntrada(data.payload.title), sanitizarEntrada(data.payload.type), sanitizarEntrada(data.payload.content)]);
-      return configurarCORS({ status: 'success' });
+      return configurarCORS({ status: "success" });
     }
 
-    if (action === 'updateRider' || action === 'deleteRider') {
-      const sheet = ss.getSheetByName('Riders');
+    if (action === "updateRider" || action === "deleteRider") {
+      const sheet = ss.getSheetByName("Riders");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
-          if (action === 'deleteRider') sheet.deleteRow(i + 1);
+          if (action === "deleteRider") sheet.deleteRow(i + 1);
           else {
             sheet.getRange(i + 1, 2).setValue(sanitizarEntrada(data.payload.title));
             sheet.getRange(i + 1, 3).setValue(sanitizarEntrada(data.payload.type));
             sheet.getRange(i + 1, 4).setValue(sanitizarEntrada(data.payload.content));
           }
-          return configurarCORS({ status: 'success' });
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Rider no encontrado' });
+      return configurarCORS({ status: "error", message: "Rider no encontrado" });
     }
 
     // ==========================================
     // 7. SECCIÓN GASTOS Y PRESUPUESTOS
     // ==========================================
-    if (action === 'getGastos') {
-      let sheet = ss.getSheetByName('Gastos');
+    if (action === "getGastos") {
+      let sheet = ss.getSheetByName("Gastos");
       if (!sheet) {
-        sheet = ss.insertSheet('Gastos');
-        sheet.appendRow(['ID', 'Tour ID', 'Monto', 'Categoria', 'Descripción', 'Fecha', 'Reportado Por', 'Comprobante']);
+        sheet = ss.insertSheet("Gastos");
+        sheet.appendRow(["ID", "Tour ID", "Monto", "Categoria", "Descripción", "Fecha", "Reportado Por", "Comprobante"]);
       }
       const rows = sheet.getDataRange().getValues();
       const gastos = [];
@@ -845,18 +845,18 @@ function doPost(e) {
             concepto: rows[i][4],
             fecha: rows[i][5],
             registradoPor: rows[i][6],
-            comprobante: rows[i][7] || ''
+            comprobante: rows[i][7] || ""
           });
         }
       }
-      return configurarCORS({ status: 'success', data: gastos });
+      return configurarCORS({ status: "success", data: gastos });
     }
 
-    if (action === 'createGasto') {
-      let sheet = ss.getSheetByName('Gastos');
+    if (action === "createGasto") {
+      let sheet = ss.getSheetByName("Gastos");
       if (!sheet) {
-        sheet = ss.insertSheet('Gastos');
-        sheet.appendRow(['ID', 'Tour ID', 'Monto', 'Categoria', 'Descripción', 'Fecha', 'Reportado Por', 'Comprobante']);
+        sheet = ss.insertSheet("Gastos");
+        sheet.appendRow(["ID", "Tour ID", "Monto", "Categoria", "Descripción", "Fecha", "Reportado Por", "Comprobante"]);
       }
       sheet.appendRow([
         new Date().getTime(),
@@ -866,44 +866,44 @@ function doPost(e) {
         sanitizarEntrada(data.payload.concepto),
         sanitizarEntrada(data.payload.fecha),
         sanitizarEntrada(data.payload.registradoPor),
-        data.payload.comprobante || ''
+        data.payload.comprobante || ""
       ]);
-      return configurarCORS({ status: 'success' });
+      return configurarCORS({ status: "success" });
     }
 
-    if (action === 'deleteGasto') {
-      const sheet = ss.getSheetByName('Gastos');
+    if (action === "deleteGasto") {
+      const sheet = ss.getSheetByName("Gastos");
       if (sheet) {
         const rows = sheet.getDataRange().getValues();
         for (let i = 1; i < rows.length; i++) {
           if (rows[i][0] == data.payload.id) {
             sheet.deleteRow(i + 1);
-            return configurarCORS({ status: 'success' });
+            return configurarCORS({ status: "success" });
           }
         }
       }
-      return configurarCORS({ status: 'error', message: 'Gasto no encontrado' });
+      return configurarCORS({ status: "error", message: "Gasto no encontrado" });
     }
 
-    if (action === 'updateProyectoPresupuesto') {
+    if (action === "updateProyectoPresupuesto") {
       // Solo ADMIN y MANAGER pueden editar presupuestos (SEC-01)
-      if (!verificarPermisoRequester(ss, requester, ['ADMIN', 'MANAGER'])) {
-        return configurarCORS({ status: 'error', message: 'ACCION RECHAZADA: Requiere privilegios de ADMIN o MANAGER.' });
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: Requiere privilegios de ADMIN o MANAGER." });
       }
-      const sheet = ss.getSheetByName('Proyectos');
+      const sheet = ss.getSheetByName("Proyectos");
       if (!sheet) throw new Error("Pestaña Proyectos no existe.");
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
           sheet.getRange(i + 1, 7).setValue(Number(data.payload.presupuesto || 0));
-          return configurarCORS({ status: 'success' });
+          return configurarCORS({ status: "success" });
         }
       }
-      return configurarCORS({ status: 'error', message: 'Proyecto no encontrado' });
+      return configurarCORS({ status: "error", message: "Proyecto no encontrado" });
     }
 
-    if (action === 'getRolesConfig') {
-      let sheet = ss.getSheetByName('RolesConfig');
+    if (action === "getRolesConfig") {
+      let sheet = ss.getSheetByName("RolesConfig");
       const config = [];
       if (sheet) {
         const rows = sheet.getDataRange().getValues();
@@ -915,17 +915,17 @@ function doPost(e) {
           }
         }
       }
-      return configurarCORS({ status: 'success', data: config });
+      return configurarCORS({ status: "success", data: config });
     }
 
-    if (action === 'updateRoleDefaultPermisos') {
-      if (!verificarPermisoRequester(ss, requester, ['ADMIN'])) {
-        return configurarCORS({ status: 'error', message: 'ACCION RECHAZADA: Requiere privilegios de ADMIN.' });
+    if (action === "updateRoleDefaultPermisos") {
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: Requiere privilegios de ADMIN." });
       }
-      let sheet = ss.getSheetByName('RolesConfig');
+      let sheet = ss.getSheetByName("RolesConfig");
       if (!sheet) {
-        sheet = ss.insertSheet('RolesConfig');
-        sheet.appendRow(['Role', 'Permisos']);
+        sheet = ss.insertSheet("RolesConfig");
+        sheet.appendRow(["Role", "Permisos"]);
       }
       const rows = sheet.getDataRange().getValues();
       let foundRow = -1;
@@ -941,12 +941,12 @@ function doPost(e) {
       } else {
         sheet.appendRow([data.payload.role, permsStr]);
       }
-      return configurarCORS({ status: 'success' });
+      return configurarCORS({ status: "success" });
     }
 
-    return configurarCORS({ status: 'error', message: 'Accion no reconocida: ' + action });
+    return configurarCORS({ status: "error", message: "Accion no reconocida: " + action });
 
   } catch (error) {
-    return configurarCORS({ status: 'error', message: error.toString() });
+    return configurarCORS({ status: "error", message: error.toString() });
   }
 }
