@@ -71,11 +71,29 @@ function verificarPermisoRequester(ss, requesterEmail, rolesPermitidos) {
 
 // Permisos por defecto segun el rol
 function getDefaultPermisos(role) {
-  const adminPerms = ["proyectos", "hitos", "usuarios", "riders", "transportes", "chat"];
-  if (role === 'ADMIN' || role === 'MANAGER') return adminPerms;
-  if (role === 'LOGISTICA') return ["transportes", "proyectos", "hitos"];
-  if (role === 'APV') return ["proyectos", "chat", "riders"];
-  return ["proyectos", "hitos", "chat"];
+  if (role === 'ADMIN') {
+    return ['DASHBOARD', 'PROJECTS_MANAGE', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'TRANSPORT_MANAGE', 'CHAT', 'CHAT_SEND', 'STAFF', 'ADMIN_PANEL', 'EXPENSES', 'EXPENSES_MANAGE'];
+  }
+  if (role === 'MANAGER') {
+    return ['DASHBOARD', 'PROJECTS_MANAGE', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'TRANSPORT_MANAGE', 'CHAT', 'CHAT_SEND', 'STAFF', 'EXPENSES', 'EXPENSES_MANAGE'];
+  }
+  if (role === 'TOUR MANAGER') {
+    return ['DASHBOARD', 'PROJECTS_MANAGE', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'TRANSPORT_MANAGE', 'CHAT', 'CHAT_SEND', 'STAFF', 'EXPENSES'];
+  }
+  if (role === 'JEFE CAT/APV') {
+    return ['DASHBOARD', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'CHAT', 'CHAT_SEND', 'STAFF', 'EXPENSES'];
+  }
+  if (role === 'TEC. JEFE') {
+    return ['DASHBOARD', 'RIDERS', 'RIDERS_MANAGE', 'TRANSPORT', 'CHAT', 'CHAT_SEND', 'STAFF'];
+  }
+  if (role === 'APV/CATERING') {
+    return ['DASHBOARD', 'RIDERS', 'TRANSPORT', 'CHAT', 'CHAT_SEND', 'STAFF'];
+  }
+  if (role === 'TRASLADO') {
+    return ['TRANSPORT', 'TRANSPORT_MANAGE', 'CHAT', 'CHAT_SEND', 'STAFF'];
+  }
+  // Técnico y otros roles por defecto (solo lectura)
+  return ['DASHBOARD', 'RIDERS', 'TRANSPORT', 'CHAT', 'STAFF'];
 }
 
 // Helper para envío de correos
@@ -140,7 +158,7 @@ function doPost(e) {
 
     const managerActions = ['createProyecto', 'updateProyectoStatus', 'updateProyectoAsignaciones', 'createHito', 'deleteHito', 'updateHitoAsignaciones'];
     if (managerActions.includes(action)) {
-      if (!verificarPermisoRequester(ss, requester, ['ADMIN', 'MANAGER', 'TOUR_MANAGER'])) {
+      if (!verificarPermisoRequester(ss, requester, ['ADMIN', 'MANAGER', 'TOUR MANAGER'])) {
         return configurarCORS({ status: 'error', message: 'ACCION RECHAZADA: Requiere rol ADMIN o MANAGER.' });
       }
     }
@@ -298,7 +316,15 @@ function doPost(e) {
         if (rows[i][0]) {
           let asignados = [];
           try { asignados = JSON.parse(rows[i][5]); } catch(e) {}
-          proyectos.push({ id: rows[i][0], name: rows[i][1], type: rows[i][2], manager: rows[i][3], status: rows[i][4], asignados: asignados });
+          proyectos.push({ 
+            id: rows[i][0], 
+            name: rows[i][1], 
+            type: rows[i][2], 
+            manager: rows[i][3], 
+            status: rows[i][4], 
+            asignados: asignados,
+            presupuesto: Number(rows[i][6] || 0)
+          });
         }
       }
       return configurarCORS({ status: 'success', data: proyectos });
@@ -708,6 +734,84 @@ function doPost(e) {
         }
       }
       return configurarCORS({ status: 'error', message: 'Rider no encontrado' });
+    }
+
+    // ==========================================
+    // 7. SECCIÓN GASTOS Y PRESUPUESTOS
+    // ==========================================
+    if (action === 'getGastos') {
+      let sheet = ss.getSheetByName('Gastos');
+      if (!sheet) {
+        sheet = ss.insertSheet('Gastos');
+        sheet.appendRow(['ID', 'Proyecto ID', 'Concepto', 'Monto', 'Categoría', 'Fecha', 'Registrado Por', 'Comprobante Base64']);
+      }
+      const rows = sheet.getDataRange().getValues();
+      const gastos = [];
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][0]) {
+          gastos.push({
+            id: rows[i][0],
+            proyectoId: rows[i][1],
+            concepto: rows[i][2],
+            monto: Number(rows[i][3] || 0),
+            categoria: rows[i][4],
+            fecha: rows[i][5],
+            registradoPor: rows[i][6],
+            comprobante: rows[i][7] || ''
+          });
+        }
+      }
+      return configurarCORS({ status: 'success', data: gastos });
+    }
+
+    if (action === 'createGasto') {
+      let sheet = ss.getSheetByName('Gastos');
+      if (!sheet) {
+        sheet = ss.insertSheet('Gastos');
+        sheet.appendRow(['ID', 'Proyecto ID', 'Concepto', 'Monto', 'Categoría', 'Fecha', 'Registrado Por', 'Comprobante Base64']);
+      }
+      sheet.appendRow([
+        new Date().getTime(),
+        data.payload.proyectoId,
+        sanitizarEntrada(data.payload.concepto),
+        Number(data.payload.monto || 0),
+        sanitizarEntrada(data.payload.categoria),
+        sanitizarEntrada(data.payload.fecha),
+        sanitizarEntrada(data.payload.registradoPor),
+        data.payload.comprobante || ''
+      ]);
+      return configurarCORS({ status: 'success' });
+    }
+
+    if (action === 'deleteGasto') {
+      const sheet = ss.getSheetByName('Gastos');
+      if (sheet) {
+        const rows = sheet.getDataRange().getValues();
+        for (let i = 1; i < rows.length; i++) {
+          if (rows[i][0] == data.payload.id) {
+            sheet.deleteRow(i + 1);
+            return configurarCORS({ status: 'success' });
+          }
+        }
+      }
+      return configurarCORS({ status: 'error', message: 'Gasto no encontrado' });
+    }
+
+    if (action === 'updateProyectoPresupuesto') {
+      // Solo ADMIN y MANAGER pueden editar presupuestos (SEC-01)
+      if (!verificarPermisoRequester(ss, requester, ['ADMIN', 'MANAGER'])) {
+        return configurarCORS({ status: 'error', message: 'ACCION RECHAZADA: Requiere privilegios de ADMIN o MANAGER.' });
+      }
+      const sheet = ss.getSheetByName('Proyectos');
+      if (!sheet) throw new Error("Pestaña Proyectos no existe.");
+      const rows = sheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][0] == data.payload.id) {
+          sheet.getRange(i + 1, 7).setValue(Number(data.payload.presupuesto || 0));
+          return configurarCORS({ status: 'success' });
+        }
+      }
+      return configurarCORS({ status: 'error', message: 'Proyecto no encontrado' });
     }
 
     return configurarCORS({ status: 'error', message: 'Accion no reconocida: ' + action });
