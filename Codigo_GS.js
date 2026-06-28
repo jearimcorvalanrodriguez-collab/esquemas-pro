@@ -743,7 +743,7 @@ function doPost(e) {
       let sheet = ss.getSheetByName('Gastos');
       if (!sheet) {
         sheet = ss.insertSheet('Gastos');
-        sheet.appendRow(['ID', 'Proyecto ID', 'Concepto', 'Monto', 'Categoría', 'Fecha', 'Registrado Por', 'Comprobante Base64']);
+        sheet.appendRow(['ID', 'Tour ID', 'Monto', 'Categoria', 'Descripción', 'Fecha', 'Reportado Por', 'Comprobante']);
       }
       const rows = sheet.getDataRange().getValues();
       const gastos = [];
@@ -752,9 +752,9 @@ function doPost(e) {
           gastos.push({
             id: rows[i][0],
             proyectoId: rows[i][1],
-            concepto: rows[i][2],
-            monto: Number(rows[i][3] || 0),
-            categoria: rows[i][4],
+            monto: Number(rows[i][2] || 0),
+            categoria: rows[i][3],
+            concepto: rows[i][4],
             fecha: rows[i][5],
             registradoPor: rows[i][6],
             comprobante: rows[i][7] || ''
@@ -768,14 +768,14 @@ function doPost(e) {
       let sheet = ss.getSheetByName('Gastos');
       if (!sheet) {
         sheet = ss.insertSheet('Gastos');
-        sheet.appendRow(['ID', 'Proyecto ID', 'Concepto', 'Monto', 'Categoría', 'Fecha', 'Registrado Por', 'Comprobante Base64']);
+        sheet.appendRow(['ID', 'Tour ID', 'Monto', 'Categoria', 'Descripción', 'Fecha', 'Reportado Por', 'Comprobante']);
       }
       sheet.appendRow([
         new Date().getTime(),
         data.payload.proyectoId,
-        sanitizarEntrada(data.payload.concepto),
         Number(data.payload.monto || 0),
         sanitizarEntrada(data.payload.categoria),
+        sanitizarEntrada(data.payload.concepto),
         sanitizarEntrada(data.payload.fecha),
         sanitizarEntrada(data.payload.registradoPor),
         data.payload.comprobante || ''

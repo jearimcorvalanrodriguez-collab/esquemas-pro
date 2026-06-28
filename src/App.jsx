@@ -2088,7 +2088,7 @@ const ExpensesView = ({ currentUser, showToast, requestConfirm, selectedProject,
 
       {!selectedProject ? (
         <Card className="p-8 text-center border-slate-800">
-          <Coins className="text-slate-600 mx-auto mb-3" size={48} />
+          <Wallet className="text-slate-600 mx-auto mb-3" size={48} />
           <h3 className="text-white font-bold text-base mb-1">Ningún Proyecto Seleccionado</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">Selecciona un proyecto arriba a la derecha para ver su presupuesto, registrar boletas y realizar auditorías.</p>
         </Card>
