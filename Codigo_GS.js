@@ -9,9 +9,10 @@
 // 5. Guarda y haz clic en "Implementar" > "Nueva implementación" tipo Web App.
 // =================================================================================
 
-const SPREADSHEET_ID = "INGRESA_AQUI_LA_ID_DE_TU_GOOGLE_SHEETS"; // ID de tu Google Sheet
-const ESQUEMAS_MASTER_SECRET = "Tk9fTWVfSGFja2VlczIwMjYhQCM="; // Debe coincidir con el frontend
-const URL_PLATAFORMA = "https://jearimcorvalanrodriguez-collab.github.io/esquemas-pro/"; // URL de tu GitHub Pages
+const scriptProps = PropertiesService.getScriptProperties();
+const SPREADSHEET_ID = scriptProps.getProperty('SPREADSHEET_ID');
+const ESQUEMAS_MASTER_SECRET = scriptProps.getProperty('ESQUEMAS_MASTER_SECRET');
+const URL_PLATAFORMA = scriptProps.getProperty('URL_PLATAFORMA');
 
 function configurarCORS(salida) {
   return ContentService.createTextOutput(JSON.stringify(salida))
