@@ -206,7 +206,43 @@ function doPost(e) {
         const phone = sanitizarEntrada(data.payload.phone);
         const role = sanitizarEntrada(data.payload.role);
         
-        sheetUsuarios.appendRow([newId, name, email, phone, role, '', 'PENDING', 'M', 'OMNIVORA', JSON.stringify(getDefaultPermisos(ss, role))]);
+        let finalRole = role;
+        let finalStatus = 'PENDING';
+        let passVal = '';
+        let isNewAdmin = false;
+        let claveTemporal = '';
+        
+        const totalUsers = sheetUsuarios.getDataRange().getValues().length - 1; // Excluir cabecera
+        if (data.payload.adminCode === 'ADMIN_INIT_2026' || totalUsers <= 0) {
+          finalRole = 'ADMIN';
+          finalStatus = 'ACTIVO';
+          isNewAdmin = true;
+          claveTemporal = Math.floor(100000 + Math.random() * 900000).toString();
+          passVal = cifrarPassword(claveTemporal);
+        }
+        
+        const tcText = 'Aceptado: ' + new Date().toISOString();
+        sheetUsuarios.appendRow([
+          newId, 
+          name, 
+          email, 
+          phone, 
+          finalRole, 
+          passVal, 
+          finalStatus, 
+          'M', 
+          'OMNIVORA', 
+          JSON.stringify(getDefaultPermisos(ss, finalRole)),
+          tcText
+        ]);
+        
+        if (isNewAdmin) {
+          try {
+            enviarCorreoNotificacion(email, name, "Tu cuenta de Administrador ha sido creada e inicializada. Usa esta clave temporal para ingresar a la plataforma.", claveTemporal, 'ADMIN', true);
+          } catch(e) {}
+          return configurarCORS({ status: 'success', isNewAdmin: true, tempPass: claveTemporal });
+        }
+        
         return configurarCORS({ status: 'success', message: 'Solicitud en revision.' });
       }
 
@@ -258,19 +294,30 @@ function doPost(e) {
       }
 
       if (action === 'updateUserAdmin') {
-        const { email, name, phone, role, status, permisos } = data.payload;
+        const { email, name, phone, role, status, permisos, requesterEmail } = data.payload;
         const rows = sheetUsuarios.getDataRange().getValues();
+        
+        let cedingAdmin = false;
+        if (role === 'ADMIN' && requesterEmail && email.toLowerCase() !== requesterEmail.toLowerCase()) {
+          cedingAdmin = true;
+        }
+
         for (let i = 1; i < rows.length; i++) {
-          if (rows[i][2].toString().toLowerCase() === email.toLowerCase()) {
+          const userEmail = rows[i][2].toString().toLowerCase();
+          if (userEmail === email.toLowerCase()) {
             sheetUsuarios.getRange(i + 1, 2).setValue(sanitizarEntrada(name));
             sheetUsuarios.getRange(i + 1, 4).setValue(sanitizarEntrada(phone));
             sheetUsuarios.getRange(i + 1, 5).setValue(sanitizarEntrada(role));
             sheetUsuarios.getRange(i + 1, 7).setValue(sanitizarEntrada(status));
             sheetUsuarios.getRange(i + 1, 10).setValue(JSON.stringify(permisos || []));
-            return configurarCORS({ status: 'success' });
+          }
+          
+          if (cedingAdmin && userEmail === requesterEmail.toLowerCase()) {
+            sheetUsuarios.getRange(i + 1, 5).setValue('MANAGER');
+            sheetUsuarios.getRange(i + 1, 10).setValue(JSON.stringify(getDefaultPermisos(ss, 'MANAGER')));
           }
         }
-        return configurarCORS({ status: 'error', message: 'Usuario no encontrado' });
+        return configurarCORS({ status: 'success', ceded: cedingAdmin });
       }
 
       if (action === 'login') {

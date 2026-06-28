@@ -1108,6 +1108,8 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   const [regName, setRegName] = useState('');
   const [regRole, setRegRole] = useState(ROLES.TECH);
   const [regPhone, setRegPhone] = useState('+569');
+  const [adminCode, setAdminCode] = useState('');
+  const [adminTempPass, setAdminTempPass] = useState('');
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [tcAccepted, setTcAccepted] = useState(false);
   const [alreadyAcceptedTC, setAlreadyAcceptedTC] = useState(false);
@@ -1176,11 +1178,17 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
         email: email.trim(), 
         phone: regPhone.trim(), 
         role: regRole,
+        adminCode: adminCode.trim(),
         disclaimerAceptado: true,
         tcVersion: 'v1.0'
       });
       if (result.status === 'success') { 
-        setMode('REGISTER_SUCCESS'); 
+        if (result.isNewAdmin) {
+          setAdminTempPass(result.tempPass);
+          setMode('REGISTER_ADMIN_SUCCESS');
+        } else {
+          setMode('REGISTER_SUCCESS'); 
+        }
       } 
       else setError(result.message);
     } catch (err) { setError('Error de red al enviar la solicitud.'); }
@@ -1265,8 +1273,23 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
           <form onSubmit={handleRegister} className="space-y-3">
             {error && <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-xs p-2.5 rounded-lg flex items-center gap-2"><AlertCircle size={14} /><span>{error}</span></div>}
             <div><label className="block text-xs font-bold text-slate-400 mb-1">Nombre Completo</label><input type="text" value={regName} onChange={e=>setRegName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div>
-            <div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-slate-400 mb-1">Correo</label><input type="email" value={email} onChange={e=>{ setEmail(e.target.value); checkEmailTCStatus(e.target.value); }} onBlur={e => checkEmailTCStatus(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div><div><label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label><input type="tel" value={regPhone} onChange={e=>setRegPhone(e.target.value.replace(/[^0-9+]/g, ''))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div></div>
-            <div><label className="block text-xs font-bold text-slate-400 mb-1">Rol</label><select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none break-words whitespace-normal">{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Correo</label>
+                <input type="email" value={email} onChange={e=>{ setEmail(e.target.value); checkEmailTCStatus(e.target.value); }} onBlur={e => checkEmailTCStatus(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label>
+                <input type="tel" value={regPhone} onChange={e=>setRegPhone(e.target.value.replace(/[^0-9+]/g, ''))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1">Rol</label>
+              <select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none break-words whitespace-normal">
+                {Object.values(ROLES).filter(r => r !== ROLES.ADMIN).map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div><label className="block text-xs font-bold text-slate-400 mb-1">Código de Activación Administrador (Opcional)</label><input type="text" value={adminCode} onChange={e=>setAdminCode(e.target.value)} placeholder="Solo si deseas inicializar como Admin" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none placeholder:text-slate-600" /></div>
             
             {!alreadyAcceptedTC && (
                <div className="space-y-2 pt-1 text-left">
@@ -1299,6 +1322,22 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
             <p className="text-sm text-emerald-400 font-bold">¡Muchas gracias por querer ser parte del Crew!</p>
             <p className="text-xs md:text-sm text-slate-300 px-2">Cuando tu acceso sea aprobado, llegará un correo con una clave provisoria que debes actualizar en tu sección <b>Mi Perfil</b>.</p>
             <Button onClick={() => setMode('LOGIN')} className="w-full mt-6 py-2.5" variant="secondary">Volver al Inicio</Button>
+          </div>
+        )}
+
+        {mode === 'REGISTER_ADMIN_SUCCESS' && (
+          <div className="text-center space-y-4 py-4 animate-fade-in">
+            <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4 border border-emerald-500/20">
+              <CheckCircle2 size={32} />
+            </div>
+            <h2 className="text-xl font-black text-white">¡Administrador Activado!</h2>
+            <p className="text-sm text-emerald-400 font-bold">La plataforma ha sido inicializada y tu cuenta es ADMINISTRADOR.</p>
+            <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl space-y-1.5 text-left">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Tu Clave Temporal de Acceso:</span>
+              <div className="font-mono text-lg font-black text-emerald-400 select-all tracking-widest text-center bg-slate-950 p-2.5 rounded border border-emerald-500/30">{adminTempPass}</div>
+              <p className="text-[10px] text-slate-400 mt-1 leading-normal">Copia esta clave. Se ha enviado una copia por correo, pero ya puedes iniciar sesión inmediatamente.</p>
+            </div>
+            <Button onClick={() => { setAdminTempPass(''); setAdminCode(''); setMode('LOGIN'); }} className="w-full mt-6 py-2.5" variant="primary">Ir al Login</Button>
           </div>
         )}
       </Card>
@@ -4622,6 +4661,14 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
         clearCache('usuarios');
         setDbUsers(prev => prev.map(u => u.email === editingUser.email ? editingUser : u));
         
+        if (res.ceded) {
+          showToast("ℹ️ Has transferido el rol de Administrador Único. Tu cuenta ha sido cambiada al rol de Manager. Recargando...");
+          setTimeout(() => {
+            window.location.reload();
+          }, 3000);
+          return;
+        }
+
         // Si el admin se edita a sí mismo, actualizar la sesión actual en vivo
         if (currentUser.email === editingUser.email) {
           setCurrentUser(prev => ({ ...prev, permisos: editingUser.permisos, role: editingUser.role, status: editingUser.status }));
@@ -4696,7 +4743,17 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
                     <form onSubmit={handleEditSave} className="space-y-2 animate-fade-in">
                       <h4 className="text-xs font-bold text-emerald-400 border-b border-slate-700 pb-1.5">Editar a {u.name}</h4>
                       <input className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name: e.target.value})} />
-                      <div className="grid grid-cols-2 gap-2"><input type="tel" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" value={editingUser.phone} onChange={e=>setEditingUser({...editingUser, phone: e.target.value.replace(/[^0-9+]/g, '')})} /><select className="w-full max-w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500 break-words" value={editingUser.role} onChange={e=>setEditingUser({...editingUser, role: e.target.value})}>{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+                      <div className="grid grid-cols-2 gap-2"><input type="tel" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" value={editingUser.phone} onChange={e=>setEditingUser({...editingUser, phone: e.target.value.replace(/[^0-9+]/g, '')})} /><select className="w-full max-w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500 break-words" value={editingUser.role} onChange={(e) => {
+                        const newRole = e.target.value;
+                        if (newRole === 'ADMIN') {
+                          requestConfirm(
+                            `⚠️ ATENCIÓN: Al cambiar a ${editingUser.name} a ADMINISTRADOR, estarás cediendo tu rol de Administrador Único. Tu cuenta pasará a ser MANAGER para mantener un solo administrador. ¿Confirmas la transferencia?`,
+                            () => setEditingUser(prev => ({ ...prev, role: 'ADMIN' }))
+                          );
+                        } else {
+                          setEditingUser(prev => ({ ...prev, role: newRole }));
+                        }
+                      }}>{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
                       <select className="w-full max-w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white font-bold outline-none focus:border-emerald-500 break-words" value={editingUser.status} onChange={e=>setEditingUser({...editingUser, status: e.target.value})}><option value="ACTIVO">ACTIVO</option><option value="INACTIVO">BLOQUEADO</option></select>
                       
                       <div className="pt-2 mt-2 border-t border-slate-700">
