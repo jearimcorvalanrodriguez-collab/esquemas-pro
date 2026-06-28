@@ -82,6 +82,20 @@ const CACHE = {
 };
 const clearCache = (key) => { CACHE[key] = null; };
 
+const compareProjectIds = (idA, idB) => {
+  if (idA === undefined || idA === null || idB === undefined || idB === null) return false;
+  let strA = String(idA).trim();
+  let strB = String(idB).trim();
+  if (strA.endsWith('.0')) strA = strA.slice(0, -2);
+  if (strB.endsWith('.0')) strB = strB.slice(0, -2);
+  const numA = Math.round(Number(strA));
+  const numB = Math.round(Number(strB));
+  if (!isNaN(numA) && !isNaN(numB)) {
+    return numA === numB;
+  }
+  return strA === strB;
+};
+
 const apiFetch = async (action, payload = {}) => {
   const url = import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbwNXxsCfNlOV-JkeUO2Sl55SquzwcrwP50ZpfSUyeg-mI1ugvtCw-1E1mLF-2OS5tmAEw/exec';
   
@@ -273,9 +287,9 @@ const NotificationsButton = ({ currentUser }) => {
     const myProjectIds = myProjects.map(p => String(p.id));
 
     // 1. Messages
-    const chatMsgs = (CACHE.mensajes || []).filter(m => myProjectIds.includes(String(m.proyectoId)));
+    const chatMsgs = (CACHE.mensajes || []).filter(m => myProjectIds.some(pid => compareProjectIds(pid, m.proyectoId)));
     chatMsgs.forEach(m => {
-      const projName = myProjects.find(p => String(p.id) === String(m.proyectoId))?.name || "Proyecto";
+      const projName = myProjects.find(p => compareProjectIds(p.id, m.proyectoId))?.name || "Proyecto";
       list.push({
         id: 'msg-' + m.id,
         type: 'chat',
@@ -288,9 +302,9 @@ const NotificationsButton = ({ currentUser }) => {
     });
 
     // 2. Transports
-    const trans = (CACHE.transportes || []).filter(t => myProjectIds.includes(String(t.proyectoId)));
+    const trans = (CACHE.transportes || []).filter(t => myProjectIds.some(pid => compareProjectIds(pid, t.proyectoId)));
     trans.forEach(t => {
-      const projName = myProjects.find(p => String(p.id) === String(t.proyectoId))?.name || "Proyecto";
+      const projName = myProjects.find(p => compareProjectIds(p.id, t.proyectoId))?.name || "Proyecto";
       list.push({
         id: 'trans-' + t.id,
         type: 'transport',
@@ -303,9 +317,9 @@ const NotificationsButton = ({ currentUser }) => {
     });
 
     // 3. Hitos
-    const hitos = (CACHE.hitos || []).filter(h => myProjectIds.includes(String(h.proyectoId)));
+    const hitos = (CACHE.hitos || []).filter(h => myProjectIds.some(pid => compareProjectIds(pid, h.proyectoId)));
     hitos.forEach(h => {
-      const projName = myProjects.find(p => String(p.id) === String(h.proyectoId))?.name || "Proyecto";
+      const projName = myProjects.find(p => compareProjectIds(p.id, h.proyectoId))?.name || "Proyecto";
       list.push({
         id: 'hito-' + h.id,
         type: 'hito',
@@ -968,7 +982,7 @@ const ProjectChatSidebar = ({ currentUser, selectedProject, showToast }) => {
       }
       if (msgData) {
         const isNew = CACHE.mensajes && CACHE.mensajes.length < msgData.length;
-        const projMsgs = msgData.filter(m => String(m.proyectoId) === String(selectedProject.id));
+        const projMsgs = msgData.filter(m => compareProjectIds(m.proyectoId, selectedProject.id));
         setMessages(projMsgs);
         if (!isBackground || isNew) setTimeout(scrollToBottom, 100);
       }
@@ -1316,10 +1330,10 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
       if (transData) {
         if (isBackground) {
           const oldLen = transports.length;
-          const newLen = transData.filter(t => String(t.proyectoId) === String(selectedProject?.id)).length;
+          const newLen = transData.filter(t => compareProjectIds(t.proyectoId, selectedProject?.id)).length;
           if (newLen > oldLen) showToast("🚐 ¡Hay un nuevo Transporte en este proyecto!");
         }
-        setTransports(transData.filter(t => String(t.proyectoId) === String(selectedProject?.id)));
+        setTransports(transData.filter(t => compareProjectIds(t.proyectoId, selectedProject?.id)));
       }
     } catch(e) {
       if (!isBackground) showToast("Error al cargar transportes.");
@@ -2124,7 +2138,7 @@ const ExpensesView = ({ currentUser, showToast, requestConfirm, selectedProject,
     setSubmitting(false);
   };
 
-  const projectExpenses = gastos.filter(g => String(g.proyectoId) === String(selectedProject?.id || ''));
+  const projectExpenses = gastos.filter(g => compareProjectIds(g.proyectoId, selectedProject?.id));
   const totalSpent = projectExpenses.reduce((sum, g) => sum + g.monto, 0);
   const budget = selectedProject?.presupuesto || 0;
   const remaining = budget - totalSpent;
@@ -2682,7 +2696,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
   const [directory, setDirectory] = useState([]);
 
   const processHitos = (data) => {
-    const projectHitos = data.filter(ev => String(ev.proyectoId) === String(p.id));
+    const projectHitos = data.filter(ev => compareProjectIds(ev.proyectoId, p.id));
     const parsedEvents = projectHitos.map(ev => {
       let fullDate = new Date(0); 
       try {
@@ -2717,8 +2731,8 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
       const res = await apiFetch('getHitos');
       if (res.status === 'success') { 
         if (isBackground) {
-           const myOldHitos = CACHE.hitos ? CACHE.hitos.filter(h => String(h.proyectoId) === String(p.id) && h.asignados?.includes(currentUser.email)).length : 0;
-           const myNewHitos = res.data.filter(h => String(h.proyectoId) === String(p.id) && h.asignados?.includes(currentUser.email)).length;
+           const myOldHitos = CACHE.hitos ? CACHE.hitos.filter(h => compareProjectIds(h.proyectoId, p.id) && h.asignados?.includes(currentUser.email)).length : 0;
+           const myNewHitos = res.data.filter(h => compareProjectIds(h.proyectoId, p.id) && h.asignados?.includes(currentUser.email)).length;
            if (myNewHitos > myOldHitos) showToast("⏱️ ¡Tienes un nuevo Hito asignado!");
         }
         CACHE.hitos = res.data; 
@@ -3284,7 +3298,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
     const targetRider = (viewMode === 'EDIT' && isPreview) ? form : activeRider;
     if (!targetRider || !targetRider.content.proyectoId) return [];
     return allHitos
-      .filter(h => String(h.proyectoId) === String(targetRider.content.proyectoId))
+      .filter(h => compareProjectIds(h.proyectoId, targetRider.content.proyectoId))
       .map(ev => {
         let fullDate = new Date(0); 
         let timeFmt = '--:--';
@@ -3313,7 +3327,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
     setTimeout(() => { document.title = originalTitle; }, 1000);
   };
 
-  const visibleRiders = riders.filter(r => String(r.content.proyectoId) === String(selectedProject.id));
+  const visibleRiders = riders.filter(r => compareProjectIds(r.content.proyectoId, selectedProject.id));
 
   return (
     <div className="space-y-4 animate-fade-in pb-24 max-w-5xl mx-auto print:m-0 print:p-0 print:w-full print:max-w-none">
