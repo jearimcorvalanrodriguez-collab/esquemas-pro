@@ -21,55 +21,31 @@ const ROLES = {
   APV: 'APV/CATERING'
 };
 
-const GuitarLoader = ({ size = 80 }) => {
+const PianoLoader = ({ size = 80 }) => {
+  const widthVal = size * 1.68; // Mantener relación de aspecto del piano (84:50)
   return (
     <div className="flex flex-col items-center justify-center p-6 space-y-4">
-      <div className="relative" style={{ width: `${size}px`, height: `${size}px` }}>
+      <div className="relative" style={{ width: `${widthVal}px`, height: `${size}px` }}>
         <svg 
-          viewBox="0 0 100 100" 
-          className="w-full h-full fill-none"
-          strokeLinecap="round" 
-          strokeLinejoin="round"
+          viewBox="0 0 84 50" 
+          className="w-full h-full"
         >
-          {/* Musician's Head & Body (Sways slightly) */}
-          <g className="animate-musician-sway" style={{ transformOrigin: '50% 85%', transformBox: 'fill-box' }}>
-            {/* Head */}
-            <circle cx="50" cy="22" r="8" fill="#020617" stroke="#10b981" strokeWidth="2.5" />
-            
-            {/* Torso & Legs */}
-            <path d="M50 30 L50 60 L38 80" stroke="#94a3b8" strokeWidth="2.5" />
-            <path d="M50 60 L62 80" stroke="#94a3b8" strokeWidth="2.5" />
-            
-            {/* Guitar Body */}
-            <path 
-              d="M32 50 C26 44, 22 55, 30 62 C38 68, 48 64, 45 54 C42 46, 36 54, 32 50 Z" 
-              fill="#064e3b" 
-              stroke="#10b981" 
-              strokeWidth="3" 
-            />
-            {/* Guitar Neck & Headstock */}
-            <path d="M42 54 L76 34" stroke="#d97706" strokeWidth="3.5" />
-            <path d="M76 34 L82 30" stroke="#78350f" strokeWidth="4.5" />
-            
-            {/* Left Arm (Holding Neck) */}
-            <path d="M48 32 Q62 26, 70 38" stroke="#10b981" strokeWidth="2.5" />
-            
-            {/* Right Arm (Strumming - Moves up & down fast) */}
-            <path 
-              d="M52 32 Q44 42, 36 48" 
-              className="animate-strum-arm" 
-              stroke="#6ee7b7" 
-              strokeWidth="3" 
-              style={{ transformOrigin: '50% 32%', transformBox: 'fill-box' }} 
-            />
-          </g>
+          {/* Teclas Blancas */}
+          <rect x="0" y="0" width="11" height="50" rx="1.5" className="animate-key-1 fill-white stroke-slate-700 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+          <rect x="12" y="0" width="11" height="50" rx="1.5" className="animate-key-2 fill-white stroke-slate-700 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+          <rect x="24" y="0" width="11" height="50" rx="1.5" className="animate-key-3 fill-white stroke-slate-700 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+          <rect x="36" y="0" width="11" height="50" rx="1.5" className="animate-key-4 fill-white stroke-slate-700 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+          <rect x="48" y="0" width="11" height="50" rx="1.5" className="animate-key-5 fill-white stroke-slate-700 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+          <rect x="60" y="0" width="11" height="50" rx="1.5" className="animate-key-6 fill-white stroke-slate-700 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+          <rect x="72" y="0" width="11" height="50" rx="1.5" className="animate-key-7 fill-white stroke-slate-700 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+
+          {/* Teclas Negras */}
+          <rect x="8" y="0" width="6" height="30" rx="1" className="animate-bkey-1 fill-slate-900 stroke-slate-950 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+          <rect x="20" y="0" width="6" height="30" rx="1" className="animate-bkey-2 fill-slate-900 stroke-slate-950 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
           
-          {/* Floating Music Notes */}
-          <g>
-            <text x="20" y="32" className="animate-note-float-1 text-[14px] fill-emerald-400 font-bold font-sans">🎵</text>
-            <text x="68" y="24" className="animate-note-float-2 text-[12px] fill-blue-400 font-bold font-sans">🎶</text>
-            <text x="32" y="18" className="animate-note-float-3 text-[16px] fill-amber-400 font-bold font-sans">🎵</text>
-          </g>
+          <rect x="44" y="0" width="6" height="30" rx="1" className="animate-bkey-3 fill-slate-900 stroke-slate-950 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+          <rect x="56" y="0" width="6" height="30" rx="1" className="animate-bkey-4 fill-slate-900 stroke-slate-950 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
+          <rect x="68" y="0" width="6" height="30" rx="1" className="animate-bkey-5 fill-slate-900 stroke-slate-950 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
         </svg>
       </div>
       <p className="text-xs text-slate-400 font-bold uppercase tracking-widest animate-pulse">Procesando...</p>
@@ -2044,6 +2020,7 @@ const ExpensesView = ({ currentUser, showToast, requestConfirm, selectedProject,
       const res = await apiFetch('getProyectos');
       if (res.status === 'success') {
         setProyectos(res.data);
+        CACHE.proyectos = res.data;
       }
     } catch(e) {
       showToast("Error al cargar proyectos.");
@@ -2201,7 +2178,7 @@ const ExpensesView = ({ currentUser, showToast, requestConfirm, selectedProject,
   if (loading) {
     return (
       <Card className="p-8 text-center bg-slate-900 border border-slate-800">
-        <GuitarLoader size={90} />
+        <PianoLoader size={90} />
         <p className="font-bold text-sm text-slate-300 mt-2">Cargando Módulo de Gastos...</p>
       </Card>
     );
@@ -2236,6 +2213,7 @@ const ExpensesView = ({ currentUser, showToast, requestConfirm, selectedProject,
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+          <Button variant="ghost" icon={RefreshCw} onClick={() => loadData()} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar" />
         </div>
       </div>
 
@@ -3003,7 +2981,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
               {fetchError ? (
                 <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
               ) : loading && hitos.length === 0 ? (
-                <div className="flex justify-center p-6"><GuitarLoader size={70} /></div>
+                <div className="flex justify-center p-6"><PianoLoader size={70} /></div>
               ) : hitos.length === 0 ? (
                 <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
                   <CalendarPlus className="mx-auto text-slate-600 mb-3" size={32} />
@@ -4068,43 +4046,45 @@ const StaffDirectory = ({ currentUser }) => {
   const [fetchError, setFetchError] = useState(false);
   const [localDirectory, setLocalDirectory] = useState([]);
 
-  useEffect(() => {
-    const fetchDirectory = async (force = false) => {
-      setLoading(true);
-      try {
-        let users = CACHE.usuarios;
-        if (force || !users) {
-          const res = await apiFetch('getUsuarios');
-          if (res.status === 'success') { users = res.data; CACHE.usuarios = users; }
-          else { users = []; }
-        }
-        
-        let projs = CACHE.proyectos;
-        if (force || !projs) {
-          const resP = await apiFetch('getProyectos');
-          if (resP.status === 'success') { 
-            projs = resP.data.map(p => ({ ...p, asignados: Array.isArray(p.asignados) ? p.asignados : [] })); 
-            CACHE.proyectos = projs; 
-          } else { projs = []; }
-        }
+  const fetchDirectory = async (force = false) => {
+    setLoading(true);
+    setFetchError(false);
+    try {
+      let users = CACHE.usuarios;
+      if (force || !users) {
+        const res = await apiFetch('getUsuarios');
+        if (res.status === 'success') { users = res.data; CACHE.usuarios = users; }
+        else { users = []; }
+      }
+      
+      let projs = CACHE.proyectos;
+      if (force || !projs) {
+        const resP = await apiFetch('getProyectos');
+        if (resP.status === 'success') { 
+          projs = resP.data.map(p => ({ ...p, asignados: Array.isArray(p.asignados) ? p.asignados : [] })); 
+          CACHE.proyectos = projs; 
+        } else { projs = []; }
+      }
 
-        const activeUsers = users.filter(u => u.status === 'ACTIVO' && u.email !== currentUser.email);
-        const canSeeEveryone = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.JEFE_CAT_APV, ROLES.APV].includes(currentUser.role);
-        
-        let visibleEmails = new Set();
-        if (!canSeeEveryone) {
-           projs.forEach(p => {
-              if (p.asignados.includes(currentUser.email)) {
-                 p.asignados.forEach(e => visibleEmails.add(e));
-              }
-           });
-           setLocalDirectory(activeUsers.filter(u => visibleEmails.has(u.email)));
-        } else {
-           setLocalDirectory(activeUsers);
-        }
-      } catch(e) { setFetchError(true); }
-      setLoading(false);
-    };
+      const activeUsers = users.filter(u => u.status === 'ACTIVO' && u.email !== currentUser.email);
+      const canSeeEveryone = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.JEFE_CAT_APV, ROLES.APV].includes(currentUser.role);
+      
+      let visibleEmails = new Set();
+      if (!canSeeEveryone) {
+         projs.forEach(p => {
+            if (p.asignados.includes(currentUser.email)) {
+               p.asignados.forEach(e => visibleEmails.add(e));
+            }
+         });
+         setLocalDirectory(activeUsers.filter(u => visibleEmails.has(u.email)));
+      } else {
+         setLocalDirectory(activeUsers);
+      }
+    } catch(e) { setFetchError(true); }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchDirectory();
   }, [currentUser]);
 
@@ -4115,6 +4095,7 @@ const StaffDirectory = ({ currentUser }) => {
           <h1 className="text-2xl font-black text-white flex items-center gap-2 md:gap-3"><Users className="text-emerald-500" size={24} /> Directorio</h1>
           <p className="text-xs md:text-sm text-slate-400 mt-1">{[ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) ? 'Lista del personal activo.' : 'Contactos asignados.'}</p>
         </div>
+        <Button variant="ghost" icon={RefreshCw} onClick={() => fetchDirectory(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar" />
       </header>
 
       <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 md:p-6 mb-6 print:border-black print:bg-white print:text-black hidden print:block">
