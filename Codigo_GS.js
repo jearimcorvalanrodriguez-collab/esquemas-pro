@@ -181,9 +181,23 @@ function doPost(e) {
     // ==========================================
     // 1. SECCIÓN USUARIOS, LOGIN Y PERFILES
     // ==========================================
-    if (action === 'solicitarAcceso' || action === 'aprobarUsuario' || action === 'rechazarUsuario' || action === 'eliminarUsuario' || action === 'login' || action === 'getUsuarios' || action === 'updateProfile' || action === 'updateUserAdmin') {
+    if (action === 'solicitarAcceso' || action === 'checkEmailTC' || action === 'aprobarUsuario' || action === 'rechazarUsuario' || action === 'eliminarUsuario' || action === 'login' || action === 'getUsuarios' || action === 'updateProfile' || action === 'updateUserAdmin') {
       const sheetUsuarios = ss.getSheetByName('Usuarios');
       if (!sheetUsuarios) return configurarCORS({ status: 'error', message: 'Pestaña Usuarios no existe.' });
+
+      if (action === 'checkEmailTC') {
+        const emailLower = data.payload.email.trim().toLowerCase();
+        const rows = sheetUsuarios.getDataRange().getValues();
+        for (let i = 1; i < rows.length; i++) {
+          if (rows[i][2].toString().trim().toLowerCase() === emailLower) {
+            const tcVal = rows[i][10] ? rows[i][10].toString().trim() : '';
+            if (tcVal && (tcVal.indexOf('Aceptado:') === 0 || tcVal.indexOf('Reingreso Aceptado:') === 0)) {
+              return configurarCORS({ status: 'success', accepted: true });
+            }
+          }
+        }
+        return configurarCORS({ status: 'success', accepted: false });
+      }
 
       if (action === 'solicitarAcceso') {
         const newId = new Date().getTime(); 

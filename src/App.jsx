@@ -21,6 +21,54 @@ const ROLES = {
   APV: 'APV/CATERING'
 };
 
+const GuitarLoader = ({ size = 80 }) => {
+  return (
+    <div className="flex flex-col items-center justify-center p-6 space-y-4">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg 
+          viewBox="0 0 100 100" 
+          className="w-full h-full text-emerald-400 stroke-current fill-none stroke-[2.5]"
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+        >
+          {/* Musician's Head & Body (Sways slightly) */}
+          <g className="animate-musician-sway" style={{ transformOrigin: '50px 85px' }}>
+            {/* Head */}
+            <circle cx="50" cy="22" r="8" className="fill-slate-950 stroke-emerald-500" />
+            
+            {/* Torso & Legs */}
+            <path d="M50 30 L50 60 L38 80" className="stroke-slate-400" />
+            <path d="M50 60 L62 80" className="stroke-slate-400" />
+            
+            {/* Guitar Body */}
+            <path 
+              d="M32 50 C26 44, 22 55, 30 62 C38 68, 48 64, 45 54 C42 46, 36 54, 32 50 Z" 
+              className="fill-emerald-950/80 stroke-emerald-500 stroke-[3]" 
+            />
+            {/* Guitar Neck & Headstock */}
+            <path d="M42 54 L76 34" className="stroke-amber-600 stroke-[4]" />
+            <path d="M76 34 L82 30" className="stroke-amber-800 stroke-[5]" />
+            
+            {/* Left Arm (Holding Neck) */}
+            <path d="M48 32 Q62 26, 70 38" className="stroke-emerald-400" />
+            
+            {/* Right Arm (Strumming - Moves up & down fast) */}
+            <path d="M52 32 Q44 42, 36 48" className="animate-strum-arm stroke-emerald-300 stroke-[3]" style={{ transformOrigin: '50px 32px' }} />
+          </g>
+          
+          {/* Floating Music Notes */}
+          <g>
+            <text x="20" y="32" className="animate-note-float-1 text-[14px] fill-emerald-400 font-bold font-sans">🎵</text>
+            <text x="68" y="24" className="animate-note-float-2 text-[12px] fill-blue-400 font-bold font-sans">🎶</text>
+            <text x="32" y="18" className="animate-note-float-3 text-[16px] fill-amber-400 font-bold font-sans">🎵</text>
+          </g>
+        </svg>
+      </div>
+      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest animate-pulse">Procesando...</p>
+    </div>
+  );
+};
+
 const ESQUEMAS_MASTER_SECRET = 'Tk9fTWVfSGFja2VlczIwMjYhQCM='; 
 
 // --- SISTEMA DE CACHÉ GLOBAL EN MEMORIA ---
@@ -1031,10 +1079,33 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   const [regPhone, setRegPhone] = useState('+569');
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [tcAccepted, setTcAccepted] = useState(false);
+  const [alreadyAcceptedTC, setAlreadyAcceptedTC] = useState(false);
+
+  const checkEmailTCStatus = async (emailToCheck) => {
+    if (!emailToCheck || !emailToCheck.includes('@')) {
+      setAlreadyAcceptedTC(false);
+      return;
+    }
+    try {
+      const res = await apiFetch('checkEmailTC', { email: emailToCheck });
+      if (res.status === 'success' && res.accepted) {
+        setAlreadyAcceptedTC(true);
+        setDisclaimerAccepted(true);
+        setTcAccepted(true);
+      } else {
+        setAlreadyAcceptedTC(false);
+        setDisclaimerAccepted(false);
+        setTcAccepted(false);
+      }
+    } catch(e) {
+      setAlreadyAcceptedTC(false);
+    }
+  };
 
   useEffect(() => {
     setDisclaimerAccepted(false);
     setTcAccepted(false);
+    setAlreadyAcceptedTC(false);
   }, [mode]);
 
   const handleLogin = async (e) => {
@@ -1163,23 +1234,25 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
           <form onSubmit={handleRegister} className="space-y-3">
             {error && <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-xs p-2.5 rounded-lg flex items-center gap-2"><AlertCircle size={14} /><span>{error}</span></div>}
             <div><label className="block text-xs font-bold text-slate-400 mb-1">Nombre Completo</label><input type="text" value={regName} onChange={e=>setRegName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div>
-            <div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-slate-400 mb-1">Correo</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div><div><label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label><input type="tel" value={regPhone} onChange={e=>setRegPhone(e.target.value.replace(/[^0-9+]/g, ''))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div></div>
+            <div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-slate-400 mb-1">Correo</label><input type="email" value={email} onChange={e=>{ setEmail(e.target.value); checkEmailTCStatus(e.target.value); }} onBlur={e => checkEmailTCStatus(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div><div><label className="block text-xs font-bold text-slate-400 mb-1">Teléfono</label><input type="tel" value={regPhone} onChange={e=>setRegPhone(e.target.value.replace(/[^0-9+]/g, ''))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none" required /></div></div>
             <div><label className="block text-xs font-bold text-slate-400 mb-1">Rol</label><select value={regRole} onChange={e=>setRegRole(e.target.value)} className="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:border-emerald-500 outline-none break-words whitespace-normal">{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
             
-            <div className="space-y-2 pt-1 text-left">
-              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-[10px] text-slate-400 max-h-20 overflow-y-auto custom-scrollbar leading-relaxed">
-                <p className="font-bold text-slate-300 mb-0.5">AVISO DE TRATAMIENTO DE DATOS</p>
-                Al solicitar acceso, aceptas que recopilamos tu nombre, correo, teléfono (para contacto/WhatsApp), talla de vestimenta (para uniformes/merch) y restricciones alimenticias (para catering). Estos datos se usarán solo para fines operativos y se conservarán mientras existan la app y web app.
-              </div>
-              <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" required checked={disclaimerAccepted} onChange={e => setDisclaimerAccepted(e.target.checked)} className="accent-emerald-500 rounded bg-slate-900 border-slate-700 mt-0.5" />
-                <span>Acepto el tratamiento de mis datos personales y sensibles.</span>
-              </label>
-              <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer select-none pt-1">
-                <input type="checkbox" required checked={tcAccepted} onChange={e => setTcAccepted(e.target.checked)} className="accent-emerald-500 rounded bg-slate-900 border-slate-700 mt-0.5" />
-                <span>He leído y acepto los <a href="#" className="text-emerald-500 hover:underline font-bold">Términos y Condiciones</a> y la <a href="#" className="text-emerald-500 hover:underline font-bold">Política de Privacidad</a>.</span>
-              </label>
-            </div>
+            {!alreadyAcceptedTC && (
+               <div className="space-y-2 pt-1 text-left">
+                 <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-[10px] text-slate-400 max-h-20 overflow-y-auto custom-scrollbar leading-relaxed">
+                   <p className="font-bold text-slate-300 mb-0.5">AVISO DE TRATAMIENTO DE DATOS</p>
+                   Al solicitar acceso, aceptas que recopilamos tu nombre, correo, teléfono (para contacto/WhatsApp), talla de vestimenta (para uniformes/merch) y restricciones alimenticias (para catering). Estos datos se usarán solo para fines operativos y se conservarán mientras existan la app y web app.
+                 </div>
+                 <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer select-none">
+                   <input type="checkbox" required checked={disclaimerAccepted} onChange={e => setDisclaimerAccepted(e.target.checked)} className="accent-emerald-500 rounded bg-slate-900 border-slate-700 mt-0.5" />
+                   <span>Acepto el tratamiento de mis datos personales y sensibles.</span>
+                 </label>
+                 <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer select-none pt-1">
+                   <input type="checkbox" required checked={tcAccepted} onChange={e => setTcAccepted(e.target.checked)} className="accent-emerald-500 rounded bg-slate-900 border-slate-700 mt-0.5" />
+                   <span>He leído y acepto los <a href="#" className="text-emerald-500 hover:underline font-bold">Términos y Condiciones</a> y la <a href="#" className="text-emerald-500 hover:underline font-bold">Política de Privacidad</a>.</span>
+                 </label>
+               </div>
+             )}
 
             <Button type="submit" className="w-full py-2.5 mt-2" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Enviar Solicitud'}</Button>
             <p className="text-center text-xs text-slate-400 mt-3"><button type="button" onClick={()=>setMode('LOGIN')} className="text-emerald-500 font-bold hover:underline">Volver al Login</button></p>
@@ -2059,10 +2132,10 @@ const ExpensesView = ({ currentUser, showToast, requestConfirm, selectedProject,
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-slate-400">
-        <Loader2 className="animate-spin text-emerald-500 mb-3" size={32} />
-        <p className="font-bold text-sm">Cargando Módulo de Gastos...</p>
-      </div>
+      <Card className="p-8 text-center bg-slate-900 border border-slate-800">
+        <GuitarLoader size={90} />
+        <p className="font-bold text-sm text-slate-300 mt-2">Cargando Módulo de Gastos...</p>
+      </Card>
     );
   }
 
@@ -2834,7 +2907,7 @@ const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, show
               {fetchError ? (
                 <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-red-400 flex items-center gap-3"><AlertCircle size={20} /> {fetchError}</div>
               ) : loading && hitos.length === 0 ? (
-                <div className="flex justify-center p-6"><Loader2 className="animate-spin text-emerald-500" size={24}/></div>
+                <div className="flex justify-center p-6"><GuitarLoader size={70} /></div>
               ) : hitos.length === 0 ? (
                 <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
                   <CalendarPlus className="mx-auto text-slate-600 mb-3" size={32} />
