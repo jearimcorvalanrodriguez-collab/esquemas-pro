@@ -21,10 +21,10 @@ const ROLES = {
   APV: 'APV/CATERING'
 };
 
-const PianoLoader = ({ size = 80 }) => {
+const PianoLoader = ({ size = 80, showLabel = true }) => {
   const widthVal = size * 1.68; // Mantener relación de aspecto del piano (84:50)
   return (
-    <div className="flex flex-col items-center justify-center p-6 space-y-4">
+    <div className="flex flex-col items-center justify-center p-2 space-y-2 inline-flex">
       <div className="relative" style={{ width: `${widthVal}px`, height: `${size}px` }}>
         <svg 
           viewBox="0 0 84 50" 
@@ -48,7 +48,7 @@ const PianoLoader = ({ size = 80 }) => {
           <rect x="68" y="0" width="6" height="30" rx="1" className="animate-bkey-5 fill-slate-900 stroke-slate-950 stroke-[0.5]" style={{ transformBox: 'fill-box' }} />
         </svg>
       </div>
-      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest animate-pulse">Procesando...</p>
+      {showLabel && size >= 30 && <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest animate-pulse mt-1">Procesando...</p>}
     </div>
   );
 };
@@ -217,7 +217,7 @@ const AddressAutocomplete = ({ value, onChange, placeholder, className, required
         <ul className="absolute z-[9999] w-full bg-slate-900 border border-slate-700 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-2xl text-left">
           {loading && (
             <li className="p-2.5 text-xs text-slate-400 flex items-center gap-2">
-              <Loader2 className="animate-spin text-blue-500" size={12} />
+              <PianoLoader size={12} showLabel={false} />
               <span>Buscando sugerencias...</span>
             </li>
           )}
@@ -1582,7 +1582,7 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
         </Card>
       )}
 
-      {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-blue-500" size={28}/></div> : transports.length === 0 ? <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50 text-slate-500">No hay transportes programados en este proyecto.</div> : (
+      {loading ? <div className="flex justify-center p-8"><PianoLoader size={40} /></div> : transports.length === 0 ? <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50 text-slate-500">No hay transportes programados en este proyecto.</div> : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {transports.map(t => {
             const hasDriver = !!t.conductor;
@@ -2619,7 +2619,7 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
         {fetchError ? (
           <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl text-red-400 flex items-center gap-2 text-sm"><AlertCircle size={18} /> {fetchError}</div>
         ) : loading && proyectos.length === 0 ? (
-          <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div>
+          <div className="flex justify-center p-8"><PianoLoader size={40} /></div>
         ) : visibleProyectos.length === 0 ? (
           <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50 mt-6">
              <Navigation className="mx-auto text-slate-600 mb-4" size={48} />
@@ -4011,7 +4011,7 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
               <AlertCircle size={18} /> Error al cargar Riders.
             </div>
           ) : loading && visibleRiders.length === 0 ? (
-            <div className="flex justify-center p-8 print:hidden"><Loader2 className="animate-spin text-emerald-500" size={28}/></div>
+            <div className="flex justify-center p-8 print:hidden"><PianoLoader size={40} /></div>
           ) : visibleRiders.length === 0 ? (
             <div className="text-center p-8 border border-slate-800 border-dashed rounded-xl text-slate-500 text-sm print:hidden">No tienes Riders asignados para visualizar.</div>
           ) : (
@@ -4146,7 +4146,7 @@ const StaffDirectory = ({ currentUser }) => {
           <AlertCircle size={18} /> Error al cargar el directorio.
         </div>
       ) : loading && localDirectory.length === 0 ? ( 
-        <div className="flex justify-center p-8 print:hidden"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> 
+        <div className="flex justify-center p-8 print:hidden"><PianoLoader size={40} /></div> 
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 print:hidden">
           {localDirectory.map((user, idx) => (
@@ -4284,7 +4284,7 @@ const ChatView = ({ currentUser, showToast, requestConfirm }) => {
           <Button variant="ghost" icon={RefreshCw} onClick={() => fetchData(true)} className="px-2 border border-slate-700 hover:text-emerald-400" title="Actualizar" />
         </header>
 
-        {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> : proyectos.length === 0 ? (
+        {loading ? <div className="flex justify-center p-8"><PianoLoader size={40} /></div> : proyectos.length === 0 ? (
           <div className="text-center p-12 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
              <MessageSquare className="mx-auto text-slate-600 mb-4" size={48} />
              <p className="text-slate-400 text-sm max-w-md mx-auto">No tienes proyectos asignados para visualizar anuncios.</p>
@@ -4480,7 +4480,7 @@ const RoleConfigView = ({ currentUser, showToast, MODULOS }) => {
         <div>
           <label className="block text-[10px] font-bold text-slate-400 mb-2.5 uppercase">Privilegios para {selectedRole}</label>
           {loading ? (
-            <div className="flex justify-center p-6"><Loader2 className="animate-spin text-blue-500" size={20}/></div>
+            <div className="flex justify-center p-6"><PianoLoader size={30} /></div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-950 p-3 rounded-lg border border-slate-850">
               {MODULOS.map(mod => {
@@ -4699,7 +4699,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
       {fetchError ? (
         <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl text-red-400 flex items-center gap-2 text-sm"><AlertCircle size={18} /> Error al cargar la data.</div>
       ) : loading && dbUsers.length === 0 ? ( 
-        <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" size={28}/></div> 
+        <div className="flex justify-center p-8"><PianoLoader size={40} /></div> 
       ) : (
         <>
           {activeTab === 'PENDIENTES' && (
