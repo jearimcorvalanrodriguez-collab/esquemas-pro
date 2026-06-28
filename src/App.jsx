@@ -7,7 +7,7 @@ import {
   Phone, Mail, CheckCheck, Send, Timer, Hourglass,
   Shield, CalendarPlus, FileText, Mic2, Lightbulb, Map as MapIcon, Save,
   Trash2, FolderPlus, RefreshCw, ChevronLeft, CheckSquare, Square, Printer, Utensils, CalendarDays,
-  RotateCw, Maximize, Minimize, Link, Eye, EyeOff, Copy, ExternalLink, MessageCircle
+  RotateCw, Maximize, Minimize, Link, Eye, EyeOff, Copy, ExternalLink, MessageCircle, Play
 } from 'lucide-react';
 
 const ROLES = {
@@ -1686,8 +1686,38 @@ const ConductorView = ({ currentUser, showToast }) => {
         setRouteInfo({...routeInfo, status: newStatus});
         showToast(`Estado actualizado a ${newStatus}`);
         clearCache('transportes');
+        
+        let alertText = '';
+        if (newStatus === 'COMENZADO') {
+          alertText = `🚐 [Logística] El conductor ha comenzado la preparación/ruta "${routeInfo.title}" (Token: ${routeInfo.token}).`;
+        } else if (newStatus === 'EN VIAJE') {
+          alertText = `🚐 [Logística] El conductor ha iniciado el viaje para la ruta "${routeInfo.title}". ¡En camino!`;
+        } else if (newStatus === 'LLEGADO') {
+          alertText = `📢 [AVISO LLEGADA] 🚐 ¡El conductor de la ruta "${routeInfo.title}" ha LLEGADO al punto de destino/espera!`;
+        } else if (newStatus === 'FINALIZADO') {
+          alertText = `🚐 [Logística] La ruta de transporte "${routeInfo.title}" ha finalizado con éxito.`;
+        }
+
+        if (alertText && routeInfo.proyectoId) {
+          try {
+            await apiFetch('sendMensaje', {
+              proyectoId: routeInfo.proyectoId,
+              sender: '🚐 Transporte',
+              role: 'LOGISTICA',
+              text: alertText,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            clearCache('chat');
+          } catch(e) {
+            console.error("Error al enviar mensaje de notificación de transporte", e);
+          }
+        }
+      } else {
+        showToast(`Error: ${res.message}`);
       }
-    } catch(e) { showToast("Error al actualizar estado."); }
+    } catch(e) { 
+      showToast("Error al actualizar estado."); 
+    }
     setLoading(false);
   };
 
@@ -1695,10 +1725,27 @@ const ConductorView = ({ currentUser, showToast }) => {
     <div className="p-4 max-w-lg mx-auto animate-fade-in mt-4">
       <Card className="p-6 border-blue-500/50">
         <h2 className="text-xl font-black text-white mb-2">{routeInfo.title}</h2>
-        <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 mb-4 flex items-center justify-between">
-           <span className="text-xs text-slate-400 uppercase font-bold">Token Ruta</span>
-           <span className="font-mono text-emerald-400 font-bold tracking-widest text-lg">{routeInfo.token}</span>
+        
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-col justify-center text-left">
+             <span className="text-[10px] text-slate-500 uppercase font-bold mb-1">Token Ruta</span>
+             <span className="font-mono text-emerald-400 font-bold tracking-widest text-base">{routeInfo.token}</span>
+          </div>
+          <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-col justify-center text-left">
+             <span className="text-[10px] text-slate-500 uppercase font-bold mb-1">Estado Actual</span>
+             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-center border ${
+               routeInfo.status === 'PENDING' || routeInfo.status === 'PENDIENTE' ? 'bg-slate-800 text-slate-400 border-slate-700' :
+               routeInfo.status === 'COMENZADO' ? 'bg-indigo-950 text-indigo-400 border-indigo-900/50' :
+               routeInfo.status === 'EN VIAJE' || routeInfo.status === 'EN RUTA' ? 'bg-blue-950 text-blue-400 border-blue-900/50' :
+               routeInfo.status === 'LLEGADO' ? 'bg-emerald-950 text-emerald-400 border-emerald-900/50' :
+               routeInfo.status === 'FINALIZADO' ? 'bg-slate-900 text-slate-500 border-slate-800' :
+               'bg-slate-800 text-slate-400'
+             }`}>
+               {routeInfo.status || 'PENDIENTE'}
+             </span>
+          </div>
         </div>
+
         <div className="space-y-3 text-sm text-slate-300 mb-6 text-left">
           <p className="flex items-center gap-2"><Calendar size={16} className="text-blue-400"/> Fecha: {routeInfo.date} a las {routeInfo.time}</p>
           
@@ -1760,7 +1807,7 @@ const ConductorView = ({ currentUser, showToast }) => {
           </div>
         </div>
 
-        <div className="mb-4">
+        <div className="mb-6">
           <a 
             href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(routeInfo.origin)}&destination=${encodeURIComponent(routeInfo.dest)}&waypoints=${encodeURIComponent((routeInfo.paradas || []).join('|'))}`} 
             target="_blank" 
@@ -1773,9 +1820,46 @@ const ConductorView = ({ currentUser, showToast }) => {
         
         <div className="space-y-3">
           <p className="text-xs text-slate-400 uppercase font-bold text-center">Actualizar Estado</p>
-          <Button variant="secondary" className="w-full py-3" onClick={()=>updateStatus('PENDING')} disabled={loading || routeInfo.status === 'PENDING'}>Marcar PENDIENTE</Button>
-          <Button variant="blue" className="w-full py-3" onClick={()=>updateStatus('EN RUTA')} disabled={loading || routeInfo.status === 'EN RUTA'}>Marcar EN RUTA</Button>
-          <Button variant="primary" className="w-full py-3" onClick={()=>updateStatus('FINALIZADO')} disabled={loading || routeInfo.status === 'FINALIZADO'}>Marcar FINALIZADO</Button>
+          
+          <Button 
+            variant="secondary" 
+            className="w-full py-3 flex justify-center items-center gap-2" 
+            onClick={() => updateStatus('COMENZADO')} 
+            disabled={loading || routeInfo.status === 'COMENZADO' || routeInfo.status === 'FINALIZADO'}
+            icon={Play}
+          >
+            Comenzar Ruta
+          </Button>
+
+          <Button 
+            variant="blue" 
+            className="w-full py-3 flex justify-center items-center gap-2" 
+            onClick={() => updateStatus('EN VIAJE')} 
+            disabled={loading || routeInfo.status === 'EN VIAJE' || routeInfo.status === 'FINALIZADO'}
+            icon={Truck}
+          >
+            Comienzo Viaje
+          </Button>
+
+          <Button 
+            variant="primary" 
+            className="w-full py-3 flex justify-center items-center gap-2" 
+            onClick={() => updateStatus('LLEGADO')} 
+            disabled={loading || routeInfo.status === 'LLEGADO' || routeInfo.status === 'FINALIZADO'}
+            icon={MapPin}
+          >
+            ¡Llegué! (Avisar a equipo)
+          </Button>
+
+          <Button 
+            variant="danger" 
+            className="w-full py-3 flex justify-center items-center gap-2" 
+            onClick={() => updateStatus('FINALIZADO')} 
+            disabled={loading || routeInfo.status === 'FINALIZADO'}
+            icon={CheckCircle2}
+          >
+            Fin de Ruta
+          </Button>
         </div>
       </Card>
     </div>
@@ -4069,11 +4153,17 @@ export default function App() {
           const res = await apiFetch('aceptarRuta', { token: acceptToken });
           if (res.status === 'success') {
             showToast(`¡Ruta ${acceptToken} Aceptada con Éxito!`);
+          }
+          // Iniciar sesión automático del conductor a través del Token
+          const loginRes = await apiFetch('loginConductor', { token: acceptToken });
+          if (loginRes.status === 'success') {
+            setCurrentUser(loginRes.user);
+            setCurrentView('CONDUCTOR_VIEW');
           } else {
-            showToast(`Error al aceptar ruta: ${res.message}`);
+            showToast(`Error al loguear conductor: ${loginRes.message}`);
           }
         } catch(e) {
-          showToast("Error de conexión al aceptar la ruta.");
+          showToast("Error de conexión al procesar la ruta.");
         }
       };
       acceptRoute();
