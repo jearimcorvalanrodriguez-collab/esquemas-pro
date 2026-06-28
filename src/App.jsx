@@ -24,36 +24,44 @@ const ROLES = {
 const GuitarLoader = ({ size = 80 }) => {
   return (
     <div className="flex flex-col items-center justify-center p-6 space-y-4">
-      <div className="relative" style={{ width: size, height: size }}>
+      <div className="relative" style={{ width: `${size}px`, height: `${size}px` }}>
         <svg 
           viewBox="0 0 100 100" 
-          className="w-full h-full text-emerald-400 stroke-current fill-none stroke-[2.5]"
+          className="w-full h-full fill-none"
           strokeLinecap="round" 
           strokeLinejoin="round"
         >
           {/* Musician's Head & Body (Sways slightly) */}
-          <g className="animate-musician-sway" style={{ transformOrigin: '50px 85px' }}>
+          <g className="animate-musician-sway" style={{ transformOrigin: '50% 85%', transformBox: 'fill-box' }}>
             {/* Head */}
-            <circle cx="50" cy="22" r="8" className="fill-slate-950 stroke-emerald-500" />
+            <circle cx="50" cy="22" r="8" fill="#020617" stroke="#10b981" strokeWidth="2.5" />
             
             {/* Torso & Legs */}
-            <path d="M50 30 L50 60 L38 80" className="stroke-slate-400" />
-            <path d="M50 60 L62 80" className="stroke-slate-400" />
+            <path d="M50 30 L50 60 L38 80" stroke="#94a3b8" strokeWidth="2.5" />
+            <path d="M50 60 L62 80" stroke="#94a3b8" strokeWidth="2.5" />
             
             {/* Guitar Body */}
             <path 
               d="M32 50 C26 44, 22 55, 30 62 C38 68, 48 64, 45 54 C42 46, 36 54, 32 50 Z" 
-              className="fill-emerald-950/80 stroke-emerald-500 stroke-[3]" 
+              fill="#064e3b" 
+              stroke="#10b981" 
+              strokeWidth="3" 
             />
             {/* Guitar Neck & Headstock */}
-            <path d="M42 54 L76 34" className="stroke-amber-600 stroke-[4]" />
-            <path d="M76 34 L82 30" className="stroke-amber-800 stroke-[5]" />
+            <path d="M42 54 L76 34" stroke="#d97706" strokeWidth="3.5" />
+            <path d="M76 34 L82 30" stroke="#78350f" strokeWidth="4.5" />
             
             {/* Left Arm (Holding Neck) */}
-            <path d="M48 32 Q62 26, 70 38" className="stroke-emerald-400" />
+            <path d="M48 32 Q62 26, 70 38" stroke="#10b981" strokeWidth="2.5" />
             
             {/* Right Arm (Strumming - Moves up & down fast) */}
-            <path d="M52 32 Q44 42, 36 48" className="animate-strum-arm stroke-emerald-300 stroke-[3]" style={{ transformOrigin: '50px 32px' }} />
+            <path 
+              d="M52 32 Q44 42, 36 48" 
+              className="animate-strum-arm" 
+              stroke="#6ee7b7" 
+              strokeWidth="3" 
+              style={{ transformOrigin: '50% 32%', transformBox: 'fill-box' }} 
+            />
           </g>
           
           {/* Floating Music Notes */}
@@ -140,7 +148,7 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
   return (
     <button type={type} onClick={onClick} disabled={disabled} title={title} className={`${base} ${variants[variant]} ${className}`}>
       {Icon && <Icon size={14} className="shrink-0" />}
-      <span className="truncate">{children}</span>
+      <span className="truncate inline-flex items-center justify-center gap-1.5 leading-none">{children}</span>
     </button>
   );
 };
@@ -3396,29 +3404,29 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
               <div className="space-y-4 md:space-y-6">
                 <div>
                   <div className="flex justify-between items-end mb-1.5"><label className="text-xs md:text-sm font-bold text-white block">Sección IMPORTANTE</label><Button variant="ghost" className="py-0.5 px-2 text-[10px]" icon={FileText} onClick={() => setForm(prev => ({...prev, content: {...prev.content, importante: templatesTexto.importante}}))}>Usar Plantilla</Button></div>
-                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] focus:border-emerald-500 outline-none" value={form.content.importante} onChange={e=>setForm({...form, content: {...prev.content, importante: e.target.value}})} placeholder="Información crucial..." />
+                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] focus:border-emerald-500 outline-none" value={form.content.importante} onChange={e=>setForm(prev=>({...prev, content: {...prev.content, importante: e.target.value}}))} placeholder="Información crucial..." />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
                   <div className="p-3 md:p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2.5">
                     <h4 className="font-bold text-white text-xs md:text-sm mb-1.5">Contacto Management</h4>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Nombre y Apellidos</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtNombre || ''} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, mgmtNombre: e.target.value}}})} placeholder="Ej: Juan Pérez" /></div>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Celular</label><input type="tel" className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtCel} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, mgmtCel: e.target.value.replace(/[^0-9+]/g, '')}}})} placeholder="+569..." /></div>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Correo</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtCorreo} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, mgmtCorreo: e.target.value}}})} /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Nombre y Apellidos</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtNombre || ''} onChange={e=>setForm(prev=>({...prev, content: {...prev.content, contacto: {...prev.content.contacto, mgmtNombre: e.target.value}}}))} placeholder="Ej: Juan Pérez" /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Celular</label><input type="tel" className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtCel} onChange={e=>setForm(prev=>({...prev, content: {...prev.content, contacto: {...prev.content.contacto, mgmtCel: e.target.value.replace(/[^0-9+]/g, '')}}}))} placeholder="+569..." /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Correo</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.mgmtCorreo} onChange={e=>setForm(prev=>({...prev, content: {...prev.content, contacto: {...prev.content.contacto, mgmtCorreo: e.target.value}}}))} /></div>
                   </div>
                   <div className="p-3 md:p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2.5">
                     <h4 className="font-bold text-white text-xs md:text-sm mb-1.5">Contacto Producción</h4>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Nombre y Apellidos</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodNombre || ''} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, prodNombre: e.target.value}}})} placeholder="Ej: Ana Rojas" /></div>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Celular</label><input type="tel" className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodCel} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, prodCel: e.target.value.replace(/[^0-9+]/g, '')}}})} placeholder="+569..."/></div>
-                    <div><label className="text-[10px] text-slate-400 uppercase">Correo</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodCorreo} onChange={e=>setForm({...form, content: {...prev.content, contacto: {...prev.content.contacto, prodCorreo: e.target.value}}})} /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Nombre y Apellidos</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodNombre || ''} onChange={e=>setForm(prev=>({...prev, content: {...prev.content, contacto: {...prev.content.contacto, prodNombre: e.target.value}}}))} placeholder="Ej: Ana Rojas" /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Celular</label><input type="tel" className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodCel} onChange={e=>setForm(prev=>({...prev, content: {...prev.content, contacto: {...prev.content.contacto, prodCel: e.target.value.replace(/[^0-9+]/g, '')}}}))} placeholder="+569..."/></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase">Correo</label><input className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-xs md:text-sm outline-none focus:border-emerald-500" value={form.content.contacto.prodCorreo} onChange={e=>setForm(prev=>({...prev, content: {...prev.content, contacto: {...prev.content.contacto, prodCorreo: e.target.value}}}))} /></div>
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between items-end mb-1.5"><label className="text-xs md:text-sm font-bold text-white block">Requerimientos de SoundCheck</label><Button variant="ghost" className="py-0.5 px-2 text-[10px]" icon={FileText} onClick={() => setForm(prev => ({...prev, content: {...prev.content, soundcheck: templatesTexto.soundcheck}}))}>Usar Plantilla</Button></div>
-                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] focus:border-emerald-500 outline-none" value={form.content.soundcheck} onChange={e=>setForm({...form, content: {...prev.content, soundcheck: e.target.value}})} />
+                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-emerald-400 font-mono text-xs md:text-sm min-h-[60px] focus:border-emerald-500 outline-none" value={form.content.soundcheck} onChange={e=>setForm(prev=>({...prev, content: {...prev.content, soundcheck: e.target.value}}))} />
                 </div>
                 <div>
                   <div className="flex justify-between items-end mb-1.5"><label className="text-xs md:text-sm font-bold text-white block">Recordatorio Oficial</label><Button variant="ghost" className="py-0.5 px-2 text-[10px]" icon={FileText} onClick={() => setForm(prev => ({...prev, content: {...prev.content, recordatorio: templatesTexto.recordatorio}}))}>Usar Plantilla</Button></div>
-                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-red-400 font-mono text-xs md:text-sm min-h-[60px] outline-none focus:border-red-500" value={form.content.recordatorio} onChange={e=>setForm({...form, content: {...prev.content, recordatorio: e.target.value}})} />
+                  <AutoResizeTextarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 md:p-3 text-red-400 font-mono text-xs md:text-sm min-h-[60px] outline-none focus:border-red-500" value={form.content.recordatorio} onChange={e=>setForm(prev=>({...prev, content: {...prev.content, recordatorio: e.target.value}}))} />
                 </div>
               </div>
             )}
@@ -4474,7 +4482,10 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
     { id: 'RIDERS', label: 'Ver Riders' },
     { id: 'RIDERS_MANAGE', label: 'Gestionar Riders' },
     { id: 'TRANSPORT', label: 'Ver Transportes' },
-    { id: 'TRANSPORT_MANAGE', label: 'Gestionar Transportes' },
+    { id: 'TRANSPORT_CREATE', label: 'Crear Rutas de Transporte' },
+    { id: 'TRANSPORT_EDIT', label: 'Editar Rutas y Choferes' },
+    { id: 'HITOS', label: 'Ver Timing (Hitos)' },
+    { id: 'HITOS_MANAGE', label: 'Gestionar Timing (Hitos)' },
     { id: 'CHAT', label: 'Ver Anuncios (Chat)' },
     { id: 'CHAT_SEND', label: 'Enviar Anuncios (Chat)' },
     { id: 'STAFF', label: 'Ver Directorio' },
