@@ -960,7 +960,8 @@ const ProjectChatSidebar = ({ currentUser, selectedProject, showToast }) => {
   const [newMsg, setNewMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
-  const canSendMessages = (currentUser.permisos || []).includes('CHAT_SEND') || 
+  const canSendMessages = currentUser.role === ROLES.ADMIN || 
+    (currentUser.permisos || []).includes('CHAT_SEND') || 
     (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.JEFE_CAT_APV, ROLES.APV].includes(currentUser.role));
 
   const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); };
@@ -1326,11 +1327,14 @@ const TransportView = ({ currentUser, setCurrentView, showToast, selectedProject
   const [editForm, setEditForm] = useState({ title: '', date: '', time: '', origin: '', dest: '', paradas: [] });
   const [editStopInput, setEditStopInput] = useState('');
 
-  const canSeeTransport = (currentUser.permisos || []).includes('TRANSPORT') || 
+  const canSeeTransport = currentUser.role === ROLES.ADMIN || 
+                           (currentUser.permisos || []).includes('TRANSPORT') || 
                            (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role));
-  const canCreateRoute = (currentUser.permisos || []).includes('TRANSPORT_CREATE') || 
+  const canCreateRoute = currentUser.role === ROLES.ADMIN || 
+                          (currentUser.permisos || []).includes('TRANSPORT_CREATE') || 
                           (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role));
-  const canEditRoute = (currentUser.permisos || []).includes('TRANSPORT_EDIT') || 
+  const canEditRoute = currentUser.role === ROLES.ADMIN || 
+                        (currentUser.permisos || []).includes('TRANSPORT_EDIT') || 
                         (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role));
 
   if (!canSeeTransport) {
@@ -2513,13 +2517,17 @@ const Dashboard = ({ currentUser, setCurrentView, setSelectedProject, showToast,
 const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProject, showToast, requestConfirm }) => {
   const p = selectedProject;
   const canManage = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) || (currentUser.permisos || []).includes('PROJECTS_MANAGE');
-  const canSeeRiders = (currentUser.permisos || []).includes('RIDERS') || 
+  const canSeeRiders = currentUser.role === ROLES.ADMIN || 
+                        (currentUser.permisos || []).includes('RIDERS') || 
                         (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.JEFE_CAT_APV].includes(currentUser.role));
-  const canSeeTransport = (currentUser.permisos || []).includes('TRANSPORT') || 
+  const canSeeTransport = currentUser.role === ROLES.ADMIN || 
+                           (currentUser.permisos || []).includes('TRANSPORT') || 
                            (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TRASLADO].includes(currentUser.role));
-  const canSeeHitos = (currentUser.permisos || []).includes('HITOS') || 
+  const canSeeHitos = currentUser.role === ROLES.ADMIN || 
+                       (currentUser.permisos || []).includes('HITOS') || 
                        (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.JEFE_CAT_APV].includes(currentUser.role));
-  const canManageHitos = (currentUser.permisos || []).includes('HITOS_MANAGE') || 
+  const canManageHitos = currentUser.role === ROLES.ADMIN || 
+                          (currentUser.permisos || []).includes('HITOS_MANAGE') || 
                           (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role));
   
   const [hitos, setHitos] = useState([]);
@@ -2857,7 +2865,8 @@ const RidersView = ({ currentUser, showToast, requestConfirm, activeRider, setAc
   const [isPreview, setIsPreview] = useState(false);
   const [linkingRider, setLinkingRider] = useState(false);
   
-  const canSeeRiders = (currentUser.permisos || []).includes('RIDERS') || 
+  const canSeeRiders = currentUser.role === ROLES.ADMIN || 
+                        (currentUser.permisos || []).includes('RIDERS') || 
                         (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.JEFE_CAT_APV].includes(currentUser.role));
   const canManageRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.JEFE_CAT_APV].includes(currentUser.role) || (currentUser.permisos || []).includes('RIDERS_MANAGE');
   const canDeleteRiders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role) || (currentUser.permisos || []).includes('RIDERS_MANAGE');
@@ -3975,7 +3984,8 @@ const ChatView = ({ currentUser, showToast, requestConfirm }) => {
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
   
-  const canSendMessages = (currentUser.permisos || []).includes('CHAT_SEND') || 
+  const canSendMessages = currentUser.role === ROLES.ADMIN || 
+    (currentUser.permisos || []).includes('CHAT_SEND') || 
     (!(currentUser.permisos) && [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.JEFE_CAT_APV, ROLES.APV].includes(currentUser.role));
   const canViewAllProjects = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER].includes(currentUser.role);
 
