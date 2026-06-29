@@ -13,6 +13,7 @@ const scriptProps = PropertiesService.getScriptProperties();
 const SPREADSHEET_ID = scriptProps.getProperty("SPREADSHEET_ID");
 const ESQUEMAS_MASTER_SECRET = scriptProps.getProperty("ESQUEMAS_MASTER_SECRET");
 const URL_PLATAFORMA = scriptProps.getProperty("URL_PLATAFORMA");
+const URL_CONDUCTOR = scriptProps.getProperty("URL_CONDUCTOR") || (URL_PLATAFORMA ? URL_PLATAFORMA.replace("esquemas-pro", "esquemas-driver") : "");
 
 function configurarCORS(salida) {
   return ContentService.createTextOutput(JSON.stringify(salida))
@@ -703,7 +704,7 @@ function doPost(e) {
 
     if (action === "enviarAvisoConductor") {
       // Envía email con enlace de confirmación
-      const linkConfirmar = URL_PLATAFORMA + "?acceptToken=" + data.payload.token;
+      const linkConfirmar = URL_CONDUCTOR + "?acceptToken=" + data.payload.token;
       let emailBody = "Estimado conductor " + data.payload.conductorName + ",\n\n";
       emailBody += "Se le ha asignado una ruta de transporte en Esquemas Pro.\n\n";
       emailBody += "Detalles de la Ruta:\n";
