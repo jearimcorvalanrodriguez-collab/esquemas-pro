@@ -185,6 +185,17 @@ function doPost(e) {
     const requester = data.payload ? data.payload.requesterEmail : null;
 
     // 🛡️ CONTROL DE ACCESOS EN EL BACKEND (SEC-01)
+    
+    // Evitar bypass de tokens vacíos para conductor (SEC-05)
+    const tokenDriverActions = ["updateTransportStatus", "loginConductor", "aceptarRuta"];
+    if (tokenDriverActions.includes(action)) {
+      const token = data.payload ? data.payload.token : null;
+      if (!token || String(token).trim() === "") {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: Token inválido o vacío." });
+      }
+    }
+
+    // Acciones administrativas de administración de usuarios (ADMIN)
     const adminActions = ["aprobarUsuario", "rechazarUsuario", "eliminarUsuario", "updateUserAdmin"];
     if (adminActions.includes(action)) {
       if (!verificarPermisoRequester(ss, requester, ["ADMIN"])) {
@@ -192,10 +203,27 @@ function doPost(e) {
       }
     }
 
+    // Acciones administrativas de proyectos e hitos (ADMIN, MANAGER, TOUR MANAGER)
     const managerActions = ["createProyecto", "updateProyectoStatus", "updateProyectoAsignaciones", "createHito", "deleteHito", "updateHitoAsignaciones"];
     if (managerActions.includes(action)) {
       if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER"])) {
         return configurarCORS({ status: "error", message: "ACCION RECHAZADA: Requiere rol ADMIN o MANAGER." });
+      }
+    }
+
+    // Acciones de administración de riders y setlists (ADMIN, MANAGER, TOUR MANAGER, JEFE CAT/APV, TEC. JEFE, ARTISTA)
+    const riderActions = ["createRider", "updateRider", "deleteRider"];
+    if (riderActions.includes(action)) {
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER", "JEFE CAT/APV", "TEC. JEFE", "ARTISTA"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: No autorizado para gestionar riders." });
+      }
+    }
+
+    // Acciones de administración de gastos (ADMIN, MANAGER, TOUR MANAGER, JEFE CAT/APV)
+    const expenseActions = ["createGasto", "deleteGasto"];
+    if (expenseActions.includes(action)) {
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER", "JEFE CAT/APV"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: No autorizado para gestionar gastos." });
       }
     }
 
@@ -395,6 +423,9 @@ function doPost(e) {
       }
 
       if (action === "getUsuarios") {
+        if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER", "JEFE CAT/APV", "TEC. JEFE", "APV/CATERING", "TRASLADO", "ARTISTA"])) {
+          return configurarCORS({ status: "error", message: "ACCION RECHAZADA: No autorizado." });
+        }
         const rows = sheetUsuarios.getDataRange().getValues();
         const usuarios = [];
         for (let i = 1; i < rows.length; i++) {
@@ -479,6 +510,9 @@ function doPost(e) {
     // 2. SECCIÓN PROYECTOS
     // ==========================================
     if (action === "getProyectos") {
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER", "JEFE CAT/APV", "TEC. JEFE", "APV/CATERING", "TRASLADO", "ARTISTA"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: No autorizado." });
+      }
       const sheet = ss.getSheetByName("Proyectos");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
       const proyectos = [];
@@ -535,6 +569,9 @@ function doPost(e) {
     // 3. SECCIÓN HITOS
     // ==========================================
     if (action === "getHitos") {
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER", "JEFE CAT/APV", "TEC. JEFE", "APV/CATERING", "TRASLADO", "ARTISTA"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: No autorizado." });
+      }
       const sheet = ss.getSheetByName("Hitos");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
       const hitos = [];
@@ -602,6 +639,9 @@ function doPost(e) {
     // 4. SECCIÓN CANAL DE ANUNCIOS / CHAT
     // ==========================================
     if (action === "getMensajes") {
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER", "JEFE CAT/APV", "TEC. JEFE", "APV/CATERING", "TRASLADO", "ARTISTA"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: No autorizado." });
+      }
       const sheet = ss.getSheetByName("Chat");
       if(!sheet) return configurarCORS({ status: "error", message: "Pestaña Chat no existe" });
       const rows = sheet.getDataRange().getValues();
@@ -680,6 +720,9 @@ function doPost(e) {
     // 5. SECCIÓN LOGÍSTICA / TRANSPORTES
     // ==========================================
     if (action === "getTransportes") {
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER", "JEFE CAT/APV", "TEC. JEFE", "APV/CATERING", "TRASLADO", "ARTISTA"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: No autorizado." });
+      }
       const sheet = ss.getSheetByName("Transportes");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
       const trans = [];
@@ -880,6 +923,9 @@ function doPost(e) {
     // 6. SECCIÓN RIDERS / STAGEPLOT
     // ==========================================
     if (action === "getRiders") {
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER", "JEFE CAT/APV", "TEC. JEFE", "APV/CATERING", "TRASLADO", "ARTISTA"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: No autorizado." });
+      }
       const sheet = ss.getSheetByName("Riders");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
       const riders = [];
@@ -917,6 +963,9 @@ function doPost(e) {
     // 7. SECCIÓN GASTOS Y PRESUPUESTOS
     // ==========================================
     if (action === "getGastos") {
+      if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER", "JEFE CAT/APV"])) {
+        return configurarCORS({ status: "error", message: "ACCION RECHAZADA: No autorizado." });
+      }
       let sheet = ss.getSheetByName("Gastos");
       if (!sheet) {
         sheet = ss.insertSheet("Gastos");
