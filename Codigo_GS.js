@@ -209,7 +209,7 @@ function doPost(e) {
     }
 
     // Acciones administrativas de proyectos e hitos (ADMIN, MANAGER, TOUR MANAGER)
-    const managerActions = ["createProyecto", "updateProyectoStatus", "updateProyectoAsignaciones", "createHito", "deleteHito", "updateHitoAsignaciones"];
+    const managerActions = ["createProyecto", "updateProyectoStatus", "updateProyectoAsignaciones", "createHito", "updateHito", "deleteHito", "updateHitoAsignaciones"];
     if (managerActions.includes(action)) {
       if (!verificarPermisoRequester(ss, requester, ["ADMIN", "MANAGER", "TOUR MANAGER"])) {
         return configurarCORS({ status: "error", message: "ACCION RECHAZADA: Requiere rol ADMIN o MANAGER." });
@@ -439,6 +439,17 @@ function doPost(e) {
               let isTempPassVal = rows[i][11] !== undefined ? rows[i][11].toString().trim().toLowerCase() : "false";
               let acceptedTermsVal = rows[i][12] !== undefined ? rows[i][12].toString().trim().toLowerCase() : "false";
 
+              let permisosParsed = [];
+              try {
+                if (rows[i][9]) {
+                  permisosParsed = JSON.parse(rows[i][9]);
+                } else {
+                  permisosParsed = getDefaultPermisos(ss, rows[i][4]);
+                }
+              } catch(e) {
+                permisosParsed = getDefaultPermisos(ss, rows[i][4]);
+              }
+
               usuarios.push({ 
                 id: rows[i][0], 
                 name: rows[i][1], 
@@ -447,7 +458,7 @@ function doPost(e) {
                 role: rows[i][4], 
                 status: rows[i][6], 
                 dieta: rows[i][8] || "OMNIVORA", 
-                permisos: JSON.parse(rows[i][9] || "[]"),
+                permisos: permisosParsed,
                 isTempPass: isTempPassVal === "true" || isTempPassVal === "1",
                 acceptedTerms: acceptedTermsVal === "true" || acceptedTermsVal === "1",
                 tempPassToken: tempPassToken
@@ -579,6 +590,7 @@ function doPost(e) {
       }
       const sheet = ss.getSheetByName("Hitos");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
+      const displayRows = sheet ? sheet.getDataRange().getDisplayValues() : [];
       const hitos = [];
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0]) {
@@ -588,8 +600,8 @@ function doPost(e) {
             id: rows[i][0],
             proyectoId: rows[i][1],
             title: rows[i][2],
-            date: rows[i][3],
-            time: rows[i][4],
+            date: displayRows[i][3],
+            time: displayRows[i][4],
             location: rows[i][5],
             status: rows[i][6],
             asignados: asignados
@@ -622,6 +634,22 @@ function doPost(e) {
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] == data.payload.id) {
           sheet.deleteRow(i + 1);
+          return configurarCORS({ status: "success" });
+        }
+      }
+      return configurarCORS({ status: "error", message: "Hito no encontrado" });
+    }
+
+    if (action === "updateHito") {
+      const sheet = ss.getSheetByName("Hitos");
+      if (!sheet) return configurarCORS({ status: "error", message: "Pestaña Hitos no existe." });
+      const rows = sheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][0] == data.payload.id) {
+          sheet.getRange(i + 1, 3).setValue(sanitizarEntrada(data.payload.title));
+          sheet.getRange(i + 1, 4).setValue(sanitizarEntrada(data.payload.date));
+          sheet.getRange(i + 1, 5).setValue(sanitizarEntrada(data.payload.time));
+          sheet.getRange(i + 1, 6).setValue(sanitizarEntrada(data.payload.location));
           return configurarCORS({ status: "success" });
         }
       }
@@ -730,6 +758,7 @@ function doPost(e) {
       }
       const sheet = ss.getSheetByName("Transportes");
       const rows = sheet ? sheet.getDataRange().getValues() : [];
+      const displayRows = sheet ? sheet.getDataRange().getDisplayValues() : [];
       const trans = [];
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][1]) {
@@ -737,8 +766,8 @@ function doPost(e) {
             id: rows[i][0], 
             token: rows[i][1], 
             title: rows[i][2], 
-            date: rows[i][3], 
-            time: rows[i][4], 
+            date: displayRows[i][3], 
+            time: displayRows[i][4], 
             origin: rows[i][5], 
             dest: rows[i][6], 
             status: rows[i][7], 
@@ -832,6 +861,7 @@ function doPost(e) {
     if (action === "loginConductor") {
       const sheet = ss.getSheetByName("Transportes");
       const rows = sheet.getDataRange().getValues();
+      const displayRows = sheet.getDataRange().getDisplayValues();
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][1] === data.payload.token) {
           return configurarCORS({ 
@@ -842,8 +872,8 @@ function doPost(e) {
               routeInfo: { 
                 token: rows[i][1], 
                 title: rows[i][2], 
-                date: rows[i][3], 
-                time: rows[i][4], 
+                date: displayRows[i][3], 
+                time: displayRows[i][4], 
                 origin: rows[i][5], 
                 dest: rows[i][6], 
                 status: rows[i][7],

@@ -38,6 +38,7 @@ export const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProjec
   const [form, setForm] = useState({ title: '', location: '', date: '', time: '' });
   const [assigningHito, setAssigningHito] = useState(null);
   const [directory, setDirectory] = useState([]);
+  const [editingHito, setEditingHito] = useState(null);
 
   const processHitos = (data) => {
     const projectHitos = data.filter(ev => compareProjectIds(ev.proyectoId, p.id) || compareProjectIds(ev.proyectoId, p.name));
@@ -142,15 +143,57 @@ export const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProjec
   const handleCreateHito = async (e) => {
     e.preventDefault(); 
     try {
-      const payload = { ...form, proyectoId: p.id };
-      const res = await apiFetch('createHito', payload);
-      if (res.status === 'success') {
-        showToast("Hito agendado."); setIsCreating(false); setForm({ title: '', location: '', date: '', time: '' }); 
-        clearCache('hitos'); fetchHitos(true);
+      if (editingHito) {
+        const payload = { ...form, id: editingHito.id };
+        const res = await apiFetch('updateHito', payload);
+        if (res.status === 'success') {
+          showToast("Hito actualizado."); 
+          setIsCreating(false); 
+          setEditingHito(null); 
+          setForm({ title: '', location: '', date: '', time: '' }); 
+          clearCache('hitos'); 
+          fetchHitos(true);
+        } else {
+          showToast("Error: " + res.message); 
+        }
       } else {
-        showToast("Error: " + res.message); 
+        const payload = { ...form, proyectoId: p.id };
+        const res = await apiFetch('createHito', payload);
+        if (res.status === 'success') {
+          showToast("Hito agendado."); 
+          setIsCreating(false); 
+          setForm({ title: '', location: '', date: '', time: '' }); 
+          clearCache('hitos'); 
+          fetchHitos(true);
+        } else {
+          showToast("Error: " + res.message); 
+        }
       }
-    } catch(e) { showToast("Error al crear hito."); }
+    } catch(e) { showToast("Error al procesar hito."); }
+  };
+
+  const handleEditClick = (event) => {
+    setEditingHito(event);
+    let formattedDate = '';
+    if (event.date) {
+      let dRaw = String(event.date).trim();
+      if (dRaw.includes('T')) dRaw = dRaw.split('T')[0];
+      
+      const matchISO = dRaw.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
+      if (matchISO) {
+        formattedDate = `${matchISO[1]}-${matchISO[2]}-${matchISO[3]}`;
+      } else {
+        const matchLoc = dRaw.match(/(\d{2})[-/](\d{2})[-/](\d{4})/);
+        if (matchLoc) formattedDate = `${matchLoc[3]}-${matchLoc[2]}-${matchLoc[1]}`;
+      }
+    }
+    setForm({
+      title: event.title || '',
+      location: event.location || '',
+      date: formattedDate,
+      time: event.time || ''
+    });
+    setIsCreating(true);
   };
 
   const handleDeleteHito = async (id) => {
@@ -259,7 +302,7 @@ export const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProjec
 
               {isCreating && (
                 <Card className="p-4 md:p-5 border-emerald-500 mb-6 bg-slate-900 shadow-xl">
-                  <h2 className="text-base font-bold text-white mb-3">Agendar Nuevo Hito</h2>
+                  <h2 className="text-base font-bold text-white mb-3">{editingHito ? 'Editar Hito' : 'Agendar Nuevo Hito'}</h2>
                   <form onSubmit={handleCreateHito} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
@@ -282,10 +325,17 @@ export const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProjec
                           <Button type="button" variant="secondary" icon={MapPin} onClick={captureGPS} title="Usar GPS" className="px-3 py-2 text-xs" />
                         </div>
                       </div>
-                      <div><label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Fecha</label><input required type="date" className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, date: e.target.value})} /></div>
-                      <div><label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Hora</label><input required type="time" className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, time: e.target.value})} /></div>
+                      <div><label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Fecha</label><input required type="date" value={form.date} className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, date: e.target.value})} /></div>
+                      <div><label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">Hora</label><input required type="time" value={form.time} className="w-full bg-slate-950 border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-emerald-500" onChange={e=>setForm({...form, time: e.target.value})} /></div>
                     </div>
-                    <div className="flex gap-2 pt-1"><Button variant="secondary" className="flex-1 py-2" onClick={()=>setIsCreating(false)}>Cancelar</Button><Button type="submit" className="flex-1 py-2">Guardar Hito</Button></div>
+                    <div className="flex gap-2 pt-1">
+                      <Button type="button" variant="secondary" className="flex-1 py-2" onClick={() => { setIsCreating(false); setEditingHito(null); setForm({ title: '', location: '', date: '', time: '' }); }}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" className="flex-1 py-2">
+                        {editingHito ? 'Guardar Cambios' : 'Guardar Hito'}
+                      </Button>
+                    </div>
                   </form>
                 </Card>
               )}
@@ -307,6 +357,7 @@ export const ProjectDetailsView = ({ currentUser, setCurrentView, selectedProjec
                        event={event} 
                        canManage={canManageHitos} 
                        handleDeleteHito={handleDeleteHito} 
+                       handleEditHito={handleEditClick} 
                        setAssigningHito={setAssigningHito} 
                        currentUser={currentUser} 
                        requestConfirm={requestConfirm} 

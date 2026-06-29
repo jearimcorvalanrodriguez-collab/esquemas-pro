@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, MapPin, Users, Hourglass } from 'lucide-react';
+import { Trash2, MapPin, Users, Hourglass, Edit3 } from 'lucide-react';
 import { Button } from './Button';
 
 const getEventStatus = (targetDate, currentTime) => {
@@ -20,7 +20,7 @@ const getEventStatus = (targetDate, currentTime) => {
   else return { border: 'border-emerald-500/50', bg: 'bg-emerald-500/10', dot: 'bg-emerald-500', text: 'Agendado', timeText, pulse: false, textClass: 'text-emerald-500' };
 };
 
-export const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito, currentUser, requestConfirm }) => {
+export const EventCard = ({ event, canManage, handleDeleteHito, handleEditHito, setAssigningHito, currentUser, requestConfirm }) => {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -61,7 +61,10 @@ export const EventCard = ({ event, canManage, handleDeleteHito, setAssigningHito
             <div className="flex items-start justify-between">
                <h3 className="text-sm font-bold text-white print:text-black">{event.title}</h3>
                {canManage && (
-                 <button onClick={() => requestConfirm("¿Eliminar Hito permanentemente?", () => handleDeleteHito(event.id))} className="text-slate-500 hover:text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity print:hidden"><Trash2 size={14}/></button>
+                 <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity print:hidden shrink-0">
+                   <button onClick={() => handleEditHito(event)} className="text-slate-500 hover:text-blue-400 transition-colors" title="Editar Hito"><Edit3 size={14}/></button>
+                   <button onClick={() => requestConfirm("¿Eliminar Hito permanentemente?", () => handleDeleteHito(event.id))} className="text-slate-500 hover:text-red-500 transition-colors" title="Eliminar Hito"><Trash2 size={14}/></button>
+                 </div>
                )}
             </div>
             <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300 print:text-blue-700 flex items-center gap-1 w-fit mt-0.5">
