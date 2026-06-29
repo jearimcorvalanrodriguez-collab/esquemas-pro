@@ -12,8 +12,17 @@
 const scriptProps = PropertiesService.getScriptProperties();
 const SPREADSHEET_ID = scriptProps.getProperty("SPREADSHEET_ID");
 const ESQUEMAS_MASTER_SECRET = scriptProps.getProperty("ESQUEMAS_MASTER_SECRET");
-const URL_PLATAFORMA = scriptProps.getProperty("URL_PLATAFORMA");
-const URL_CONDUCTOR = scriptProps.getProperty("URL_CONDUCTOR") || (URL_PLATAFORMA ? URL_PLATAFORMA.replace("esquemapps", "esquemas-driver") : "");
+let rawPlat = scriptProps.getProperty("URL_PLATAFORMA");
+if (rawPlat && rawPlat.indexOf("netlify") !== -1) rawPlat = "";
+const URL_PLATAFORMA = rawPlat || "https://jearimcorvalanrodriguez-collab.github.io/esquemapps/";
+
+let rawCond = scriptProps.getProperty("URL_CONDUCTOR");
+if (rawCond && rawCond.indexOf("netlify") !== -1) rawCond = "";
+const URL_CONDUCTOR = rawCond || "https://jearimcorvalanrodriguez-collab.github.io/esquemas-driver/";
+
+let rawArt = scriptProps.getProperty("URL_ARTISTA");
+if (rawArt && rawArt.indexOf("netlify") !== -1) rawArt = "";
+const URL_ARTISTA = rawArt || "https://jearimcorvalanrodriguez-collab.github.io/artist-gest/";
 
 function configurarCORS(salida) {
   return ContentService.createTextOutput(JSON.stringify(salida))
@@ -131,6 +140,13 @@ function enviarCorreoNotificacion(destinatario, nombre, mensaje, clave, rol, mos
     var styleBtn = "background-color:#059669; color:#ffffff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:bold; display:inline-block;";
 
     var finalUrl = URL_PLATAFORMA;
+    var cleanRol = rol ? String(rol).toUpperCase().trim() : "";
+    if (cleanRol.startsWith("ARTISTA")) {
+      finalUrl = URL_ARTISTA;
+    } else if (cleanRol.startsWith("TRASLADO")) {
+      finalUrl = URL_CONDUCTOR;
+    }
+
     if (clave) {
       finalUrl += "?email=" + encodeURIComponent(destinatario) + "&tempPass=" + encodeURIComponent(clave);
     }
