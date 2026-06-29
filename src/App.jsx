@@ -4916,7 +4916,7 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
               {createdArtist ? (
                 <div className="space-y-4 text-left animate-fade-in">
                   <div className="flex items-center gap-2.5 border-b border-slate-800 pb-3">
-                    <CheckCircle className="text-emerald-500" size={24} />
+                    <CheckCircle2 className="text-emerald-500" size={24} />
                     <h2 className="text-base md:text-lg font-bold text-white">¡Músico / Artista Creado con Éxito!</h2>
                   </div>
                   
