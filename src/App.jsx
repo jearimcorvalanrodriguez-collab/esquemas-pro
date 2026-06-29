@@ -3917,6 +3917,8 @@ const StaffDirectory = ({ currentUser, showToast, requestConfirm }) => {
   const [musSubRole, setMusSubRole] = useState('Voz Principal');
   const [createdArtist, setCreatedArtist] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [assignToProject, setAssignToProject] = useState(false);
+  const [inviteProjectId, setInviteProjectId] = useState('');
 
   const MUSICIAN_SUBROLES = [
     'Voz Principal',
@@ -3940,6 +3942,20 @@ const StaffDirectory = ({ currentUser, showToast, requestConfirm }) => {
         const resAprob = await apiFetch('aprobarUsuario', { email: musEmail });
         if(resAprob.status === 'success') {
           const tempPass = resAprob.tempPass;
+          
+          if (assignToProject && inviteProjectId) {
+            const proj = (proyectos || []).find(p => String(p.id) === String(inviteProjectId));
+            if (proj) {
+              const currentAsignados = Array.isArray(proj.asignados) ? [...proj.asignados] : [];
+              if (!currentAsignados.map(x => String(x).toLowerCase().trim()).includes(musEmail.toLowerCase().trim())) {
+                currentAsignados.push(musEmail.trim());
+                await apiFetch('updateProyectoAsignaciones', { id: proj.id, asignados: currentAsignados });
+                clearCache('proyectos');
+                if (typeof fetchProyectos === 'function') fetchProyectos(true);
+              }
+            }
+          }
+
           setCreatedArtist({
             name: musName,
             email: musEmail,
@@ -3947,6 +3963,8 @@ const StaffDirectory = ({ currentUser, showToast, requestConfirm }) => {
             tempPass: tempPass || 'Acceso ya existente o correo automático'
           });
           setMusName(''); setMusEmail(''); setMusPhone('+569'); 
+          setAssignToProject(false);
+          setInviteProjectId('');
           clearCache('usuarios');
           fetchDirectory(true);
         } else {
@@ -4227,6 +4245,43 @@ const StaffDirectory = ({ currentUser, showToast, requestConfirm }) => {
                             </select>
                           </div>
                         </div>
+
+                        {/* Asignar a un proyecto (Opcional) */}
+                        <div className="space-y-2 text-left pt-1 border-t border-slate-850">
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="checkbox" 
+                              id="assignToProjectMus" 
+                              checked={assignToProject} 
+                              onChange={e => {
+                                setAssignToProject(e.target.checked);
+                                if (!e.target.checked) setInviteProjectId('');
+                              }} 
+                              className="accent-blue-500 rounded bg-slate-950 border-slate-800 w-3.5 h-3.5 cursor-pointer"
+                            />
+                            <label htmlFor="assignToProjectMus" className="text-[11px] text-slate-400 font-bold cursor-pointer uppercase select-none">
+                              ¿Vincular a un proyecto técnico activo?
+                            </label>
+                          </div>
+
+                          {assignToProject && (
+                            <div className="animate-fadeIn">
+                              <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Seleccionar Proyecto Técnico</label>
+                              <select
+                                value={inviteProjectId}
+                                onChange={e => setInviteProjectId(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-xs text-white outline-none focus:border-blue-500"
+                                required
+                              >
+                                <option value="">-- Selecciona un Proyecto --</option>
+                                {(proyectos || []).map(p => (
+                                  <option key={p.id} value={p.id}>{p.name} ({p.client})</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+
                         <div className="flex gap-2 pt-2">
                           <Button variant="ghost" className="flex-1 bg-slate-850 py-2 text-xs" onClick={() => setShowCreateForm(false)}>
                             Cancelar
