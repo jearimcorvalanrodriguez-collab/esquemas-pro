@@ -1,14 +1,3 @@
-// =================================================================================
-// CÓDIGO.GS - CONFIGURACIÓN DEL BACKEND (GOOGLE APPS SCRIPT)
-// =================================================================================
-// Instrucciones de uso:
-// 1. Abre tu Google Sheet de base de datos.
-// 2. Ve a Extensiones > Apps Script.
-// 3. Reemplaza TODO el código existente por este archivo.
-// 4. Asegúrate de configurar las 3 constantes de abajo (SPREADSHEET_ID, ESQUEMAS_MASTER_SECRET, URL_PLATAFORMA).
-// 5. Guarda y haz clic en "Implementar" > "Nueva implementación" tipo Web App.
-// =================================================================================
-
 const scriptProps = PropertiesService.getScriptProperties();
 const SPREADSHEET_ID = scriptProps.getProperty("SPREADSHEET_ID");
 const ESQUEMAS_MASTER_SECRET = scriptProps.getProperty("ESQUEMAS_MASTER_SECRET");
