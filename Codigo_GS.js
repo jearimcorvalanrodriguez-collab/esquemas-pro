@@ -109,6 +109,9 @@ function getDefaultPermisos(ss, role) {
   if (role === "TRASLADO") {
     return ["TRANSPORT", "TRANSPORT_CREATE", "CHAT", "CHAT_SEND", "STAFF"];
   }
+  if (role === "ARTISTA") {
+    return ["DASHBOARD", "RIDERS"];
+  }
   // Técnico y otros roles por defecto (solo lectura)
   return ["DASHBOARD", "RIDERS", "TRANSPORT", "HITOS", "CHAT", "STAFF"];
 }

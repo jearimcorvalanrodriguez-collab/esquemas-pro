@@ -18,7 +18,8 @@ const ROLES = {
   JEFE_CAT_APV: 'JEFE CAT/APV',
   TECH: 'TÉCNICO',
   TRASLADO: 'TRASLADO',
-  APV: 'APV/CATERING'
+  APV: 'APV/CATERING',
+  ARTISTA: 'ARTISTA'
 };
 
 const PianoLoader = ({ size = 80, showLabel = true }) => {
@@ -4391,6 +4392,9 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
   const [invPhone, setInvPhone] = useState('+569');
   const [invRole, setInvRole] = useState(ROLES.TECH);
   const [editingUser, setEditingUser] = useState(null);
+  const [musName, setMusName] = useState('');
+  const [musEmail, setMusEmail] = useState('');
+  const [musPhone, setMusPhone] = useState('+569');
 
   const MODULOS = [
     { id: 'DASHBOARD', label: 'Ver Proyectos' },
@@ -4502,6 +4506,33 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
     setProcessingId(null);
   };
 
+  const handleMusicianInvite = async (e) => {
+    e.preventDefault(); setProcessingId('musician-inviting');
+    try {
+      const resSolicitud = await apiFetch('solicitarAcceso', { name: musName, email: musEmail, phone: musPhone, role: 'ARTISTA' });
+      if(resSolicitud.status === 'success') {
+        const resAprob = await apiFetch('aprobarUsuario', { email: musEmail });
+        if(resAprob.status === 'success') {
+          const tempPass = resAprob.tempPass;
+          if (tempPass) {
+            alert(`¡Músico/Artista Creado con Éxito!\n\nNombre: ${musName}\nRol: ARTISTA\nToken de Acceso Temporal: ${tempPass}\n\nPor favor, copia este token y envíaselo al músico para que ingrese en ARTIST-GEST.`);
+          } else {
+            showToast(`Acceso de artista creado. Credenciales enviadas a ${musEmail}`);
+          }
+          setMusName(''); setMusEmail(''); setMusPhone('+569'); setActiveTab('DIRECTORIO'); 
+          clearCache('usuarios');
+          fetchUsers(true);
+          if (refreshPendingCount) refreshPendingCount();
+        } else {
+          showToast(`Error al aprobar artista: ${resAprob.message}`);
+        }
+      } else {
+        showToast(`Error al crear solicitud de artista: ${resSolicitud.message}`);
+      }
+    } catch(e) { showToast("Error al invitar músico."); }
+    setProcessingId(null);
+  };
+
   const handleEditSave = async (e) => {
     e.preventDefault();
     setProcessingId('editing');
@@ -4566,6 +4597,14 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
         <Button variant={activeTab === 'DIRECTORIO' ? 'primary' : 'secondary'} onClick={() => setActiveTab('DIRECTORIO')} icon={Users}>Directorio</Button>
         <Button variant={activeTab === 'ROLES_CONFIG' ? 'primary' : 'secondary'} onClick={() => setActiveTab('ROLES_CONFIG')} icon={Shield}>Definición de Roles</Button>
         <Button variant={activeTab === 'INVITAR' ? 'primary' : 'secondary'} onClick={() => setActiveTab('INVITAR')} icon={UserPlus}>Invitar Staff</Button>
+        <Button 
+          variant={activeTab === 'CREAR_MUSICO' ? 'primary' : 'secondary'} 
+          onClick={() => setActiveTab('CREAR_MUSICO')} 
+          icon={Music} 
+          className={activeTab === 'CREAR_MUSICO' ? 'bg-blue-600 border-blue-500 hover:bg-blue-500' : 'border-blue-500/30 text-blue-400 hover:bg-blue-600/10'}
+        >
+          Crear Músico
+        </Button>
       </div>
       
       {fetchError ? (
@@ -4667,6 +4706,38 @@ const AdminPanel = ({ currentUser, showToast, requestConfirm, refreshPendingCoun
                 <div className="grid grid-cols-2 gap-2"><div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Correo</label><input type="email" value={invEmail} onChange={e=>setInvEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" required /></div><div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Teléfono</label><input type="tel" value={invPhone} onChange={e=>setInvPhone(e.target.value.replace(/[^0-9+]/g, ''))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500" required /></div></div>
                 <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Rol</label><select value={invRole} onChange={e=>setInvRole(e.target.value)} className="w-full max-w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-emerald-500 break-words">{Object.values(ROLES).map(r => <option key={r} value={r}>{r}</option>)}</select></div>
                 <Button type="submit" variant="primary" className="w-full py-2.5 md:py-3 text-sm md:text-base mt-2" disabled={processingId === 'inviting'} icon={UserCheck}>{processingId === 'inviting' ? 'Generando...' : 'Crear y Enviar'}</Button>
+              </form>
+            </Card>
+          )}
+          {activeTab === 'CREAR_MUSICO' && (
+            <Card className="max-w-xl mx-auto p-4 md:p-6 border-t-4 border-blue-500">
+              <div className="flex items-center gap-2 mb-3">
+                <Music className="text-blue-500" size={24} />
+                <h2 className="text-lg md:text-xl font-bold text-white text-left">Crear Acceso a Músico / Artista</h2>
+              </div>
+              <p className="text-xs text-slate-400 mb-4 text-left">Registra a un artista o miembro de la banda directamente. Al crearlo, la cuenta quedará aprobada automáticamente y podrá ingresar a su panel <b>Artist-Gest</b> con su token temporal.</p>
+              <form onSubmit={handleMusicianInvite} className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase text-left">Nombre Completo del Artista</label>
+                  <input type="text" value={musName} onChange={e=>setMusName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500" placeholder="Ej. Juan Pérez" required />
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-left">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Correo</label>
+                    <input type="email" value={musEmail} onChange={e=>setMusEmail(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500" placeholder="artista@correo.com" required />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Teléfono</label>
+                    <input type="tel" value={musPhone} onChange={e=>setMusPhone(e.target.value.replace(/[^0-9+]/g, ''))} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500" required />
+                  </div>
+                </div>
+                <div className="text-left">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Rol Asignado</label>
+                  <input type="text" value="ARTISTA" disabled className="w-full bg-slate-950 border border-slate-800 text-slate-500 rounded-lg p-2.5 text-sm font-bold cursor-not-allowed" />
+                </div>
+                <Button type="submit" variant="blue" className="w-full py-2.5 md:py-3 text-sm md:text-base mt-2 bg-blue-600 hover:bg-blue-500 border-blue-500" disabled={processingId === 'musician-inviting'} icon={Music}>
+                  {processingId === 'musician-inviting' ? 'Creando...' : 'Crear y Aprobar Artista'}
+                </Button>
               </form>
             </Card>
           )}
