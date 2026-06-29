@@ -1077,7 +1077,7 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
   const [email, setEmail] = useState(''); 
   const [pass, setPass] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const [driverToken, setDriverToken] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -1126,15 +1126,7 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
     setLoading(false);
   };
 
-  const handleDriverLogin = async (e) => {
-    e.preventDefault(); setError(''); setLoading(true);
-    try {
-      const data = await apiFetch('loginConductor', { token: driverToken.trim() });
-      if (data.status === 'success') { setCurrentUser(data.user); setCurrentView('CONDUCTOR_VIEW'); } 
-      else setError(data.message);
-    } catch (err) { setError("Error de red al verificar token."); }
-    setLoading(false);
-  };
+
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -1195,7 +1187,7 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
       <Card className="w-full max-w-md p-6 animate-slide-up border-slate-700/50">
         {mode !== 'REGISTER_SUCCESS' && (
           <div className="mb-4 text-center border-b border-slate-800 pb-3">
-            <h2 className="text-xl font-bold text-white">{mode === 'LOGIN' ? 'Iniciar Sesión' : mode === 'CONDUCTOR' ? 'Acceso Conductor' : mode === 'RECOVER' ? 'Recuperar Contraseña' : 'Solicitar Acceso'}</h2>
+            <h2 className="text-xl font-bold text-white">{mode === 'LOGIN' ? 'Iniciar Sesión' : mode === 'RECOVER' ? 'Recuperar Contraseña' : 'Solicitar Acceso'}</h2>
           </div>
         )}
         
@@ -1216,20 +1208,9 @@ const AuthRouter = ({ setCurrentUser, setCurrentView, showToast }) => {
               </div>
             </div>
             <Button type="submit" className="w-full py-2.5" disabled={loading}>{loading ? <Loader2 className="animate-spin"/> : 'Ingresar a Plataforma'}</Button>
-            <div className="border-t border-slate-800 pt-3 space-y-2 mt-3">
-              <Button type="button" variant="secondary" className="w-full bg-slate-800 text-blue-400 border-blue-900/50 hover:bg-slate-700 hover:text-blue-300 py-2.5" onClick={()=>setMode('CONDUCTOR')} icon={Truck}>Acceso Conductor Logística</Button>
-              <p className="text-center text-xs text-slate-400 mt-3">¿No eres parte del Crew aún? <button type="button" onClick={()=>setMode('REGISTER')} className="text-emerald-500 font-bold hover:underline">Solicitar Acceso</button></p>
+            <div className="border-t border-slate-800 pt-3 mt-3">
+              <p className="text-center text-xs text-slate-400">¿No eres parte del Crew aún? <button type="button" onClick={()=>setMode('REGISTER')} className="text-emerald-500 font-bold hover:underline">Solicitar Acceso</button></p>
             </div>
-          </form>
-        )}
-
-        {mode === 'CONDUCTOR' && (
-          <form onSubmit={handleDriverLogin} className="space-y-4">
-            {error && <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-xs p-2.5 rounded-lg flex items-center gap-2"><AlertCircle size={14} /><span>{error}</span></div>}
-            <p className="text-xs text-slate-400 text-center">Ingresa el Token de Ruta que te envió producción (Ej: TR-1234).</p>
-            <div><label className="block text-xs font-bold text-slate-400 mb-1">Token de Ruta</label><input type="text" value={driverToken} onChange={e=>setDriverToken(e.target.value.toUpperCase())} className="w-full bg-slate-900 border border-blue-500/50 rounded-lg p-2.5 text-white text-center font-mono text-lg tracking-widest focus:border-blue-400 outline-none" placeholder="TR-XXXX" required /></div>
-            <Button type="submit" className="w-full py-2.5" variant="blue" disabled={loading} icon={Truck}>{loading ? <Loader2 className="animate-spin"/> : 'Iniciar Ruta'}</Button>
-            <p className="text-center text-xs text-slate-400 mt-3"><button type="button" onClick={()=>setMode('LOGIN')} className="text-emerald-500 font-bold hover:underline">Volver al Login de Crew</button></p>
           </form>
         )}
 
@@ -1804,197 +1785,7 @@ const TransportDetailsView = ({ currentUser, setCurrentView, showToast }) => {
   );
 };
 
-const ConductorView = ({ currentUser, showToast }) => {
-  const [routeInfo, setRouteInfo] = useState(currentUser.routeInfo || {});
-  const [loading, setLoading] = useState(false);
 
-  const updateStatus = async (newStatus) => {
-    setLoading(true);
-    try {
-      const res = await apiFetch('updateTransportStatus', { token: routeInfo.token, newStatus });
-      if (res.status === 'success') {
-        setRouteInfo({...routeInfo, status: newStatus});
-        showToast(`Estado actualizado a ${newStatus}`);
-        clearCache('transportes');
-        
-        let alertText = '';
-        if (newStatus === 'COMENZADO') {
-          alertText = `🚐 [Logística] El conductor ha comenzado la preparación/ruta "${routeInfo.title}" (Token: ${routeInfo.token}).`;
-        } else if (newStatus === 'EN VIAJE') {
-          alertText = `🚐 [Logística] El conductor ha iniciado el viaje para la ruta "${routeInfo.title}". ¡En camino!`;
-        } else if (newStatus === 'LLEGADO') {
-          alertText = `📢 [AVISO LLEGADA] 🚐 ¡El conductor de la ruta "${routeInfo.title}" ha LLEGADO al punto de destino/espera!`;
-        } else if (newStatus === 'FINALIZADO') {
-          alertText = `🚐 [Logística] La ruta de transporte "${routeInfo.title}" ha finalizado con éxito.`;
-        }
-
-        if (alertText && routeInfo.proyectoId) {
-          try {
-            await apiFetch('sendMensaje', {
-              proyectoId: routeInfo.proyectoId,
-              sender: '🚐 Transporte',
-              role: 'LOGISTICA',
-              text: alertText,
-              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            });
-            clearCache('chat');
-          } catch(e) {
-            console.error("Error al enviar mensaje de notificación de transporte", e);
-          }
-        }
-      } else {
-        showToast(`Error: ${res.message}`);
-      }
-    } catch(e) { 
-      showToast("Error al actualizar estado."); 
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div className="p-4 max-w-lg mx-auto animate-fade-in mt-4">
-      <Card className="p-6 border-blue-500/50">
-        <h2 className="text-xl font-black text-white mb-2">{routeInfo.title}</h2>
-        
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-col justify-center text-left">
-             <span className="text-[10px] text-slate-500 uppercase font-bold mb-1">Token Ruta</span>
-             <span className="font-mono text-emerald-400 font-bold tracking-widest text-base">{routeInfo.token}</span>
-          </div>
-          <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex flex-col justify-center text-left">
-             <span className="text-[10px] text-slate-500 uppercase font-bold mb-1">Estado Actual</span>
-             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-center border ${
-               routeInfo.status === 'PENDING' || routeInfo.status === 'PENDIENTE' ? 'bg-slate-800 text-slate-400 border-slate-700' :
-               routeInfo.status === 'COMENZADO' ? 'bg-indigo-950 text-indigo-400 border-indigo-900/50' :
-               routeInfo.status === 'EN VIAJE' || routeInfo.status === 'EN RUTA' ? 'bg-blue-950 text-blue-400 border-blue-900/50' :
-               routeInfo.status === 'LLEGADO' ? 'bg-emerald-950 text-emerald-400 border-emerald-900/50' :
-               routeInfo.status === 'FINALIZADO' ? 'bg-slate-900 text-slate-500 border-slate-800' :
-               'bg-slate-800 text-slate-400'
-             }`}>
-               {routeInfo.status || 'PENDIENTE'}
-             </span>
-          </div>
-        </div>
-
-        <div className="space-y-3 text-sm text-slate-300 mb-6 text-left">
-          <p className="flex items-center gap-2"><Calendar size={16} className="text-blue-400"/> Fecha: {routeInfo.date} a las {routeInfo.time}</p>
-          
-          <div className="p-4 bg-slate-900 rounded-xl border border-slate-800 space-y-4">
-             {/* Origen */}
-             <div className="relative pl-6 pb-2">
-               <div className="absolute left-1.5 top-1.5 bottom-0 w-0.5 bg-blue-500/50"></div>
-               <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center border-2 border-slate-900">
-                 <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-               </div>
-               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Inicio (Origen)</p>
-               <p className="font-bold text-white text-sm leading-snug">{routeInfo.origin}</p>
-               <div className="flex gap-2 mt-1">
-                 <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeInfo.origin)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                   <MapIcon size={10}/> Google Maps
-                 </a>
-                 <a href={`https://waze.com/ul?q=${encodeURIComponent(routeInfo.origin)}&navigate=yes`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                   <Navigation size={10}/> Waze
-                 </a>
-               </div>
-             </div>
-
-             {/* Paradas Intermedias */}
-             {routeInfo.paradas && routeInfo.paradas.length > 0 && routeInfo.paradas.map((stop, sIdx) => (
-               <div key={sIdx} className="relative pl-6 pb-2">
-                 <div className="absolute left-1.5 top-1.5 bottom-0 w-0.5 bg-blue-500/50"></div>
-                 <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-amber-500 flex items-center justify-center border-2 border-slate-900">
-                   <span className="w-1.5 h-1.5 rounded-full bg-slate-950"></span>
-                 </div>
-                 <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Parada #{sIdx + 1}</p>
-                 <p className="font-bold text-slate-300 text-sm leading-snug">{stop}</p>
-                 <div className="flex gap-2 mt-1">
-                   <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                     <MapIcon size={10}/> Google Maps
-                   </a>
-                   <a href={`https://waze.com/ul?q=${encodeURIComponent(stop)}&navigate=yes`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                     <Navigation size={10}/> Waze
-                   </a>
-                 </div>
-               </div>
-             ))}
-
-             {/* Destino */}
-             <div className="relative pl-6">
-               <div className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-emerald-500 flex items-center justify-center border-2 border-slate-900">
-                 <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-               </div>
-               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Llegada (Destino)</p>
-               <p className="font-bold text-white text-sm leading-snug">{routeInfo.dest}</p>
-               <div className="flex gap-2 mt-1">
-                 <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeInfo.dest)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                   <MapIcon size={10}/> Google Maps
-                 </a>
-                 <a href={`https://waze.com/ul?q=${encodeURIComponent(routeInfo.dest)}&navigate=yes`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700 text-blue-400 px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                   <Navigation size={10}/> Waze
-                 </a>
-               </div>
-             </div>
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <a 
-            href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(routeInfo.origin)}&destination=${encodeURIComponent(routeInfo.dest)}&waypoints=${encodeURIComponent((routeInfo.paradas || []).join('|'))}`} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm shadow-lg shadow-emerald-950/20"
-          >
-            <MapIcon size={16}/> Iniciar Ruta Completa (Google Maps)
-          </a>
-        </div>
-        
-        <div className="space-y-3">
-          <p className="text-xs text-slate-400 uppercase font-bold text-center">Actualizar Estado</p>
-          
-          <Button 
-            variant="secondary" 
-            className="w-full py-3 flex justify-center items-center gap-2" 
-            onClick={() => updateStatus('COMENZADO')} 
-            disabled={loading || routeInfo.status === 'COMENZADO' || routeInfo.status === 'FINALIZADO'}
-            icon={Play}
-          >
-            Comenzar Ruta
-          </Button>
-
-          <Button 
-            variant="blue" 
-            className="w-full py-3 flex justify-center items-center gap-2" 
-            onClick={() => updateStatus('EN VIAJE')} 
-            disabled={loading || routeInfo.status === 'EN VIAJE' || routeInfo.status === 'FINALIZADO'}
-            icon={Truck}
-          >
-            Comienzo Viaje
-          </Button>
-
-          <Button 
-            variant="primary" 
-            className="w-full py-3 flex justify-center items-center gap-2" 
-            onClick={() => updateStatus('LLEGADO')} 
-            disabled={loading || routeInfo.status === 'LLEGADO' || routeInfo.status === 'FINALIZADO'}
-            icon={MapPin}
-          >
-            ¡Llegué! (Avisar a equipo)
-          </Button>
-
-          <Button 
-            variant="danger" 
-            className="w-full py-3 flex justify-center items-center gap-2" 
-            onClick={() => updateStatus('FINALIZADO')} 
-            disabled={loading || routeInfo.status === 'FINALIZADO'}
-            icon={CheckCircle2}
-          >
-            Fin de Ruta
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-};
 
 const ExpensesView = ({ currentUser, showToast, requestConfirm, selectedProject, setSelectedProject }) => {
   const [proyectos, setProyectos] = useState([]);
@@ -4985,32 +4776,7 @@ export default function App() {
     }
   }, [selectedProject]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const acceptToken = params.get('acceptToken');
-    if (acceptToken) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      const acceptRoute = async () => {
-        try {
-          const res = await apiFetch('aceptarRuta', { token: acceptToken });
-          if (res.status === 'success') {
-            showToast(`¡Ruta ${acceptToken} Aceptada con Éxito!`);
-          }
-          // Iniciar sesión automático del conductor a través del Token
-          const loginRes = await apiFetch('loginConductor', { token: acceptToken });
-          if (loginRes.status === 'success') {
-            setCurrentUser(loginRes.user);
-            setCurrentView('CONDUCTOR_VIEW');
-          } else {
-            showToast(`Error al loguear conductor: ${loginRes.message}`);
-          }
-        } catch(e) {
-          showToast("Error de conexión al procesar la ruta.");
-        }
-      };
-      acceptRoute();
-    }
-  }, []);
+
 
   const showToast = (message) => {
     setToastMessage(message);
@@ -5032,7 +4798,7 @@ export default function App() {
 
   const getMenuOptions = () => {
     if (!effectiveUser) return [];
-    if (effectiveUser.role === 'CONDUCTOR') return [{ id: 'CONDUCTOR_VIEW', label: 'Mi Ruta', icon: Truck }, { id: 'LOGOUT', label: 'Salir', icon: LogOut }];
+
 
     const options = [
       { id: 'DASHBOARD', label: 'Proyectos', icon: Navigation }
@@ -5093,7 +4859,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'CONDUCTOR') {
+    if (currentUser) {
       fetchDirectoryGlobal();
       
       const disclaimerKey = `disclaimer_${currentUser.email}`;
@@ -5142,54 +4908,7 @@ export default function App() {
     </>
   );
   
-  if (effectiveUser.role === 'CONDUCTOR') {
-    return (
-      <div className="min-h-screen bg-slate-950 font-sans">
-        {toastMessage && <div className="fixed top-4 right-4 z-[300] bg-blue-500 text-white px-3 md:px-4 py-2.5 md:py-3 rounded-lg shadow-lg flex items-center gap-2.5 animate-fade-in"><CheckCircle2 size={18} /><span className="font-bold text-xs md:text-sm">{toastMessage}</span></div>}
-        
-        {currentUser && (currentUser.role === ROLES.ADMIN || currentUser.realRole === ROLES.ADMIN) && (
-          <div className="bg-slate-900 border-b border-amber-500/50 p-2 px-4 text-xs text-white flex flex-wrap items-center justify-between gap-2 shadow-md z-[100] print:hidden">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-amber-500"></span>
-              <span className="font-bold text-amber-500 uppercase tracking-wider font-sans">Modo Simulación de Rol</span>
-              <span className="text-slate-400">| Rol real: ADMIN</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <select 
-                value={simulatedRole || currentUser.role} 
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === currentUser.role) setSimulatedRole(null);
-                  else setSimulatedRole(val);
-                }}
-                className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-xs text-white outline-none focus:border-amber-500 cursor-pointer"
-              >
-                <option value={currentUser.role}>ADMIN (Original)</option>
-                {Object.values(ROLES).filter(r => r !== 'ADMIN').map(r => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-                <option value="CONDUCTOR">CONDUCTOR</option>
-              </select>
-              {simulatedRole && (
-                <button 
-                  onClick={() => setSimulatedRole(null)} 
-                  className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-2 py-1 rounded text-[10px] transition-colors"
-                >
-                  Restablecer
-                </button>
-              )}
-            </div>
-          </div>
-        )}
 
-        <div className="p-3 md:p-4 flex justify-between items-center bg-slate-900 border-b border-slate-800">
-          <div className="flex items-center gap-2"><Truck className="text-blue-500" size={20}/><span className="text-white font-bold tracking-widest text-xs md:text-sm">CONDUCTOR</span></div>
-          <Button variant="ghost" className="text-red-400 py-1.5 px-3 text-xs md:text-sm" onClick={() => setCurrentUser(null)} icon={LogOut}>Salir</Button>
-        </div>
-        <ConductorView currentUser={effectiveUser} showToast={showToast} />
-      </div>
-    );
-  }
 
   const menuOptions = getMenuOptions();
 
@@ -5216,7 +4935,7 @@ export default function App() {
               {Object.values(ROLES).filter(r => r !== 'ADMIN').map(r => (
                 <option key={r} value={r}>{r}</option>
               ))}
-              <option value="CONDUCTOR">CONDUCTOR</option>
+
             </select>
             {simulatedRole && (
               <button 
