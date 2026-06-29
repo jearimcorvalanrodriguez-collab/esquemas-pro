@@ -64,8 +64,9 @@ function verificarPermisoRequester(ss, requesterEmail, rolesPermitidos) {
   const rows = sheetUsuarios.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][2].toString().trim().toLowerCase() === requesterEmail.trim().toLowerCase() && rows[i][6] === "ACTIVO") {
-      const userRole = rows[i][4];
-      return rolesPermitidos.includes(userRole);
+      const fullRole = rows[i][4] ? rows[i][4].toString() : "";
+      const baseRole = fullRole.split(":")[0].trim().toUpperCase();
+      return rolesPermitidos.includes(baseRole) || rolesPermitidos.includes(fullRole);
     }
   }
   return false;
@@ -73,12 +74,14 @@ function verificarPermisoRequester(ss, requesterEmail, rolesPermitidos) {
 
 // Permisos por defecto segun el rol
 function getDefaultPermisos(ss, role) {
+  const cleanRole = role ? role.toString().split(":")[0].trim().toUpperCase() : "";
   try {
     let sheet = ss.getSheetByName("RolesConfig");
     if (sheet) {
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
-        if (rows[i][0] === role && rows[i][1]) {
+        const rowRole = rows[i][0] ? rows[i][0].toString().split(":")[0].trim().toUpperCase() : "";
+        if (rowRole === cleanRole && rows[i][1]) {
           try {
             return JSON.parse(rows[i][1]);
           } catch(e) {}
@@ -88,28 +91,28 @@ function getDefaultPermisos(ss, role) {
   } catch(e) {}
 
   // Fallback to hardcoded defaults (updated with new granular permissions)
-  if (role === "ADMIN") {
+  if (cleanRole === "ADMIN") {
     return ["DASHBOARD", "PROJECTS_MANAGE", "PROJECT_ASSIGN", "PROJECT_STATUS", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "TRANSPORT_EDIT", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF", "ADMIN_PANEL", "EXPENSES", "EXPENSES_MANAGE"];
   }
-  if (role === "MANAGER") {
+  if (cleanRole === "MANAGER") {
     return ["DASHBOARD", "PROJECTS_MANAGE", "PROJECT_ASSIGN", "PROJECT_STATUS", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "TRANSPORT_EDIT", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF", "EXPENSES", "EXPENSES_MANAGE"];
   }
-  if (role === "TOUR MANAGER") {
+  if (cleanRole === "TOUR MANAGER") {
     return ["DASHBOARD", "PROJECTS_MANAGE", "PROJECT_ASSIGN", "PROJECT_STATUS", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "TRANSPORT_EDIT", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF", "EXPENSES"];
   }
-  if (role === "JEFE CAT/APV") {
+  if (cleanRole === "JEFE CAT/APV" || cleanRole === "JEFE CAT_APV") {
     return ["DASHBOARD", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF", "EXPENSES"];
   }
-  if (role === "TEC. JEFE") {
+  if (cleanRole === "TEC. JEFE" || cleanRole === "TEC_JEFE") {
     return ["DASHBOARD", "RIDERS", "RIDERS_MANAGE", "TRANSPORT", "TRANSPORT_CREATE", "HITOS", "HITOS_MANAGE", "CHAT", "CHAT_SEND", "STAFF"];
   }
-  if (role === "APV/CATERING") {
+  if (cleanRole === "APV/CATERING" || cleanRole === "APV") {
     return ["DASHBOARD", "RIDERS", "TRANSPORT", "HITOS", "CHAT", "CHAT_SEND", "STAFF"];
   }
-  if (role === "TRASLADO") {
+  if (cleanRole === "TRASLADO") {
     return ["TRANSPORT", "TRANSPORT_CREATE", "CHAT", "CHAT_SEND", "STAFF"];
   }
-  if (role === "ARTISTA") {
+  if (cleanRole === "ARTISTA") {
     return ["DASHBOARD", "RIDERS"];
   }
   // Técnico y otros roles por defecto (solo lectura)

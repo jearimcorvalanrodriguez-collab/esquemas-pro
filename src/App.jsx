@@ -3914,14 +3914,28 @@ const StaffDirectory = ({ currentUser, showToast, requestConfirm }) => {
   const [musName, setMusName] = useState('');
   const [musEmail, setMusEmail] = useState('');
   const [musPhone, setMusPhone] = useState('+569');
+  const [musSubRole, setMusSubRole] = useState('Voz Principal');
   const [createdArtist, setCreatedArtist] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+
+  const MUSICIAN_SUBROLES = [
+    'Voz Principal',
+    'Baterista',
+    'Bajista',
+    'Guitarrista',
+    'Pianista / Tecladista',
+    'Percusionista',
+    'Corista',
+    'Vientos',
+    'DJ / Sampler',
+    'Director Musical'
+  ];
 
   const handleMusicianInvite = async (e) => {
     e.preventDefault(); 
     setProcessingId('musician-inviting');
     try {
-      const resSolicitud = await apiFetch('solicitarAcceso', { name: musName, email: musEmail, phone: musPhone, role: 'ARTISTA' });
+      const resSolicitud = await apiFetch('solicitarAcceso', { name: musName, email: musEmail, phone: musPhone, role: 'ARTISTA: ' + musSubRole });
       if(resSolicitud.status === 'success') {
         const resAprob = await apiFetch('aprobarUsuario', { email: musEmail });
         if(resAprob.status === 'success') {
@@ -4004,7 +4018,7 @@ const StaffDirectory = ({ currentUser, showToast, requestConfirm }) => {
       }
 
       const activeUsers = users.filter(u => u.status === 'ACTIVO' && u.email !== currentUser.email);
-      const artists = users.filter(u => u.role === 'ARTISTA');
+      const artists = users.filter(u => u.role && (u.role === 'ARTISTA' || u.role.startsWith('ARTISTA:')));
       setAllArtists(artists);
       const canSeeEveryone = [ROLES.ADMIN, ROLES.MANAGER, ROLES.TOUR_MANAGER, ROLES.TEC_JEFE, ROLES.JEFE_CAT_APV, ROLES.APV].includes(currentUser.role);
       
@@ -4195,9 +4209,23 @@ const StaffDirectory = ({ currentUser, showToast, requestConfirm }) => {
                             <input type="tel" value={musPhone} onChange={e=>setMusPhone(e.target.value.replace(/[^0-9+]/g, ''))} className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 text-xs text-white outline-none focus:border-blue-500" required />
                           </div>
                         </div>
-                        <div className="text-left">
-                          <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Rol Asignado</label>
-                          <input type="text" value="ARTISTA" disabled className="w-full bg-slate-950 border border-slate-850 text-slate-500 rounded p-2.5 text-xs font-bold cursor-not-allowed" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Rol Asignado</label>
+                            <input type="text" value="ARTISTA" disabled className="w-full bg-slate-950 border border-slate-850 text-slate-500 rounded p-2.5 text-xs font-bold cursor-not-allowed" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase text-left">Rol de Músico / Instrumento</label>
+                            <select 
+                              value={musSubRole} 
+                              onChange={e => setMusSubRole(e.target.value)} 
+                              className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 text-xs text-white outline-none focus:border-blue-500"
+                            >
+                              {MUSICIAN_SUBROLES.map(role => (
+                                <option key={role} value={role}>{role}</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                         <div className="flex gap-2 pt-2">
                           <Button variant="ghost" className="flex-1 bg-slate-850 py-2 text-xs" onClick={() => setShowCreateForm(false)}>
