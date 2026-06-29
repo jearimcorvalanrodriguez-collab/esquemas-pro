@@ -13,7 +13,7 @@ const scriptProps = PropertiesService.getScriptProperties();
 const SPREADSHEET_ID = scriptProps.getProperty("SPREADSHEET_ID");
 const ESQUEMAS_MASTER_SECRET = scriptProps.getProperty("ESQUEMAS_MASTER_SECRET");
 const URL_PLATAFORMA = scriptProps.getProperty("URL_PLATAFORMA");
-const URL_CONDUCTOR = scriptProps.getProperty("URL_CONDUCTOR") || (URL_PLATAFORMA ? URL_PLATAFORMA.replace("esquemas-pro", "esquemas-driver") : "");
+const URL_CONDUCTOR = scriptProps.getProperty("URL_CONDUCTOR") || (URL_PLATAFORMA ? URL_PLATAFORMA.replace("esquemapps", "esquemas-driver") : "");
 
 function configurarCORS(salida) {
   return ContentService.createTextOutput(JSON.stringify(salida))
